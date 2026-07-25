@@ -10,6 +10,8 @@ import { applyBodyPolicy } from './body-policy';
 import { normalizeEvidence } from './evidence';
 import type { RetrievedContent } from './har-types';
 
+const MAX_HAR_COLLECTION_ITEMS = 10_000;
+
 function ownData(value: unknown, key: string): unknown {
   if (value === null || typeof value !== 'object') return undefined;
   try {
@@ -32,10 +34,24 @@ function stringValue(value: unknown): string | undefined {
   return typeof value === 'string' ? value : undefined;
 }
 
+function boundedArrayLength(value: unknown): number | undefined {
+  try {
+    if (!Array.isArray(value)) return undefined;
+  } catch {
+    return undefined;
+  }
+  const length = finiteNonNegative(ownData(value, 'length'));
+  return length === undefined
+    ? undefined
+    : Math.min(Math.floor(length), MAX_HAR_COLLECTION_ITEMS);
+}
+
 function normalizeHeaders(value: unknown): readonly Header[] {
-  if (!Array.isArray(value)) return [];
+  const length = boundedArrayLength(value);
+  if (length === undefined) return [];
   const headers: Header[] = [];
-  for (const item of value) {
+  for (let index = 0; index < length; index += 1) {
+    const item = ownData(value, String(index));
     const name = stringValue(ownData(item, 'name'));
     const headerValue = stringValue(ownData(item, 'value'));
     if (name !== undefined && headerValue !== undefined) {
@@ -57,10 +73,12 @@ function requestBody(request: unknown, limit: number): BodyContent {
     );
   }
   const params = ownData(postData, 'params');
-  if (!Array.isArray(params)) return applyBodyPolicy(undefined, 0, limit);
+  const length = boundedArrayLength(params);
+  if (length === undefined) return applyBodyPolicy(undefined, 0, limit);
 
   const form = new URLSearchParams();
-  for (const parameter of params) {
+  for (let index = 0; index < length; index += 1) {
+    const parameter = ownData(params, String(index));
     const name = stringValue(ownData(parameter, 'name'));
     const value = stringValue(ownData(parameter, 'value'));
     if (name !== undefined && value !== undefined) form.append(name, value);
@@ -94,13 +112,16 @@ function timing(entry: unknown): RequestTiming {
     sendMs?: number;
     waitMs?: number;
     receiveMs?: number;
-  } = {
-    totalMs: finiteNonNegative(ownData(entry, 'time')) ?? 0,
-  };
+  } = { totalMs: 0 };
+  let componentTotal = 0;
   for (const [harField, normalizedField] of map) {
     const value = finiteNonNegative(ownData(source, harField));
-    if (value !== undefined) output[normalizedField] = value;
+    if (value !== undefined) {
+      output[normalizedField] = value;
+      componentTotal += value;
+    }
   }
+  output.totalMs = finiteNonNegative(ownData(entry, 'time')) ?? componentTotal;
   return output as RequestTiming;
 }
 
@@ -131,6 +152,14 @@ function retrievedContent(
   };
 }
 
+function deepFreeze<T>(value: T): T {
+  if (value !== null && typeof value === 'object' && !Object.isFrozen(value)) {
+    for (const child of Object.values(value)) deepFreeze(child);
+    Object.freeze(value);
+  }
+  return value;
+}
+
 /**
  * Trusted DTO boundary for redaction. Every field is copied from the HAR
  * object; no Chrome object, vendor object, or accessor escapes this function.
@@ -146,15 +175,12 @@ export function normalizeObservation(
   const method = stringValue(ownData(request, 'method')) ?? 'GET';
   const url = stringValue(ownData(request, 'url')) ?? '';
   const responseMime = stringValue(ownData(responseContent, 'mimeType'));
-  const declaredSize =
-    finiteNonNegative(ownData(response, 'bodySize')) ??
-    finiteNonNegative(ownData(responseContent, 'bodySize')) ??
-    finiteNonNegative(ownData(responseContent, 'size')) ??
-    0;
+  const declaredSize = finiteNonNegative(ownData(responseContent, 'size')) ?? 0;
   const content = retrievedContent(ownData(observation, 'content'), responseMime);
   const observedAt = finiteNonNegative(ownData(observation, 'observedAt')) ?? 0;
+  const statusText = stringValue(ownData(response, 'statusText'));
 
-  return {
+  return deepFreeze({
     id: `${method}:${url}:${observedAt}`,
     url,
     method,
@@ -165,13 +191,11 @@ export function normalizeObservation(
     },
     response: {
       status: finiteNonNegative(ownData(response, 'status')) ?? 0,
-      ...(stringValue(ownData(response, 'statusText')) === undefined
-        ? {}
-        : { statusText: stringValue(ownData(response, 'statusText'))! }),
+      ...(statusText === undefined ? {} : { statusText }),
       headers: normalizeHeaders(ownData(response, 'headers')),
       body: applyBodyPolicy(content, declaredSize, limits.maxBodyBytes),
     },
     timing: timing(entry),
     evidence: normalizeEvidence(entry, response),
-  };
+  });
 }

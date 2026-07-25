@@ -33,7 +33,7 @@ describe('normalizeObservation', () => {
 
   it('preserves metadata when content retrieval fails', () => {
     const request = normalizeObservation(
-      observation({ response: { content: { bodySize: 99 } } }),
+      observation({ response: { content: { size: 99 } } }),
       DEFAULT_LIMITS,
     );
 
@@ -187,6 +187,139 @@ describe('normalizeObservation', () => {
       },
       timing: { totalMs: 0 },
       evidence: {},
+    });
+  });
+
+  it('uses decoded content size before compressed transport body size', () => {
+    const request = normalizeObservation(
+      {
+        ...observation({
+          response: {
+            bodySize: 3,
+            content: { mimeType: 'text/plain', size: 8, compression: 5 },
+          },
+        }),
+        content: { text: 'abcdefgh', encoding: '' },
+      },
+      DEFAULT_LIMITS,
+    );
+
+    expect(request.response.body).toMatchObject({
+      state: 'available',
+      size: 8,
+      capturedSize: 8,
+      text: 'abcdefgh',
+    });
+  });
+
+  it('sums retained timing components when HAR total time is invalid', () => {
+    const request = normalizeObservation(
+      observation({
+        time: Number.NaN,
+        timings: { blocked: -1, dns: 2, connect: 3, send: 4, wait: 5, receive: 6 },
+      }),
+      DEFAULT_LIMITS,
+    );
+
+    expect(request.timing).toEqual({
+      totalMs: 20,
+      dnsMs: 2,
+      connectMs: 3,
+      sendMs: 4,
+      waitMs: 5,
+      receiveMs: 6,
+    });
+  });
+
+  it('does not invoke header array getters or traverse beyond its item bound', () => {
+    const headers = new Array<unknown>(10_001);
+    Object.defineProperty(headers, '10000', {
+      enumerable: true,
+      get() {
+        throw new Error('out-of-bound header read');
+      },
+    });
+
+    const request = normalizeObservation(
+      observation({ response: { headers } }),
+      DEFAULT_LIMITS,
+    );
+
+    expect(request.response.headers).toEqual([]);
+  });
+
+  it('does not invoke post-data parameter getters', () => {
+    const params = new Array<unknown>(1);
+    Object.defineProperty(params, '0', {
+      enumerable: true,
+      get() {
+        throw new Error('parameter getter invoked');
+      },
+    });
+
+    const request = normalizeObservation(
+      observation({ request: { postData: { params } } }),
+      DEFAULT_LIMITS,
+    );
+
+    expect(request.request.body).toMatchObject({ state: 'available', text: '' });
+  });
+
+  it('treats revoked array proxies as unavailable collections', () => {
+    const headerProxy = Proxy.revocable([], {});
+    const parameterProxy = Proxy.revocable([], {});
+    headerProxy.revoke();
+    parameterProxy.revoke();
+
+    const request = normalizeObservation(
+      observation({
+        request: { postData: { params: parameterProxy.proxy } },
+        response: { headers: headerProxy.proxy },
+      }),
+      DEFAULT_LIMITS,
+    );
+
+    expect(request.response.headers).toEqual([]);
+    expect(request.request.body).toMatchObject({ state: 'unavailable' });
+  });
+
+  it('deep-freezes the normalized graph without freezing raw HAR input', () => {
+    const raw = observation({
+      request: { headers: [{ name: 'accept', value: 'application/json' }] },
+      response: { headers: [{ name: 'content-type', value: 'application/json' }] },
+    });
+    const request = normalizeObservation(raw, DEFAULT_LIMITS);
+
+    expect(
+      [
+        request,
+        request.request,
+        request.request.headers,
+        request.request.headers[0],
+        request.request.body,
+        request.response,
+        request.response.headers,
+        request.response.headers[0],
+        request.response.body,
+        request.timing,
+        request.evidence,
+      ].every((value) => Object.isFrozen(value)),
+    ).toBe(true);
+    expect(Object.isFrozen(raw.entry)).toBe(false);
+  });
+
+  it('rejects unsupported retrieved-content encodings', () => {
+    const request = normalizeObservation(
+      {
+        ...observation(),
+        content: { text: 'compressed', encoding: 'gzip' } as never,
+      },
+      DEFAULT_LIMITS,
+    );
+
+    expect(request.response.body).toMatchObject({
+      state: 'unavailable',
+      reason: 'content-not-retrieved',
     });
   });
 });

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { applyBodyPolicy } from '../../../src/features/capture/body-policy';
 
 describe('applyBodyPolicy', () => {
@@ -137,5 +137,149 @@ describe('applyBodyPolicy', () => {
         16,
       ),
     ).toMatchObject({ state: 'streamed', reason: 'capture-stopped' });
+  });
+
+  it('rejects decoded base64 text whose UTF-8 representation exceeds the cap', () => {
+    const body = applyBodyPolicy(
+      { text: '//8=', encoding: 'base64', mimeType: 'text/plain' },
+      2,
+      2,
+    );
+
+    expect(body).toEqual({
+      state: 'unavailable',
+      size: 2,
+      capturedSize: 0,
+      reason: 'invalid-utf8',
+    });
+  });
+
+  it('never fully encodes plain text before applying the byte cap', () => {
+    const originalEncode = TextEncoder.prototype.encode;
+    const encode = vi
+      .spyOn(TextEncoder.prototype, 'encode')
+      .mockImplementation(function guardedEncode(this: TextEncoder, value = '') {
+        if (value.length > 3) throw new Error('full-size UTF-8 allocation');
+        return originalEncode.call(this, value);
+      });
+
+    try {
+      expect(
+        applyBodyPolicy(
+          { text: 'abcdefghij', encoding: '', mimeType: 'text/plain' },
+          0,
+          3,
+        ),
+      ).toEqual({
+        state: 'truncated',
+        size: 10,
+        capturedSize: 3,
+        text: 'abc',
+        mimeType: 'text/plain',
+        reason: 'body-limit',
+      });
+    } finally {
+      encode.mockRestore();
+    }
+  });
+
+  it('enforces an absolute body ceiling when caller limits are unsafe', () => {
+    const hardLimit = 8 * 1024 * 1024;
+    const body = applyBodyPolicy(
+      {
+        text: 'x'.repeat(hardLimit + 1),
+        encoding: '',
+        mimeType: 'text/plain',
+      },
+      0,
+      Number.MAX_SAFE_INTEGER,
+    );
+
+    expect(body.state).toBe('truncated');
+    expect(body.size).toBe(hardLimit + 1);
+    expect(body.capturedSize).toBe(hardLimit);
+    expect(body.text).toHaveLength(hardLimit);
+  });
+
+  it('reports decoded binary length without allocating decoded bytes', () => {
+    expect(
+      applyBodyPolicy(
+        { text: 'iVBORw==', encoding: 'base64', mimeType: 'image/png' },
+        0,
+        16,
+      ),
+    ).toEqual({
+      state: 'binary',
+      size: 4,
+      capturedSize: 0,
+      mimeType: 'image/png',
+      reason: 'binary-mime-type',
+    });
+  });
+
+  it('never reports an available body size below captured bytes', () => {
+    expect(
+      applyBodyPolicy({ text: 'hello', encoding: '', mimeType: 'text/plain' }, 1, 16),
+    ).toMatchObject({ state: 'available', size: 5, capturedSize: 5 });
+  });
+
+  it.each([
+    undefined,
+    'application/problem+json',
+    'application/javascript',
+    'application/xml',
+    'application/soap+xml',
+    'application/x-www-form-urlencoded',
+    'multipart/form-data; boundary=x',
+  ])('retains supported textual MIME type %s as text', (mimeType) => {
+    const body = applyBodyPolicy(
+      {
+        text: 'x',
+        encoding: '',
+        ...(mimeType === undefined ? {} : { mimeType }),
+      },
+      0,
+      1,
+    );
+
+    expect(body).toMatchObject({ state: 'available', text: 'x', capturedSize: 1 });
+  });
+
+  it('normalizes invalid sizes before enforcing the body cap', () => {
+    expect(
+      applyBodyPolicy({ text: 'x', encoding: '', mimeType: '' }, Number.NaN, -1),
+    ).toEqual({
+      state: 'truncated',
+      size: 1,
+      capturedSize: 0,
+      text: '',
+      reason: 'body-limit',
+    });
+  });
+
+  it('does not retain later characters when the first code point exceeds the cap', () => {
+    expect(
+      applyBodyPolicy({ text: '😀a', encoding: '', mimeType: 'text/plain' }, 0, 3),
+    ).toEqual({
+      state: 'truncated',
+      size: 5,
+      capturedSize: 0,
+      text: '',
+      mimeType: 'text/plain',
+      reason: 'body-limit',
+    });
+  });
+
+  it('decodes empty and double-padded base64 bodies', () => {
+    expect(
+      applyBodyPolicy({ text: '', encoding: 'base64', mimeType: 'text/plain' }, 0, 1),
+    ).toMatchObject({ state: 'available', text: '', capturedSize: 0 });
+    expect(
+      applyBodyPolicy(
+        { text: 'YQ==', encoding: 'base64', mimeType: 'text/plain' },
+        0,
+        1,
+      ),
+    ).toMatchObject({ state: 'available', text: 'a', size: 1, capturedSize: 1 });
   });
 });
