@@ -88,7 +88,7 @@ export function detectServerAction(
 }
 
 export function detectRsc(request: CapturedRequest): Classification | undefined {
-  const hasRscHeader = presentHeader(request.request.headers, 'rsc');
+  const hasRscHeader = headerValue(request.request.headers, 'rsc')?.trim() === '1';
   const hasRouterState = presentHeader(
     request.request.headers,
     'next-router-state-tree',
@@ -102,7 +102,7 @@ export function detectRsc(request: CapturedRequest): Classification | undefined 
   }
 
   const evidence: string[] = [];
-  if (hasRscHeader) evidence.push('Request header RSC is present.');
+  if (hasRscHeader) evidence.push('Request header RSC is 1.');
   if (hasRouterState) {
     evidence.push('Request header Next-Router-State-Tree is present.');
   }

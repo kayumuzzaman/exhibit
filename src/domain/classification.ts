@@ -79,8 +79,9 @@ export function classifyRequest(request: CapturedRequest): Classification {
     requestMime === 'application/x-www-form-urlencoded' ||
     requestMime === 'multipart/form-data'
   ) {
-    return makeClassification('form', 'confirmed', [
-      `Request MIME type is ${requestMime}.`,
+    return makeClassification('form', 'likely', [
+      `Request body uses ${requestMime} encoding.`,
+      'The same encoding can be sent by fetch/XHR, so a browser form submission is not proven.',
     ]);
   }
 

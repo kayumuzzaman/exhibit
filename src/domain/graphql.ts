@@ -4,6 +4,9 @@ export type GraphQLDetection = Readonly<{
   evidence: readonly string[];
 }>;
 
+const MAX_DOCUMENT_CHARACTERS = 64 * 1_024;
+const MAX_SELECTION_DEPTH = 64;
+
 function mimeType(value: string | undefined): string {
   return value?.split(';', 1)[0]?.trim().toLowerCase() ?? '';
 }
@@ -13,7 +16,59 @@ function detection(evidence: string): GraphQLDetection {
 }
 
 function looksLikeDocument(value: string): boolean {
-  return /^(?:query|mutation|subscription|fragment)\b|^\{/i.test(value.trim());
+  const document = value.trim();
+  if (document.length === 0 || document.length > MAX_DOCUMENT_CHARACTERS) {
+    return false;
+  }
+
+  const firstSelection = document.indexOf('{');
+  if (firstSelection < 0) return false;
+  const prefix = document.slice(0, firstSelection).trim();
+  if (
+    prefix.length > 0 &&
+    !/^(?:query|mutation|subscription)\b/i.test(prefix) &&
+    !/^fragment\s+[_A-Za-z][_0-9A-Za-z]*\s+on\s+[_A-Za-z][_0-9A-Za-z]*(?:\s+@[^{]+)*$/i.test(
+      prefix,
+    )
+  ) {
+    return false;
+  }
+
+  let depth = 0;
+  let sawSelection = false;
+  let inString = false;
+  let escaped = false;
+  let inComment = false;
+  for (let index = 0; index < document.length; index += 1) {
+    const character = document.charAt(index);
+    if (inComment) {
+      if (character === '\n' || character === '\r') inComment = false;
+      continue;
+    }
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+      } else if (character === '\\') {
+        escaped = true;
+      } else if (character === '"') {
+        inString = false;
+      }
+      continue;
+    }
+    if (character === '#') {
+      inComment = true;
+    } else if (character === '"') {
+      inString = true;
+    } else if (character === '{') {
+      sawSelection = true;
+      depth += 1;
+      if (depth > MAX_SELECTION_DEPTH) return false;
+    } else if (character === '}') {
+      depth -= 1;
+      if (depth < 0) return false;
+    }
+  }
+  return sawSelection && depth === 0 && !inString;
 }
 
 function hasJsonQuery(text: string): boolean {

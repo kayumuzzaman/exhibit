@@ -1,3 +1,6 @@
+import { DEFAULT_LIMITS } from './session';
+
+const ABSOLUTE_MAX_BYTES = DEFAULT_LIMITS.maxBodyBytes;
 const ABSOLUTE_MAX_ROWS = 10_000;
 const ABSOLUTE_MAX_DEPTH = 32;
 
@@ -93,28 +96,46 @@ function finiteInteger(value: number, fallback: number): number {
   return Number.isFinite(value) ? Math.floor(value) : fallback;
 }
 
-function boundedRows(
+function isHex(character: string): boolean {
+  return /^[0-9a-f]$/i.test(character);
+}
+
+function utf8Width(codePoint: number): number {
+  return codePoint <= 0x7f ? 1 : codePoint <= 0x7ff ? 2 : codePoint <= 0xffff ? 3 : 4;
+}
+
+function endAtUtf8Length(
   text: string,
-  limit: number,
-): Readonly<{ rows: readonly string[]; limited: boolean }> {
-  const rows: string[] = [];
-  let cursor = 0;
-
-  while (cursor <= text.length) {
-    const newline = text.indexOf('\n', cursor);
-    const end = newline === -1 ? text.length : newline;
-    const sliced = text.slice(cursor, end);
-    const row = sliced.endsWith('\r') ? sliced.slice(0, -1) : sliced;
-
-    if (row.length > 0) {
-      if (rows.length >= limit) return { rows, limited: true };
-      rows.push(row);
-    }
-    if (newline === -1) break;
-    cursor = newline + 1;
+  start: number,
+  expectedBytes: number,
+): number | undefined {
+  let bytes = 0;
+  let cursor = start;
+  while (cursor < text.length && bytes < expectedBytes) {
+    const codePoint = text.codePointAt(cursor)!;
+    const width = utf8Width(codePoint);
+    if (bytes + width > expectedBytes) return undefined;
+    bytes += width;
+    cursor += codePoint > 0xffff ? 2 : 1;
   }
+  return bytes === expectedBytes ? cursor : undefined;
+}
 
-  return { rows, limited: false };
+function lineBounds(
+  text: string,
+  start: number,
+): Readonly<{ end: number; next: number }> {
+  const newline = text.indexOf('\n', start);
+  if (newline === -1) return { end: text.length, next: text.length };
+  const end =
+    newline > start && text.charAt(newline - 1) === '\r' ? newline - 1 : newline;
+  return { end, next: newline + 1 };
+}
+
+function looksLikeRowAt(text: string, start: number): boolean {
+  let cursor = start;
+  while (cursor < text.length && isHex(text.charAt(cursor))) cursor += 1;
+  return cursor > start && text.charAt(cursor) === ':';
 }
 
 function referenceTarget(value: string): string | undefined {
@@ -235,15 +256,6 @@ function decodeRow(
   seenIds.add(id);
 
   const tag = payload.charAt(0);
-  if (tag === 'T') {
-    const text = payload.slice(1);
-    if (/^[0-9a-f]+,/i.test(text)) {
-      rawChunks.push(raw);
-      warnings.push(`Length-framed text chunk ${id} is unsupported.`);
-      return undefined;
-    }
-    return { id, kind: 'text', value: text, references: [], raw };
-  }
   if (tag === 'I') {
     return jsonChunk(
       id,
@@ -267,11 +279,163 @@ function decodeRow(
   return undefined;
 }
 
+function preserveMalformedText(
+  id: string,
+  raw: string,
+  seenIds: Set<string>,
+  rawChunks: string[],
+  warnings: string[],
+): void {
+  rawChunks.push(raw);
+  if (seenIds.has(id)) {
+    warnings.push(
+      `Duplicate Flight chunk identifier ${id} was preserved as raw protocol.`,
+    );
+    return;
+  }
+  seenIds.add(id);
+  warnings.push(
+    `Malformed length-framed text chunk ${id} was preserved as raw protocol.`,
+  );
+}
+
+function appendTextChunk(
+  id: string,
+  raw: string,
+  value: string,
+  seenIds: Set<string>,
+  chunks: MutableChunk[],
+  rawChunks: string[],
+  warnings: string[],
+): void {
+  if (seenIds.has(id)) {
+    rawChunks.push(raw);
+    warnings.push(
+      `Duplicate Flight chunk identifier ${id} was preserved as raw protocol.`,
+    );
+    return;
+  }
+  seenIds.add(id);
+  chunks.push({ id, kind: 'text', value, references: [], raw });
+}
+
+function decodeRecords(
+  text: string,
+  maxRows: number,
+  maxDepth: number,
+  seenIds: Set<string>,
+  chunks: MutableChunk[],
+  rawChunks: string[],
+  warnings: string[],
+): boolean {
+  let cursor = 0;
+  let rowCount = 0;
+
+  while (cursor < text.length) {
+    while (
+      cursor < text.length &&
+      (text.charAt(cursor) === '\n' || text.charAt(cursor) === '\r')
+    ) {
+      cursor += 1;
+    }
+    if (cursor >= text.length) return false;
+    if (rowCount >= maxRows) return true;
+    rowCount += 1;
+
+    const start = cursor;
+    while (cursor < text.length && isHex(text.charAt(cursor))) cursor += 1;
+    if (cursor === start || text.charAt(cursor) !== ':') {
+      const bounds = lineBounds(text, start);
+      rawChunks.push(text.slice(start, bounds.end));
+      warnings.push('Malformed Flight row preserved as raw protocol.');
+      cursor = bounds.next;
+      continue;
+    }
+
+    const id = text.slice(start, cursor).toLowerCase();
+    cursor += 1;
+    if (text.charAt(cursor) !== 'T') {
+      const bounds = lineBounds(text, start);
+      const raw = text.slice(start, bounds.end);
+      const chunk = decodeRow(raw, maxDepth, seenIds, rawChunks, warnings);
+      if (chunk !== undefined) chunks.push(chunk);
+      cursor = bounds.next;
+      continue;
+    }
+
+    const lengthStart = cursor + 1;
+    let lengthEnd = lengthStart;
+    while (lengthEnd < text.length && isHex(text.charAt(lengthEnd))) {
+      lengthEnd += 1;
+    }
+    if (lengthEnd === lengthStart || text.charAt(lengthEnd) !== ',') {
+      const bounds = lineBounds(text, start);
+      preserveMalformedText(
+        id,
+        text.slice(start, bounds.end),
+        seenIds,
+        rawChunks,
+        warnings,
+      );
+      cursor = bounds.next;
+      continue;
+    }
+
+    const declaredBytes = Number.parseInt(text.slice(lengthStart, lengthEnd), 16);
+    const contentStart = lengthEnd + 1;
+    const contentEnd = Number.isSafeInteger(declaredBytes)
+      ? endAtUtf8Length(text, contentStart, declaredBytes)
+      : undefined;
+    if (contentEnd === undefined) {
+      preserveMalformedText(id, text.slice(start), seenIds, rawChunks, warnings);
+      return false;
+    }
+
+    let next = contentEnd;
+    if (contentEnd < text.length) {
+      const trailing = text.charAt(contentEnd);
+      if (trailing === '\n') {
+        next = contentEnd + 1;
+      } else if (trailing === '\r' && text.charAt(contentEnd + 1) === '\n') {
+        next = contentEnd + 2;
+      } else if (!looksLikeRowAt(text, contentEnd)) {
+        const bounds = lineBounds(text, contentEnd);
+        preserveMalformedText(
+          id,
+          text.slice(start, bounds.end),
+          seenIds,
+          rawChunks,
+          warnings,
+        );
+        cursor = bounds.next;
+        continue;
+      }
+    }
+
+    const raw = text.slice(start, contentEnd);
+    appendTextChunk(
+      id,
+      raw,
+      text.slice(contentStart, contentEnd),
+      seenIds,
+      chunks,
+      rawChunks,
+      warnings,
+    );
+    cursor = next;
+  }
+
+  return false;
+}
+
 export function decodeFlight(
   text: string,
   limits: FlightDecodeLimits,
 ): FlightDecodeResult {
-  const maxBytes = Math.max(0, finiteInteger(limits.maxBytes, 0));
+  const maxBytes = Math.min(
+    ABSOLUTE_MAX_BYTES,
+    Math.max(0, finiteInteger(limits.maxBytes, 0)),
+  );
   if (text.length === 0) {
     return result('unsupported', [], [], ['Flight body is empty.']);
   }
@@ -298,16 +462,19 @@ export function decodeFlight(
       finiteInteger(limits.maxDepth ?? ABSOLUTE_MAX_DEPTH, ABSOLUTE_MAX_DEPTH),
     ),
   );
-  const { rows, limited } = boundedRows(text, maxRows);
   const rawChunks: string[] = [];
   const warnings: string[] = [];
   const chunks: MutableChunk[] = [];
   const seenIds = new Set<string>();
-
-  for (const row of rows) {
-    const chunk = decodeRow(row, maxDepth, seenIds, rawChunks, warnings);
-    if (chunk !== undefined) chunks.push(chunk);
-  }
+  const limited = decodeRecords(
+    text,
+    maxRows,
+    maxDepth,
+    seenIds,
+    chunks,
+    rawChunks,
+    warnings,
+  );
 
   const decodedIds = new Set(chunks.map((chunk) => chunk.id));
   for (const chunk of chunks) {

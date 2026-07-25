@@ -206,6 +206,127 @@ describe('classifyRequest', () => {
     });
   });
 
+  it.each(['query optimization', 'fragment of text', '{search text'])(
+    'does not infer GraphQL from loose JSON query text: %s',
+    (query) => {
+      const bodyText = JSON.stringify({ query });
+      const result = classifyRequest(
+        requestWith({
+          method: 'POST',
+          requestBody: {
+            state: 'available',
+            size: bodyText.length,
+            capturedSize: bodyText.length,
+            text: bodyText,
+            mimeType: 'application/json',
+          },
+        }),
+      );
+
+      expect(result).toMatchObject({ kind: 'api', confidence: 'likely' });
+    },
+  );
+
+  it.each(['query optimization', 'fragment of text', '{search text'])(
+    'does not infer GraphQL from loose URL query text: %s',
+    (query) => {
+      const result = classifyRequest(
+        requestWith({
+          url: `https://shop.test/search?query=${encodeURIComponent(query)}`,
+          responseMime: 'text/html',
+        }),
+      );
+
+      expect(result).toMatchObject({ kind: 'document', confidence: 'likely' });
+    },
+  );
+
+  it('accepts a bounded GraphQL document with escaped strings and comments', () => {
+    const query =
+      'query Search { search(term: "brace } and \\"quoted\\"") # ignored }\n id }';
+    const bodyText = JSON.stringify({ query });
+
+    expect(
+      classifyRequest(
+        requestWith({
+          method: 'POST',
+          requestBody: {
+            state: 'available',
+            size: bodyText.length,
+            capturedSize: bodyText.length,
+            text: bodyText,
+            mimeType: 'application/json',
+          },
+        }),
+      ),
+    ).toMatchObject({ kind: 'graphql', confidence: 'confirmed' });
+  });
+
+  it('accepts a syntactically anchored fragment document', () => {
+    const query = 'fragment ViewerFields on Viewer @include(if: true) { id }';
+    const bodyText = JSON.stringify({ query });
+
+    expect(
+      classifyRequest(
+        requestWith({
+          method: 'POST',
+          requestBody: {
+            state: 'available',
+            size: bodyText.length,
+            capturedSize: bodyText.length,
+            text: bodyText,
+            mimeType: 'application/json',
+          },
+        }),
+      ),
+    ).toMatchObject({ kind: 'graphql', confidence: 'confirmed' });
+  });
+
+  it.each([
+    '',
+    'please { viewer }',
+    '{ viewer }}',
+    '{ field(arg: "unterminated) }',
+    `{ ${'{'.repeat(65)} viewer ${'}'.repeat(65)} }`,
+    `query Huge { ${'field '.repeat(12_000)} }`,
+  ])('rejects malformed or excessive GraphQL document syntax', (query) => {
+    const bodyText = JSON.stringify({ query });
+    const result = classifyRequest(
+      requestWith({
+        method: 'POST',
+        requestBody: {
+          state: 'available',
+          size: bodyText.length,
+          capturedSize: bodyText.length,
+          text: bodyText,
+          mimeType: 'application/json',
+        },
+      }),
+    );
+
+    expect(result).toMatchObject({ kind: 'api', confidence: 'likely' });
+  });
+
+  it.each(['null', '[]', '{"query":7}'])(
+    'rejects non-object or non-string GraphQL JSON shape: %s',
+    (bodyText) => {
+      const result = classifyRequest(
+        requestWith({
+          method: 'POST',
+          requestBody: {
+            state: 'available',
+            size: bodyText.length,
+            capturedSize: bodyText.length,
+            text: bodyText,
+            mimeType: 'application/json',
+          },
+        }),
+      );
+
+      expect(result).toMatchObject({ kind: 'api', confidence: 'likely' });
+    },
+  );
+
   it('confirms GraphQL from the response protocol MIME type', () => {
     const result = classifyRequest(
       requestWith({ responseMime: 'application/graphql-response+json' }),
@@ -218,10 +339,11 @@ describe('classifyRequest', () => {
     });
   });
 
-  it('confirms an URL-encoded browser form from direct request metadata', () => {
+  it('keeps URLSearchParams-compatible payloads at likely form confidence', () => {
     const result = classifyRequest(
       requestWith({
         method: 'POST',
+        initiator: 'script',
         requestBody: {
           state: 'available',
           size: 9,
@@ -234,15 +356,19 @@ describe('classifyRequest', () => {
 
     expect(result).toEqual({
       kind: 'form',
-      confidence: 'confirmed',
-      evidence: ['Request MIME type is application/x-www-form-urlencoded.'],
+      confidence: 'likely',
+      evidence: [
+        'Request body uses application/x-www-form-urlencoded encoding.',
+        'The same encoding can be sent by fetch/XHR, so a browser form submission is not proven.',
+      ],
     });
   });
 
-  it('confirms a multipart browser form from direct request metadata', () => {
+  it('keeps FormData-compatible multipart payloads at likely form confidence', () => {
     const result = classifyRequest(
       requestWith({
         method: 'POST',
+        initiator: 'script',
         requestBody: {
           state: 'available',
           size: 0,
@@ -255,8 +381,11 @@ describe('classifyRequest', () => {
 
     expect(result).toEqual({
       kind: 'form',
-      confidence: 'confirmed',
-      evidence: ['Request MIME type is multipart/form-data.'],
+      confidence: 'likely',
+      evidence: [
+        'Request body uses multipart/form-data encoding.',
+        'The same encoding can be sent by fetch/XHR, so a browser form submission is not proven.',
+      ],
     });
   });
 
@@ -276,7 +405,7 @@ describe('classifyRequest', () => {
       kind: 'rsc',
       confidence: 'confirmed',
       evidence: [
-        'Request header RSC is present.',
+        'Request header RSC is 1.',
         'Request header Next-Router-State-Tree is present.',
         'Response MIME type is text/x-component.',
         'URL query contains _rsc.',
@@ -308,6 +437,42 @@ describe('classifyRequest', () => {
       ],
     });
   });
+
+  it('uses RSC request-header evidence only for the expected value 1', () => {
+    expect(
+      classifyRequest(
+        requestWith({
+          requestHeaders: [{ name: 'RSC', value: '1' }],
+          responseMime: 'text/plain',
+        }),
+      ),
+    ).toEqual({
+      kind: 'rsc',
+      confidence: 'likely',
+      evidence: [
+        'Request header RSC is 1.',
+        'Next.js RSC headers and query markers are internal and version-sensitive.',
+      ],
+    });
+  });
+
+  it.each(['0', 'false', ''])(
+    'does not treat RSC: %s as positive protocol evidence',
+    (value) => {
+      expect(
+        classifyRequest(
+          requestWith({
+            requestHeaders: [{ name: 'RSC', value }],
+            responseMime: 'text/plain',
+          }),
+        ),
+      ).toEqual({
+        kind: 'unknown',
+        confidence: 'unknown',
+        evidence: [],
+      });
+    },
+  );
 
   it('labels an HTML Next.js navigation as likely SSR without claiming proof', () => {
     const result = classifyRequest(

@@ -1,5 +1,5 @@
 0:Zopaque
 not-a-chunk
 1:{"unterminated":
-2:T5,hello
-3:Tdecoded
+2:Tplain
+3:T7,decoded

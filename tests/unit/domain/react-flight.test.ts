@@ -72,7 +72,7 @@ describe('decodeFlight', () => {
     });
   });
 
-  it('preserves unknown tags, malformed rows, invalid JSON, and length framing', () => {
+  it('preserves unknown tags, malformed rows, invalid JSON, and malformed text frames', () => {
     const result = decodeFlight(fixture('partial-flight.txt'), {
       maxBytes: 8_192,
     });
@@ -90,14 +90,43 @@ describe('decodeFlight', () => {
       '0:Zopaque',
       'not-a-chunk',
       '1:{"unterminated":',
-      '2:T5,hello',
+      '2:Tplain',
     ]);
     expect(result.warnings).toEqual([
       'Unknown Flight tag Z in chunk 0.',
       'Malformed Flight row preserved as raw protocol.',
       'Invalid JSON payload in chunk 1.',
-      'Length-framed text chunk 2 is unsupported.',
+      'Malformed length-framed text chunk 2 was preserved as raw protocol.',
     ]);
+  });
+
+  it('decodes exact UTF-8 byte-length text frames containing embedded newlines', () => {
+    const result = decodeFlight('0:Tb,hello\nworld1:T5,after\n2:T5,é€', {
+      maxBytes: 1_024,
+    });
+
+    expect(result).toMatchObject({
+      status: 'decoded',
+      rawChunks: [],
+      warnings: [],
+      chunks: [
+        { id: '0', kind: 'text', value: 'hello\nworld' },
+        { id: '1', kind: 'text', value: 'after' },
+        { id: '2', kind: 'text', value: 'é€' },
+      ],
+    });
+  });
+
+  it('preserves truncated, malformed, and mid-code-point text frames as raw', () => {
+    const cases = ['0:T6,hello', '0:Tplain', '0:T1,é', '0:T1,hello'];
+
+    for (const raw of cases) {
+      const result = decodeFlight(raw, { maxBytes: 1_024 });
+      expect(result.status).toBe('unsupported');
+      expect(result.chunks).toEqual([]);
+      expect(result.rawChunks).toEqual([raw]);
+      expect(result.warnings[0]).toMatch(/length-framed text chunk 0.*raw protocol/i);
+    }
   });
 
   it('returns unsupported when no row can be decoded', () => {
@@ -112,7 +141,7 @@ describe('decodeFlight', () => {
   });
 
   it('rejects the body before parsing when its UTF-8 bytes exceed the limit', () => {
-    const result = decodeFlight('0:T🙂🙂', { maxBytes: 8 });
+    const result = decodeFlight('0:T8,🙂🙂', { maxBytes: 8 });
 
     expect(result).toEqual({
       status: 'unsupported',
@@ -123,14 +152,26 @@ describe('decodeFlight', () => {
   });
 
   it('counts two-byte and three-byte Unicode sequences without allocating an encoded copy', () => {
-    expect(decodeFlight('0:Té€', { maxBytes: 8 }).status).toBe('decoded');
-    expect(decodeFlight('0:Té€', { maxBytes: 7 }).warnings).toEqual([
-      'Flight body exceeds the 7-byte inspection limit.',
+    expect(decodeFlight('0:T5,é€', { maxBytes: 10 }).status).toBe('decoded');
+    expect(decodeFlight('0:T5,é€', { maxBytes: 9 }).warnings).toEqual([
+      'Flight body exceeds the 9-byte inspection limit.',
     ]);
   });
 
+  it('clamps a large finite caller byte limit to the shared 512 KiB body cap', () => {
+    const text = `0:T80000,${'x'.repeat(512 * 1_024)}`;
+    const result = decodeFlight(text, { maxBytes: 10 * 1_024 * 1_024 });
+
+    expect(result).toEqual({
+      status: 'unsupported',
+      chunks: [],
+      rawChunks: [],
+      warnings: ['Flight body exceeds the 524288-byte inspection limit.'],
+    });
+  });
+
   it('honors a configured row cap without inspecting later rows', () => {
-    const result = decodeFlight('0:Tzero\n1:Tone\n2:Ttwo', {
+    const result = decodeFlight('0:T4,zero\n1:T3,one\n2:T3,two', {
       maxBytes: 1_024,
       maxRows: 2,
     });
@@ -145,7 +186,7 @@ describe('decodeFlight', () => {
   it('enforces the absolute 10,000-row cap even when the caller asks for more', () => {
     const text = Array.from(
       { length: 10_001 },
-      (_, index) => `${index.toString(16)}:Trow`,
+      (_, index) => `${index.toString(16)}:T3,row`,
     ).join('\n');
     const result = decodeFlight(text, {
       maxBytes: 512 * 1_024,
@@ -160,7 +201,7 @@ describe('decodeFlight', () => {
   });
 
   it('fails closed for a non-finite byte limit and retains hard row and depth caps', () => {
-    expect(decodeFlight('0:Tvalue', { maxBytes: Number.NaN })).toEqual({
+    expect(decodeFlight('0:T5,value', { maxBytes: Number.NaN })).toEqual({
       status: 'unsupported',
       chunks: [],
       rawChunks: [],
@@ -169,7 +210,7 @@ describe('decodeFlight', () => {
 
     const rows = Array.from(
       { length: 10_001 },
-      (_, index) => `${index.toString(16)}:Trow`,
+      (_, index) => `${index.toString(16)}:T3,row`,
     ).join('\n');
     expect(
       decodeFlight(rows, {
@@ -214,7 +255,7 @@ describe('decodeFlight', () => {
   });
 
   it('preserves duplicate chunk identifiers as ambiguous raw protocol', () => {
-    const result = decodeFlight('a:Tfirst\nA:Tsecond', {
+    const result = decodeFlight('a:T5,first\nA:T6,second', {
       maxBytes: 1_024,
     });
 
@@ -227,14 +268,14 @@ describe('decodeFlight', () => {
         references: [],
       },
     ]);
-    expect(result.rawChunks).toEqual(['A:Tsecond']);
+    expect(result.rawChunks).toEqual(['A:T6,second']);
     expect(result.warnings).toContain(
       'Duplicate Flight chunk identifier a was preserved as raw protocol.',
     );
   });
 
   it('accepts CRLF input and ignores empty rows', () => {
-    const result = decodeFlight('\r\n0:Tvalue\r\n\r\n', {
+    const result = decodeFlight('\r\n0:T5,value\r\n\r\n', {
       maxBytes: 1_024,
     });
 
