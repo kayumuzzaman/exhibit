@@ -851,6 +851,28 @@ describe('redaction helpers', () => {
     expect(result.text).toBe(REDACTED);
   });
 
+  it('preserves inline boundary text inside a safe multipart field value', () => {
+    const body: BodyContent = {
+      state: 'available',
+      size: 100,
+      capturedSize: 100,
+      text: [
+        '--b',
+        'Content-Disposition: form-data; name=notes',
+        '',
+        'notes --b text',
+        '--b--',
+        '',
+      ].join('\r\n'),
+      mimeType: 'multipart/form-data; boundary=b',
+    };
+
+    const result = redactBody(body, DEFAULT_REDACTION_CONFIG);
+
+    expect(result.text).toContain('notes --b text');
+    expect(result.text).not.toBe(REDACTED);
+  });
+
   it('fails closed for an inline multipart boundary with arbitrary data', () => {
     const body: BodyContent = {
       state: 'available',

@@ -199,7 +199,7 @@ export function parseMultipartBody(
       openingLine = { ...line, lineEnding: line.lineEnding };
       break;
     }
-    if (line.content.includes(delimiter)) return undefined;
+    if (line.content.startsWith(delimiter)) return undefined;
     if (line.next === text.length) break;
     cursor = line.next;
   }
@@ -211,7 +211,7 @@ export function parseMultipartBody(
 
   while (cursor <= text.length) {
     const line = readLine(text, cursor);
-    if (line.content.includes(delimiter)) {
+    if (line.content.startsWith(delimiter)) {
       if (line.content !== delimiter && line.content !== closingDelimiter) {
         return undefined;
       }

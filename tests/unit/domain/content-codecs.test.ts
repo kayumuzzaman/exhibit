@@ -76,6 +76,27 @@ describe('decodeTextBody', () => {
     });
   });
 
+  it('preserves inline boundary text inside a multipart field value', () => {
+    const text = [
+      '--b',
+      'Content-Disposition: form-data; name=notes',
+      '',
+      'notes --b text',
+      '--b--',
+      '',
+    ].join('\r\n');
+
+    expect(
+      decodeTextBody({
+        text,
+        mimeType: 'multipart/form-data; boundary=b',
+      }),
+    ).toMatchObject({
+      kind: 'multipart',
+      fields: [{ name: 'notes', value: 'notes --b text' }],
+    });
+  });
+
   it('truncates only at a UTF-8 boundary and reports original byte size', () => {
     expect(
       decodeTextBody({
