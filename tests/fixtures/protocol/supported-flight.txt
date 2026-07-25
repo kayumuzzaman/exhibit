@@ -1,0 +1,4 @@
+0:{"message":"hello","count":2}
+1:I["app/page.tsx",["static/chunk.js"],"default"]
+2:E{"digest":"opaque","message":"failed"}
+3:Tplain text

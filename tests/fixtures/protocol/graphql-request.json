@@ -1,0 +1,5 @@
+{
+  "operationName": "Viewer",
+  "query": "query Viewer { viewer { id } }",
+  "variables": { "id": "[REDACTED]" }
+}
