@@ -1,10 +1,3 @@
-export function bootDevtools(): void {
-  chrome.devtools.panels.create(
-    'Payloadra',
-    'icons/payloadra.svg',
-    'panel.html',
-    () => undefined,
-  );
-}
+import { bootDevtools } from '../../src/devtools/boot';
 
 bootDevtools();
