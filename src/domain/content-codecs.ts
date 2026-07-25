@@ -1,7 +1,8 @@
+import { parseMultipartBody } from './multipart';
+
 const DEFAULT_MAX_BYTES = 512 * 1024;
 const DEFAULT_MAX_DEPTH = 32;
 const DEFAULT_MAX_KEYS = 10_000;
-const MAX_MULTIPART_BOUNDARY_LENGTH = 200;
 const MAX_INSPECTED_CODE_UNITS = DEFAULT_MAX_BYTES + 1;
 
 export type DecodedField = Readonly<{
@@ -71,11 +72,14 @@ function boundUtf8(text: string, maxBytes: number): BoundedText {
   let accepting = true;
   const captured: string[] = [];
   const inspectedCodeUnits = Math.min(text.length, MAX_INSPECTED_CODE_UNITS);
+  let consumedCodeUnits = 0;
 
-  for (let index = 0; index < inspectedCodeUnits; index += 1) {
+  for (let index = 0; index < inspectedCodeUnits;) {
     const codePoint = text.codePointAt(index)!;
     const width = utf8Width(codePoint);
+    const codeUnits = codePoint > 0xffff ? 2 : 1;
     originalBytes += width;
+    consumedCodeUnits = index + codeUnits;
 
     if (accepting && capturedBytes + width <= maxBytes) {
       captured.push(String.fromCodePoint(codePoint));
@@ -84,10 +88,10 @@ function boundUtf8(text: string, maxBytes: number): BoundedText {
       accepting = false;
     }
 
-    if (codePoint > 0xffff) index += 1;
+    index = consumedCodeUnits;
   }
 
-  const fullyInspected = inspectedCodeUnits === text.length;
+  const fullyInspected = consumedCodeUnits === text.length;
   const reportedOriginalBytes = fullyInspected
     ? originalBytes
     : Math.max(originalBytes + 1, text.length);
@@ -129,94 +133,6 @@ function inspectStructure(
   }
 
   return undefined;
-}
-
-function unquote(value: string): string {
-  const trimmed = value.trim();
-  return trimmed.length >= 2 && trimmed.startsWith('"') && trimmed.endsWith('"')
-    ? trimmed.slice(1, -1)
-    : trimmed;
-}
-
-function multipartBoundary(mimeType: string): string | undefined {
-  const parameters = mimeType.split(';').slice(1);
-  for (const parameter of parameters) {
-    const separator = parameter.indexOf('=');
-    if (separator < 0) continue;
-    if (parameter.slice(0, separator).trim().toLowerCase() !== 'boundary') {
-      continue;
-    }
-
-    const boundary = unquote(parameter.slice(separator + 1));
-    if (
-      boundary.length > 0 &&
-      boundary.length <= MAX_MULTIPART_BOUNDARY_LENGTH &&
-      !boundary.includes('\r') &&
-      !boundary.includes('\n')
-    ) {
-      return boundary;
-    }
-  }
-  return undefined;
-}
-
-function dispositionParameter(
-  disposition: string,
-  parameterName: string,
-): string | undefined {
-  for (const parameter of disposition.split(';').slice(1)) {
-    const separator = parameter.indexOf('=');
-    if (separator < 0) continue;
-    if (parameter.slice(0, separator).trim().toLowerCase() === parameterName) {
-      return unquote(parameter.slice(separator + 1));
-    }
-  }
-  return undefined;
-}
-
-function decodeMultipartFields(
-  text: string,
-  mimeType: string,
-): readonly DecodedField[] | undefined {
-  const boundary = multipartBoundary(mimeType);
-  if (boundary === undefined) return undefined;
-
-  const fields: DecodedField[] = [];
-  const delimiter = `--${boundary}`;
-  for (const rawPart of text.split(delimiter).slice(1)) {
-    if (fields.length >= DEFAULT_MAX_KEYS) break;
-    if (rawPart.startsWith('--')) break;
-
-    const part = rawPart.startsWith('\r\n')
-      ? rawPart.slice(2)
-      : rawPart.startsWith('\n')
-        ? rawPart.slice(1)
-        : rawPart;
-    const separator = part.indexOf('\r\n\r\n');
-    const fallbackSeparator = separator < 0 ? part.indexOf('\n\n') : -1;
-    const headerEnd = separator >= 0 ? separator : fallbackSeparator;
-    if (headerEnd < 0) continue;
-
-    const separatorLength = separator >= 0 ? 4 : 2;
-    const headers = part.slice(0, headerEnd).split(/\r?\n/u);
-    const disposition = headers.find((header) =>
-      header.toLowerCase().startsWith('content-disposition:'),
-    );
-    if (disposition === undefined) continue;
-    if (dispositionParameter(disposition, 'filename') !== undefined) continue;
-
-    const name = dispositionParameter(disposition, 'name');
-    if (name === undefined) continue;
-    const rawValue = part.slice(headerEnd + separatorLength);
-    const value = rawValue.endsWith('\r\n')
-      ? rawValue.slice(0, -2)
-      : rawValue.endsWith('\n')
-        ? rawValue.slice(0, -1)
-        : rawValue;
-    fields.push({ name, value });
-  }
-
-  return fields;
 }
 
 function textResult(bounded: BoundedText, issue?: DecodedBodyIssue): DecodedBody {
@@ -282,8 +198,11 @@ export function decodeTextBody(input: DecodeTextBodyInput | string): DecodedBody
   }
 
   if (normalizedMime === 'multipart/form-data') {
-    const fields = decodeMultipartFields(bounded.text, mimeType);
-    if (fields === undefined) return textResult(bounded, 'malformed');
+    const multipart = parseMultipartBody(bounded.text, mimeType);
+    if (multipart === undefined) return textResult(bounded, 'malformed');
+    const fields = multipart.parts
+      .filter((part) => part.filename === undefined)
+      .map(({ name, value }) => ({ name, value }));
     return {
       kind: 'multipart',
       text: bounded.text,

@@ -177,6 +177,32 @@ describe('decodeTextBody', () => {
     });
   });
 
+  it('handles a surrogate pair crossing the inspection boundary exactly', () => {
+    const text = `${'x'.repeat(512 * 1024)}\uD83D\uDE00`;
+    const authoritativeBytes = new TextEncoder().encode(text).byteLength;
+
+    const result = decodeTextBody({
+      text,
+      mimeType: 'text/plain',
+    });
+
+    expect(result.originalBytes).toBe(authoritativeBytes);
+    expect(result.originalBytesExact).toBe(true);
+  });
+
+  it('does not overstate a lower bound after a boundary surrogate pair', () => {
+    const text = `${'x'.repeat(512 * 1024)}\uD83D\uDE00\u20AC`;
+    const authoritativeBytes = new TextEncoder().encode(text).byteLength;
+
+    const result = decodeTextBody({
+      text,
+      mimeType: 'text/plain',
+    });
+
+    expect(result.originalBytes).toBeLessThanOrEqual(authoritativeBytes);
+    expect(result.originalBytesExact).toBe(false);
+  });
+
   it('decodes vendor JSON MIME types', () => {
     expect(
       decodeTextBody({
@@ -295,6 +321,270 @@ describe('decodeTextBody', () => {
     ).toMatchObject({
       kind: 'multipart',
       fields: [{ name: 'safe', value: 'visible' }],
+    });
+  });
+
+  it('rejects an inline multipart boundary containing an arbitrary secret', () => {
+    const text = [
+      'inline-prefix--b',
+      'Content-Disposition: form-data; name=safe',
+      '',
+      'inline-value-3702',
+      '--b--',
+      '',
+    ].join('\r\n');
+
+    expect(
+      decodeTextBody({
+        text,
+        mimeType: 'multipart/form-data; boundary=b',
+      }),
+    ).toMatchObject({
+      kind: 'text',
+      issue: 'malformed',
+    });
+  });
+
+  it('rejects garbage after a multipart closing delimiter', () => {
+    const text = [
+      '--b',
+      'Content-Disposition: form-data; name=safe',
+      '',
+      'visible',
+      '--b--garbage-value-4813',
+    ].join('\r\n');
+
+    expect(
+      decodeTextBody({
+        text,
+        mimeType: 'multipart/form-data; boundary=b',
+      }),
+    ).toMatchObject({
+      kind: 'text',
+      issue: 'malformed',
+    });
+  });
+
+  it('rejects multipart content without a closing delimiter', () => {
+    const text = [
+      '--b',
+      'Content-Disposition: form-data; name=safe',
+      '',
+      'missing-close-value-5924',
+    ].join('\r\n');
+
+    expect(
+      decodeTextBody({
+        text,
+        mimeType: 'multipart/form-data; boundary=b',
+      }),
+    ).toMatchObject({
+      kind: 'text',
+      issue: 'malformed',
+    });
+  });
+
+  it('accepts an ignored MIME parameter before a valid boundary', () => {
+    const text = [
+      '--b',
+      'Content-Disposition: form-data; name=safe',
+      '',
+      'visible',
+      '--b--',
+      '',
+    ].join('\n');
+
+    expect(
+      decodeTextBody({
+        text,
+        mimeType: 'multipart/form-data; charset; boundary=b',
+      }),
+    ).toMatchObject({
+      kind: 'multipart',
+      fields: [{ name: 'safe', value: 'visible' }],
+    });
+  });
+
+  it.each([
+    {
+      name: 'oversized MIME metadata',
+      text: '--b\r\n',
+      mimeType: `multipart/form-data; ${'x'.repeat(4097)}; boundary=b`,
+    },
+    {
+      name: 'unterminated quoted boundary',
+      text: '--b\r\n',
+      mimeType: 'multipart/form-data; boundary="b',
+    },
+    {
+      name: 'quote inside quoted boundary',
+      text: '--b\r\n',
+      mimeType: 'multipart/form-data; boundary="b"x"',
+    },
+    {
+      name: 'opening delimiter without a line break',
+      text: '--b',
+      mimeType: 'multipart/form-data; boundary=b',
+    },
+    {
+      name: 'body without a delimiter',
+      text: 'preamble only',
+      mimeType: 'multipart/form-data; boundary=b',
+    },
+    {
+      name: 'non form-data disposition',
+      text: [
+        '--b',
+        'Content-Disposition: attachment; name=safe',
+        '',
+        'visible',
+        '--b--',
+        '',
+      ].join('\r\n'),
+      mimeType: 'multipart/form-data; boundary=b',
+    },
+    {
+      name: 'malformed disposition parameter',
+      text: [
+        '--b',
+        'Content-Disposition: form-data; name',
+        '',
+        'visible',
+        '--b--',
+        '',
+      ].join('\r\n'),
+      mimeType: 'multipart/form-data; boundary=b',
+    },
+    {
+      name: 'unterminated quoted disposition parameter',
+      text: [
+        '--b',
+        'Content-Disposition: form-data; name="safe',
+        '',
+        'visible',
+        '--b--',
+        '',
+      ].join('\r\n'),
+      mimeType: 'multipart/form-data; boundary=b',
+    },
+    {
+      name: 'duplicate field name parameter',
+      text: [
+        '--b',
+        'Content-Disposition: form-data; name=safe; name=other',
+        '',
+        'visible',
+        '--b--',
+        '',
+      ].join('\r\n'),
+      mimeType: 'multipart/form-data; boundary=b',
+    },
+    {
+      name: 'duplicate filename parameter',
+      text: [
+        '--b',
+        'Content-Disposition: form-data; name=safe; filename=a; filename=b',
+        '',
+        'visible',
+        '--b--',
+        '',
+      ].join('\r\n'),
+      mimeType: 'multipart/form-data; boundary=b',
+    },
+    {
+      name: 'missing field name parameter',
+      text: [
+        '--b',
+        'Content-Disposition: form-data; filename=file.txt',
+        '',
+        'visible',
+        '--b--',
+        '',
+      ].join('\r\n'),
+      mimeType: 'multipart/form-data; boundary=b',
+    },
+    {
+      name: 'part without a header separator',
+      text: [
+        '--b',
+        'Content-Disposition: form-data; name=safe',
+        'visible',
+        '--b--',
+        '',
+      ].join('\r\n'),
+      mimeType: 'multipart/form-data; boundary=b',
+    },
+    {
+      name: 'malformed header',
+      text: ['--b', 'invalid-header', '', 'visible', '--b--', ''].join('\r\n'),
+      mimeType: 'multipart/form-data; boundary=b',
+    },
+    {
+      name: 'duplicate disposition header',
+      text: [
+        '--b',
+        'Content-Disposition: form-data; name=safe',
+        'Content-Disposition: form-data; name=other',
+        '',
+        'visible',
+        '--b--',
+        '',
+      ].join('\r\n'),
+      mimeType: 'multipart/form-data; boundary=b',
+    },
+    {
+      name: 'oversized field name',
+      text: [
+        '--b',
+        `Content-Disposition: form-data; name=${'x'.repeat(257)}`,
+        '',
+        'visible',
+        '--b--',
+        '',
+      ].join('\r\n'),
+      mimeType: 'multipart/form-data; boundary=b',
+    },
+    {
+      name: 'oversized filename',
+      text: [
+        '--b',
+        `Content-Disposition: form-data; name=safe; filename=${'x'.repeat(1025)}`,
+        '',
+        'visible',
+        '--b--',
+        '',
+      ].join('\r\n'),
+      mimeType: 'multipart/form-data; boundary=b',
+    },
+    {
+      name: 'too many headers',
+      text: [
+        '--b',
+        'Content-Disposition: form-data; name=safe',
+        ...Array.from({ length: 100 }, (_, index) => `X-${index}: value`),
+        '',
+        'visible',
+        '--b--',
+        '',
+      ].join('\r\n'),
+      mimeType: 'multipart/form-data; boundary=b',
+    },
+    {
+      name: 'content after an exact closing delimiter',
+      text: [
+        '--b',
+        'Content-Disposition: form-data; name=safe',
+        '',
+        'visible',
+        '--b--',
+        'garbage',
+      ].join('\r\n'),
+      mimeType: 'multipart/form-data; boundary=b',
+    },
+  ])('rejects multipart with $name', ({ text, mimeType }) => {
+    expect(decodeTextBody({ text, mimeType })).toMatchObject({
+      kind: 'text',
+      issue: 'malformed',
     });
   });
 });

@@ -531,6 +531,24 @@ describe('redaction helpers', () => {
     });
   });
 
+  it('preserves obsession while redacting explicit session credential forms', () => {
+    expect(
+      redactJsonValue({
+        obsession: 'visible',
+        session: 'session-value-6035',
+        userSessionId: 'id-value-7146',
+        userSessionToken: 'token-value-8257',
+        userSessionKey: 'key-value-9368',
+      }),
+    ).toEqual({
+      obsession: 'visible',
+      session: REDACTED,
+      userSessionId: REDACTED,
+      userSessionToken: REDACTED,
+      userSessionKey: REDACTED,
+    });
+  });
+
   it('falls back to default names for malformed custom field settings', () => {
     const config = {
       ...DEFAULT_REDACTION_CONFIG,
@@ -831,6 +849,49 @@ describe('redaction helpers', () => {
     const result = redactBody(body, DEFAULT_REDACTION_CONFIG);
 
     expect(result.text).toBe(REDACTED);
+  });
+
+  it('fails closed for an inline multipart boundary with arbitrary data', () => {
+    const body: BodyContent = {
+      state: 'available',
+      size: 120,
+      capturedSize: 120,
+      text: [
+        'inline-prefix--b',
+        'Content-Disposition: form-data; name=safe',
+        '',
+        'inline-value-0479',
+        '--b--',
+        '',
+      ].join('\r\n'),
+      mimeType: 'multipart/form-data; boundary=b',
+    };
+
+    const result = redactBody(body, DEFAULT_REDACTION_CONFIG);
+
+    expect(result.text).toBe(REDACTED);
+    expect(result.text).not.toContain('inline-value-0479');
+  });
+
+  it('fails closed for garbage after a multipart closing delimiter', () => {
+    const body: BodyContent = {
+      state: 'available',
+      size: 120,
+      capturedSize: 120,
+      text: [
+        '--b',
+        'Content-Disposition: form-data; name=safe',
+        '',
+        'visible',
+        '--b--garbage-value-1580',
+      ].join('\r\n'),
+      mimeType: 'multipart/form-data; boundary=b',
+    };
+
+    const result = redactBody(body, DEFAULT_REDACTION_CONFIG);
+
+    expect(result.text).toBe(REDACTED);
+    expect(result.text).not.toContain('garbage-value-1580');
   });
 
   it('canonicalizes and redacts multipart names containing spaces', () => {

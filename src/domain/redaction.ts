@@ -1,4 +1,5 @@
 import type { BodyContent, CapturedRequest, Header } from './model';
+import { parseMultipartBody } from './multipart';
 import {
   DEFAULT_REDACTION_CONFIG,
   type RedactionConfig,
@@ -14,7 +15,6 @@ export const REDACTED = '[REDACTED]' as const;
 const MAX_DEPTH = 32;
 const MAX_KEYS = 10_000;
 const MAX_PATTERN_SCAN_CHARACTERS = 1024 * 1024;
-const MAX_MULTIPART_BOUNDARY_LENGTH = 200;
 const MAX_JWT_SEGMENT_CHARACTERS = 64 * 1024;
 
 const AUTHORIZATION_HEADER_NAMES = new Set(['authorization', 'proxyauthorization']);
@@ -38,12 +38,18 @@ const NORMALIZED_CREDENTIAL_SUFFIXES = [
   'token',
   'secret',
   'apikey',
-  'session',
   'sessionid',
   'credential',
   'credentials',
   'csrf',
   'xsrf',
+] as const;
+const NORMALIZED_SESSION_CREDENTIAL_SUFFIXES = [
+  'sessionid',
+  'sessiontoken',
+  'sessionkey',
+  'sessionsecret',
+  'sessioncookie',
 ] as const;
 
 const VALUE_PATTERNS = [
@@ -170,6 +176,9 @@ function isSensitiveField(fieldName: string, context: TraversalContext): boolean
   return (
     context.fieldNames.has(normalized) ||
     NORMALIZED_CREDENTIAL_SUFFIXES.some((suffix) => normalized.endsWith(suffix)) ||
+    NORMALIZED_SESSION_CREDENTIAL_SUFFIXES.some((suffix) =>
+      normalized.endsWith(suffix),
+    ) ||
     isBuiltInSensitiveName(fieldName)
   );
 }
@@ -392,117 +401,30 @@ function redactFormText(text: string, context: TraversalContext): string {
   return exposeRedactedMarkers(output.toString());
 }
 
-function unquote(value: string): string {
-  const trimmed = value.trim();
-  return trimmed.length >= 2 && trimmed.startsWith('"') && trimmed.endsWith('"')
-    ? trimmed.slice(1, -1)
-    : trimmed;
-}
-
-function multipartBoundary(mimeType: string): string | undefined {
-  for (const parameter of mimeType.split(';').slice(1)) {
-    const separator = parameter.indexOf('=');
-    if (separator < 0) continue;
-    if (parameter.slice(0, separator).trim().toLowerCase() !== 'boundary') {
-      continue;
-    }
-    const boundary = unquote(parameter.slice(separator + 1));
-    if (
-      boundary.length > 0 &&
-      boundary.length <= MAX_MULTIPART_BOUNDARY_LENGTH &&
-      !boundary.includes('\r') &&
-      !boundary.includes('\n')
-    ) {
-      return boundary;
-    }
-  }
-  return undefined;
-}
-
-function dispositionParameter(
-  disposition: string,
-  parameterName: string,
-): string | undefined {
-  for (const parameter of disposition.split(';').slice(1)) {
-    const separator = parameter.indexOf('=');
-    if (separator < 0) continue;
-    if (parameter.slice(0, separator).trim().toLowerCase() === parameterName) {
-      return unquote(parameter.slice(separator + 1));
-    }
-  }
-  return undefined;
-}
-
-function redactMultipartPart(rawPart: string, context: TraversalContext): string {
-  if (rawPart === '') return '';
-  if (rawPart.startsWith('--')) return '--';
-  const leadingLength = rawPart.startsWith('\r\n')
-    ? 2
-    : rawPart.startsWith('\n')
-      ? 1
-      : 0;
-  const part = rawPart.slice(leadingLength);
-  const separator = part.indexOf('\r\n\r\n');
-  const fallbackSeparator = separator < 0 ? part.indexOf('\n\n') : -1;
-  const headerEnd = separator >= 0 ? separator : fallbackSeparator;
-  if (headerEnd < 0) return REDACTED;
-
-  const separatorLength = separator >= 0 ? 4 : 2;
-  const headers = part.slice(0, headerEnd).split(/\r?\n/u);
-  const disposition = headers.find((header) =>
-    header.toLowerCase().startsWith('content-disposition:'),
-  );
-  if (disposition === undefined) return REDACTED;
-
-  const name = dispositionParameter(disposition, 'name');
-  if (
-    name === undefined ||
-    name.length > 256 ||
-    name.includes('\r') ||
-    name.includes('\n')
-  ) {
-    return REDACTED;
-  }
-  const valueStart = leadingLength + headerEnd + separatorLength;
-  const trailingLength = rawPart.endsWith('\r\n') ? 2 : rawPart.endsWith('\n') ? 1 : 0;
-  const valueEnd = rawPart.length - trailingLength;
-  const value = rawPart.slice(valueStart, valueEnd);
-  const filename = dispositionParameter(disposition, 'filename');
-  const redacted =
-    filename !== undefined || isSensitiveField(name, context)
-      ? REDACTED
-      : redactValuePatterns(value, context);
-  const safeName = /^[A-Za-z0-9_.-]+$/u.test(name) ? name : JSON.stringify(name);
-  const safeDisposition =
-    `Content-Disposition: form-data; name=${safeName}` +
-    (filename === undefined ? '' : `; filename="${REDACTED}"`);
-  const lineEnding = separator >= 0 ? '\r\n' : '\n';
-  const trailing = rawPart.slice(valueEnd);
-  return `${rawPart.slice(0, leadingLength)}${safeDisposition}${lineEnding}${lineEnding}${redacted}${trailing}`;
-}
-
 function redactMultipartText(
   text: string,
   mimeType: string,
   context: TraversalContext,
 ): string {
-  const boundary = multipartBoundary(mimeType);
-  if (boundary === undefined) return REDACTED;
-  const delimiter = `--${boundary}`;
-  const segments = text.split(delimiter);
-  if (segments.length < 2) return REDACTED;
-  const closingIndex = segments.findIndex(
-    (segment, index) => index > 0 && segment.startsWith('--'),
-  );
-  if (closingIndex < 0) return REDACTED;
+  const multipart = parseMultipartBody(text, mimeType);
+  if (multipart === undefined) return REDACTED;
 
-  return [
-    '',
-    ...segments
-      .slice(1, closingIndex)
-      .map((part) => redactMultipartPart(part, context)),
-    '--',
-  ].join(delimiter);
+  const delimiter = `--${multipart.boundary}`;
+  const parts = multipart.parts.map((part) => {
+    const safeName = /^[A-Za-z0-9_.-]+$/u.test(part.name)
+      ? part.name
+      : JSON.stringify(part.name);
+    const safeDisposition =
+      `Content-Disposition: form-data; name=${safeName}` +
+      (part.filename === undefined ? '' : `; filename="${REDACTED}"`);
+    const value =
+      part.filename !== undefined || isSensitiveField(part.name, context)
+        ? REDACTED
+        : redactValuePatterns(part.value, context);
+    return `${delimiter}${multipart.lineEnding}${safeDisposition}${multipart.lineEnding}${multipart.lineEnding}${value}${multipart.lineEnding}`;
+  });
+
+  return `${parts.join('')}${delimiter}--`;
 }
 
 function redactBodyText(
