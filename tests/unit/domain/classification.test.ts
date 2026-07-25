@@ -123,7 +123,7 @@ describe('classifyRequest', () => {
     });
   });
 
-  it('confirms GraphQL from a structured JSON query body', () => {
+  it('keeps a plausible GraphQL JSON query at likely confidence', () => {
     const result = classifyRequest(
       requestWith({
         method: 'POST',
@@ -139,8 +139,8 @@ describe('classifyRequest', () => {
 
     expect(result).toEqual({
       kind: 'graphql',
-      confidence: 'confirmed',
-      evidence: ['JSON request body contains a GraphQL query field.'],
+      confidence: 'likely',
+      evidence: ['JSON request body contains a plausible GraphQL document.'],
     });
   });
 
@@ -178,7 +178,7 @@ describe('classifyRequest', () => {
     expect(result).toMatchObject({ kind: 'api', confidence: 'likely' });
   });
 
-  it('confirms GraphQL from a nonempty GET query parameter', () => {
+  it('keeps a plausible GraphQL GET query at likely confidence', () => {
     const result = classifyRequest(
       requestWith({
         url: 'https://api.test/graphql?query=query%20Viewer%20%7Bme%7D',
@@ -187,8 +187,8 @@ describe('classifyRequest', () => {
 
     expect(result).toEqual({
       kind: 'graphql',
-      confidence: 'confirmed',
-      evidence: ['URL query contains a nonempty GraphQL query parameter.'],
+      confidence: 'likely',
+      evidence: ['URL query contains a plausible GraphQL document.'],
     });
   });
 
@@ -259,7 +259,7 @@ describe('classifyRequest', () => {
           },
         }),
       ),
-    ).toMatchObject({ kind: 'graphql', confidence: 'confirmed' });
+    ).toMatchObject({ kind: 'graphql', confidence: 'likely' });
   });
 
   it('accepts a syntactically anchored fragment document', () => {
@@ -279,7 +279,61 @@ describe('classifyRequest', () => {
           },
         }),
       ),
-    ).toMatchObject({ kind: 'graphql', confidence: 'confirmed' });
+    ).toMatchObject({ kind: 'graphql', confidence: 'likely' });
+  });
+
+  it.each(['query !!! {}', 'query {}', 'query { viewer } trailing garbage'])(
+    'rejects invalid GraphQL operation text: %s',
+    (query) => {
+      const bodyText = JSON.stringify({ query });
+      expect(
+        classifyRequest(
+          requestWith({
+            method: 'POST',
+            requestBody: {
+              state: 'available',
+              size: bodyText.length,
+              capturedSize: bodyText.length,
+              text: bodyText,
+              mimeType: 'application/json',
+            },
+          }),
+        ),
+      ).toMatchObject({ kind: 'api', confidence: 'likely' });
+    },
+  );
+
+  it('rejects an oversized raw JSON query before trimming leading whitespace', () => {
+    const query = `${' '.repeat(64 * 1_024 + 1)}query Viewer { me }`;
+    const bodyText = JSON.stringify({ query });
+
+    expect(
+      classifyRequest(
+        requestWith({
+          method: 'POST',
+          requestBody: {
+            state: 'available',
+            size: bodyText.length,
+            capturedSize: bodyText.length,
+            text: bodyText,
+            mimeType: 'application/json',
+          },
+        }),
+      ),
+    ).toMatchObject({ kind: 'api', confidence: 'likely' });
+  });
+
+  it('rejects an oversized raw URL query before trimming leading whitespace', () => {
+    const query = `${' '.repeat(64 * 1_024 + 1)}query Viewer { me }`;
+
+    expect(
+      classifyRequest(
+        requestWith({
+          url: `https://api.test/graphql?query=${encodeURIComponent(query)}`,
+          responseMime: 'text/html',
+        }),
+      ),
+    ).toMatchObject({ kind: 'document', confidence: 'likely' });
   });
 
   it.each([

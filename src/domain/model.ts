@@ -1,6 +1,20 @@
 export type RetentionMode = 'ephemeral' | 'persistent';
 
-export type RecordingPhase = 'recording' | 'stopped';
+export type RecordingPhase = 'stopped' | 'starting' | 'recording' | 'stopping';
+
+export type SessionWarningCode =
+  | 'capture-failed'
+  | 'corrupt-session'
+  | 'migration-cleanup-failed'
+  | 'migration-failed'
+  | 'persistence-disabled'
+  | 'request-too-large';
+
+export type SessionWarning = Readonly<{
+  code: SessionWarningCode;
+  message: string;
+  requestId?: string;
+}>;
 
 export type SessionLimits = Readonly<{
   maxRequests: number;
@@ -51,6 +65,7 @@ export type CaptureEvidence = Readonly<{
   fromCache?: boolean;
   fromServiceWorker?: boolean;
   redirectUrl?: string;
+  redirectParentId?: string;
   initiator?: string;
 }>;
 
@@ -81,20 +96,41 @@ export type CapturedRequest = Readonly<{
   explanation?: Explanation;
 }>;
 
+export type ElementDescriptor = Readonly<{
+  tag: string;
+  role?: string;
+  name?: string;
+  id?: string;
+  text?: string;
+}>;
+
+export type InteractionTrust = 'trusted' | 'untrusted-hint';
+
 export type InteractionEvent = Readonly<{
   id: string;
   tabId: string;
   kind: 'click' | 'submit' | 'navigation' | 'history';
   occurredAt: number;
-  target?: string;
+  trust: InteractionTrust;
+  target?: ElementDescriptor;
   url?: string;
 }>;
 
-export type InteractionGroup = Readonly<{
+export type EventInteractionGroup = Readonly<{
   id: string;
+  kind: 'event';
   event: InteractionEvent;
   requestIds: readonly string[];
 }>;
+
+export type UnattributedInteractionGroup = Readonly<{
+  id: 'unattributed';
+  kind: 'unattributed';
+  event: null;
+  requestIds: readonly string[];
+}>;
+
+export type InteractionGroup = EventInteractionGroup | UnattributedInteractionGroup;
 
 export type RecordingSession = Readonly<{
   id: string;
@@ -106,7 +142,9 @@ export type RecordingSession = Readonly<{
   startedAt: number | null;
   stoppedAt: number | null;
   requests: readonly CapturedRequest[];
+  requestBytes: readonly number[];
+  byteCount: number;
   interactions: readonly InteractionEvent[];
   evictedCount: number;
-  warnings: readonly string[];
+  warnings: readonly SessionWarning[];
 }>;

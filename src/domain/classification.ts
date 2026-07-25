@@ -71,7 +71,7 @@ export function classifyRequest(request: CapturedRequest): Classification {
 
   const graphQL = detectGraphQL(request);
   if (graphQL !== undefined) {
-    return makeClassification('graphql', 'confirmed', graphQL.evidence);
+    return makeClassification('graphql', graphQL.confidence, graphQL.evidence);
   }
 
   const requestMime = mimeType(request.request.body?.mimeType);

@@ -21,6 +21,8 @@ export function createSession(
     startedAt: null,
     stoppedAt: null,
     requests: [],
+    requestBytes: [],
+    byteCount: 0,
     interactions: [],
     evictedCount: 0,
     warnings: [],
