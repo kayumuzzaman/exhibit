@@ -8,6 +8,10 @@ function validSize(value: number): number {
   return Number.isFinite(value) && value >= 0 ? Math.floor(value) : 0;
 }
 
+export function effectiveBodyLimit(maxBodyBytes: number): number {
+  return Math.min(validSize(maxBodyBytes), HARD_MAX_BODY_BYTES);
+}
+
 function mimeType(value: string | undefined): string | undefined {
   return typeof value === 'string' && value.length > 0 ? value : undefined;
 }
@@ -109,15 +113,10 @@ export function applyBodyPolicy(
   maxBodyBytes: number,
 ): BodyContent {
   const declared = validSize(declaredSize);
-  const limit = Math.min(validSize(maxBodyBytes), HARD_MAX_BODY_BYTES);
+  const limit = effectiveBodyLimit(maxBodyBytes);
   if (content === undefined) return unavailable(declared, 'content-not-retrieved');
 
   const mime = mimeType(content.mimeType);
-  const encodedBytes =
-    content.encoding === 'base64' ? base64ByteLength(content.text) : undefined;
-  if (content.encoding === 'base64' && encodedBytes === undefined) {
-    return unavailable(declared, 'invalid-base64');
-  }
   if (content.state === 'streamed') {
     return {
       state: 'streamed',
@@ -126,6 +125,12 @@ export function applyBodyPolicy(
       ...(mime === undefined ? {} : { mimeType: mime }),
       reason: content.unavailableReason ?? 'streamed-response',
     };
+  }
+
+  const encodedBytes =
+    content.encoding === 'base64' ? base64ByteLength(content.text) : undefined;
+  if (content.encoding === 'base64' && encodedBytes === undefined) {
+    return unavailable(declared, 'invalid-base64');
   }
 
   if (!isTextMimeType(mime)) {

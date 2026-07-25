@@ -139,6 +139,28 @@ describe('applyBodyPolicy', () => {
     ).toMatchObject({ state: 'streamed', reason: 'capture-stopped' });
   });
 
+  it('keeps partial base64 streams explicit before validating body content', () => {
+    expect(
+      applyBodyPolicy(
+        {
+          text: 'partial',
+          encoding: 'base64',
+          mimeType: 'text/event-stream',
+          state: 'streamed',
+          unavailableReason: 'capture-stopped',
+        },
+        99,
+        16,
+      ),
+    ).toEqual({
+      state: 'streamed',
+      size: 99,
+      capturedSize: 0,
+      mimeType: 'text/event-stream',
+      reason: 'capture-stopped',
+    });
+  });
+
   it('rejects decoded base64 text whose UTF-8 representation exceeds the cap', () => {
     const body = applyBodyPolicy(
       { text: '//8=', encoding: 'base64', mimeType: 'text/plain' },

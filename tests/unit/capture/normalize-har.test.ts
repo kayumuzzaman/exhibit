@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { DEFAULT_LIMITS } from '../../../src/domain/session';
 import { normalizeObservation } from '../../../src/features/capture/normalize-har';
 import { observation } from '../../helpers/har-factory';
@@ -212,6 +212,25 @@ describe('normalizeObservation', () => {
     });
   });
 
+  it('uses transport body size only as fallback when response content is unavailable', () => {
+    const request = normalizeObservation(
+      observation({
+        response: {
+          bodySize: 99,
+          content: { mimeType: 'application/json' },
+        },
+      }),
+      DEFAULT_LIMITS,
+    );
+
+    expect(request.response.body).toEqual({
+      state: 'unavailable',
+      size: 99,
+      capturedSize: 0,
+      reason: 'content-not-retrieved',
+    });
+  });
+
   it('sums retained timing components when HAR total time is invalid', () => {
     const request = normalizeObservation(
       observation({
@@ -228,6 +247,27 @@ describe('normalizeObservation', () => {
       sendMs: 4,
       waitMs: 5,
       receiveMs: 6,
+    });
+  });
+
+  it('clamps an overflowing timing fallback to a finite total', () => {
+    const request = normalizeObservation(
+      observation({
+        time: Number.NaN,
+        timings: {
+          dns: Number.MAX_VALUE,
+          connect: Number.MAX_VALUE,
+          send: 1,
+        },
+      }),
+      DEFAULT_LIMITS,
+    );
+
+    expect(request.timing).toEqual({
+      totalMs: 0,
+      dnsMs: Number.MAX_VALUE,
+      connectMs: Number.MAX_VALUE,
+      sendMs: 1,
     });
   });
 
@@ -313,6 +353,208 @@ describe('normalizeObservation', () => {
       {
         ...observation(),
         content: { text: 'compressed', encoding: 'gzip' } as never,
+      },
+      DEFAULT_LIMITS,
+    );
+
+    expect(request.response.body).toMatchObject({
+      state: 'unavailable',
+      reason: 'content-not-retrieved',
+    });
+  });
+
+  it('bounds post-data parameter materialization before URL encoding', () => {
+    const append = vi
+      .spyOn(URLSearchParams.prototype, 'append')
+      .mockImplementation((_name, value) => {
+        if (value.length > 8) throw new Error('unbounded form allocation');
+      });
+
+    try {
+      const request = normalizeObservation(
+        observation({
+          request: {
+            postData: {
+              params: [{ name: 'a', value: 'x'.repeat(1_024) }],
+            },
+          },
+        }),
+        { ...DEFAULT_LIMITS, maxBodyBytes: 8 },
+      );
+
+      expect(request.request.body).toEqual({
+        state: 'truncated',
+        size: 1_026,
+        capturedSize: 8,
+        text: 'a=xxxxxx',
+        mimeType: 'application/x-www-form-urlencoded',
+        reason: 'body-limit',
+      });
+    } finally {
+      append.mockRestore();
+    }
+  });
+
+  it('percent-encodes repeated form params without splitting encoded bytes', () => {
+    const request = normalizeObservation(
+      observation({
+        request: {
+          postData: {
+            params: [
+              { name: 'a b', value: 'é~*' },
+              { name: 'a b', value: 'x' },
+            ],
+          },
+        },
+      }),
+      DEFAULT_LIMITS,
+    );
+
+    expect(request.request.body).toMatchObject({
+      state: 'available',
+      size: 20,
+      capturedSize: 20,
+      text: 'a+b=%C3%A9%7E*&a+b=x',
+    });
+  });
+
+  it('truncates form params only at complete percent-encoded code points', () => {
+    const request = normalizeObservation(
+      observation({
+        request: {
+          postData: {
+            params: [{ name: 'a', value: 'éé' }],
+          },
+        },
+      }),
+      { ...DEFAULT_LIMITS, maxBodyBytes: 8 },
+    );
+
+    expect(request.request.body).toEqual({
+      state: 'truncated',
+      size: 14,
+      capturedSize: 8,
+      text: 'a=%C3%A9',
+      mimeType: 'application/x-www-form-urlencoded',
+      reason: 'body-limit',
+    });
+  });
+
+  it('does not retain a partial multi-byte form code point', () => {
+    const request = normalizeObservation(
+      observation({
+        request: {
+          postData: {
+            params: [{ name: 'a', value: 'é' }],
+          },
+        },
+      }),
+      { ...DEFAULT_LIMITS, maxBodyBytes: 5 },
+    );
+
+    expect(request.request.body).toEqual({
+      state: 'truncated',
+      size: 8,
+      capturedSize: 2,
+      text: 'a=',
+      mimeType: 'application/x-www-form-urlencoded',
+      reason: 'body-limit',
+    });
+  });
+
+  it('encodes astral and unpaired-surrogate form values safely', () => {
+    const request = normalizeObservation(
+      observation({
+        request: {
+          postData: {
+            params: [{ name: 'a', value: '😀\ud800' }],
+          },
+        },
+      }),
+      DEFAULT_LIMITS,
+    );
+
+    expect(request.request.body).toMatchObject({
+      state: 'available',
+      size: 23,
+      capturedSize: 23,
+      text: 'a=%F0%9F%98%80%EF%BF%BD',
+    });
+  });
+
+  it('preserves bounded form text across internal output chunks', () => {
+    const request = normalizeObservation(
+      observation({
+        request: {
+          postData: {
+            params: [{ name: 'a', value: 'x'.repeat(4_096) }],
+          },
+        },
+      }),
+      DEFAULT_LIMITS,
+    );
+
+    expect(request.request.body).toMatchObject({
+      state: 'available',
+      size: 4_098,
+      capturedSize: 4_098,
+    });
+    expect(request.request.body?.text).toHaveLength(4_098);
+    expect(request.request.body?.text?.startsWith('a=')).toBe(true);
+    expect(request.request.body?.text?.endsWith('xxxx')).toBe(true);
+  });
+
+  it.each([
+    ['application/custom-form', 'application/custom-form'],
+    ['', undefined],
+  ])('normalizes explicit form MIME type %j', (mimeType, expected) => {
+    const request = normalizeObservation(
+      observation({
+        request: {
+          postData: {
+            mimeType,
+            params: [{ name: 'a', value: 'b' }],
+          },
+        },
+      }),
+      DEFAULT_LIMITS,
+    );
+
+    expect(request.request.body?.mimeType).toBe(expected);
+  });
+
+  it('normalizes streamed attachments with provider evidence intact', () => {
+    const request = normalizeObservation(
+      {
+        ...observation({
+          response: {
+            content: { size: 55, mimeType: 'text/event-stream' },
+          },
+        }),
+        content: {
+          text: 'partial',
+          encoding: 'base64',
+          state: 'streamed',
+          unavailableReason: 'capture-stopped',
+        },
+      },
+      DEFAULT_LIMITS,
+    );
+
+    expect(request.response.body).toEqual({
+      state: 'streamed',
+      size: 55,
+      capturedSize: 0,
+      mimeType: 'text/event-stream',
+      reason: 'capture-stopped',
+    });
+  });
+
+  it('treats retrieved-content attachments without text as unavailable', () => {
+    const request = normalizeObservation(
+      {
+        ...observation(),
+        content: { encoding: '' } as never,
       },
       DEFAULT_LIMITS,
     );
