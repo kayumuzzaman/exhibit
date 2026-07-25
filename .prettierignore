@@ -1,4 +1,6 @@
 .superpowers/
+.pnpm-store/
+.worktrees/
 docs/superpowers/plans/
 docs/superpowers/specs/
 node_modules/

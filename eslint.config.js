@@ -6,6 +6,9 @@ export default tseslint.config(
   {
     ignores: [
       '.output/**',
+      '.pnpm-store/**',
+      '.superpowers/**',
+      '.worktrees/**',
       '.wxt/**',
       'coverage/**',
       'node_modules/**',
