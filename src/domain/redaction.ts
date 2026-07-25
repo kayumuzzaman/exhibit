@@ -15,31 +15,33 @@ const MAX_DEPTH = 32;
 const MAX_KEYS = 10_000;
 const MAX_PATTERN_SCAN_CHARACTERS = 1024 * 1024;
 const MAX_MULTIPART_BOUNDARY_LENGTH = 200;
+const MAX_JWT_SEGMENT_CHARACTERS = 64 * 1024;
 
 const AUTHORIZATION_HEADER_NAMES = new Set(['authorization', 'proxyauthorization']);
 const COOKIE_HEADER_NAMES = new Set(['cookie', 'setcookie']);
-const BUILTIN_SENSITIVE_NAME_FRAGMENTS = [
+const ALWAYS_SENSITIVE_NAME_WORDS = new Set([
   'password',
   'passwd',
   'passphrase',
   'token',
   'secret',
-  'apikey',
-  'session',
   'credential',
+  'credentials',
   'csrf',
   'xsrf',
-] as const;
+]);
+const SESSION_CREDENTIAL_WORDS = new Set(['id', 'token', 'key', 'secret', 'cookie']);
 
 const VALUE_PATTERNS = [
   /\bbearer[ \t]+[A-Za-z0-9._~+/-]+={0,2}/iu,
-  /\b[A-Za-z0-9_-]{2,}\.[A-Za-z0-9_-]{2,}\.[A-Za-z0-9_-]{2,}\b/u,
-  /\b(?:sk|pk)[_-](?:live|test)[_-][A-Za-z0-9_-]+\b/iu,
+  /\b(?:sk|pk)[_-](?:live|test|proj)[_-][A-Za-z0-9_-]+\b/iu,
   /\bAKIA[A-Z0-9]{16}\b/u,
   /\bAIza[A-Za-z0-9_-]{20,}\b/u,
   /\b(?:gh[pousr]|github_pat)_[A-Za-z0-9_]{20,}\b/iu,
   /\b(?:api[_ -]?key|token|secret)[ \t]*[:=][ \t]*[^\s,;&]+/iu,
 ] as const;
+const JWT_CANDIDATE_PATTERN =
+  /(?:^|[^A-Za-z0-9_-])([A-Za-z0-9_-]{2,})\.([A-Za-z0-9_-]{2,})\.([A-Za-z0-9_-]*)(?=$|[^A-Za-z0-9_-])/gu;
 
 type TraversalContext = {
   readonly fieldNames: ReadonlySet<string>;
@@ -67,6 +69,18 @@ function ownPropertyDescriptors(input: object): PropertyDescriptorMap | undefine
   }
 }
 
+type DataContainerKind = 'array' | 'record';
+
+function dataContainerKind(input: object): DataContainerKind | undefined {
+  try {
+    if (Array.isArray(input)) return 'array';
+    const prototype: unknown = Object.getPrototypeOf(input);
+    return prototype === Object.prototype || prototype === null ? 'record' : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 function defineDataProperty(target: object, key: string, value: unknown): void {
   Object.defineProperty(target, key, {
     value,
@@ -78,6 +92,29 @@ function defineDataProperty(target: object, key: string, value: unknown): void {
 
 function normalizeFieldName(fieldName: string): string {
   return fieldName.toLowerCase().replace(/[^a-z0-9]/gu, '');
+}
+
+function fieldNameWords(fieldName: string): readonly string[] {
+  return fieldName
+    .replace(/([a-z0-9])([A-Z])/gu, '$1 $2')
+    .toLowerCase()
+    .split(/[^a-z0-9]+/u)
+    .filter((word) => word.length > 0);
+}
+
+function isBuiltInSensitiveName(fieldName: string): boolean {
+  const words = fieldNameWords(fieldName);
+  if (words.some((word) => ALWAYS_SENSITIVE_NAME_WORDS.has(word))) return true;
+  if (words.some((word, index) => word === 'api' && words[index + 1] === 'key')) {
+    return true;
+  }
+
+  const sessionIndex = words.indexOf('session');
+  if (sessionIndex < 0) return false;
+  return (
+    SESSION_CREDENTIAL_WORDS.has(words[sessionIndex - 1] ?? '') ||
+    SESSION_CREDENTIAL_WORDS.has(words[sessionIndex + 1] ?? '')
+  );
 }
 
 function configuredFieldNames(config: RedactionConfig): ReadonlySet<string> {
@@ -116,16 +153,56 @@ function traversalContext(config: RedactionConfig): TraversalContext {
 
 function isSensitiveField(fieldName: string, context: TraversalContext): boolean {
   const normalized = normalizeFieldName(fieldName);
-  return (
-    context.fieldNames.has(normalized) ||
-    BUILTIN_SENSITIVE_NAME_FRAGMENTS.some((fragment) => normalized.includes(fragment))
-  );
+  return context.fieldNames.has(normalized) || isBuiltInSensitiveName(fieldName);
+}
+
+function decodeJwtSegment(segment: string): unknown {
+  if (
+    segment.length === 0 ||
+    segment.length > MAX_JWT_SEGMENT_CHARACTERS ||
+    segment.length % 4 === 1
+  ) {
+    return undefined;
+  }
+
+  try {
+    const base64 = segment
+      .replaceAll('-', '+')
+      .replaceAll('_', '/')
+      .padEnd(segment.length + ((4 - (segment.length % 4)) % 4), '=');
+    const binary = atob(base64);
+    const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0));
+    return JSON.parse(new TextDecoder().decode(bytes));
+  } catch {
+    return undefined;
+  }
+}
+
+function containsValidatedJwt(value: string): boolean {
+  JWT_CANDIDATE_PATTERN.lastIndex = 0;
+  for (const match of value.matchAll(JWT_CANDIDATE_PATTERN)) {
+    const header = decodeJwtSegment(match[1]!);
+    const payload = decodeJwtSegment(match[2]!);
+    if (
+      header !== null &&
+      typeof header === 'object' &&
+      typeof readDataProperty(header, 'alg') === 'string' &&
+      payload !== null &&
+      typeof payload === 'object'
+    ) {
+      return true;
+    }
+  }
+  return false;
 }
 
 function redactValuePatterns(value: string, context: TraversalContext): string {
   if (!context.scanValuePatterns) return value;
   if (value.length > MAX_PATTERN_SCAN_CHARACTERS) return REDACTED;
-  return VALUE_PATTERNS.some((pattern) => pattern.test(value)) ? REDACTED : value;
+  return VALUE_PATTERNS.some((pattern) => pattern.test(value)) ||
+    containsValidatedJwt(value)
+    ? REDACTED
+    : value;
 }
 
 function redactUnknownWithContext(
@@ -138,13 +215,21 @@ function redactUnknownWithContext(
     return REDACTED;
   }
   if (typeof value === 'string') return redactValuePatterns(value, context);
-  if (value === null || typeof value !== 'object') return value;
+  if (
+    value === null ||
+    typeof value === 'boolean' ||
+    (typeof value === 'number' && Number.isFinite(value))
+  ) {
+    return value;
+  }
+  if (typeof value !== 'object') return REDACTED;
   if (depth >= MAX_DEPTH || context.seen.has(value)) return REDACTED;
 
   context.seen.add(value);
-  const output: unknown[] | Record<string, unknown> = Array.isArray(value)
-    ? []
-    : Object.create(null);
+  const containerKind = dataContainerKind(value);
+  if (containerKind === undefined) return REDACTED;
+  const output: unknown[] | Record<string, unknown> =
+    containerKind === 'array' ? [] : Object.create(null);
   const descriptors = ownPropertyDescriptors(value);
   if (descriptors === undefined) return REDACTED;
 
@@ -171,7 +256,11 @@ function redactUnknownWithContext(
 }
 
 export function redactUnknown(value: unknown, config: RedactionConfig): unknown {
-  return redactUnknownWithContext(value, traversalContext(config), 0);
+  try {
+    return redactUnknownWithContext(value, traversalContext(config), 0);
+  } catch {
+    return REDACTED;
+  }
 }
 
 function redactQueryParameters(
@@ -193,8 +282,8 @@ function exposeRedactedMarkers(value: string): string {
 }
 
 export function redactUrl(input: string, config: RedactionConfig): string {
-  const context = traversalContext(config);
   try {
+    const context = traversalContext(config);
     const url = new URL(input, 'https://payloadra.invalid');
     const absolute = /^[A-Za-z][A-Za-z0-9+.-]*:/u.test(input) || input.startsWith('//');
     if (url.username !== '') url.username = REDACTED;
@@ -205,8 +294,17 @@ export function redactUrl(input: string, config: RedactionConfig): string {
       : `${url.pathname}${url.search}${url.hash}`;
     return exposeRedactedMarkers(formatted);
   } catch {
-    return redactValuePatterns(input, context);
+    return REDACTED;
   }
+}
+
+function redactionFailedBody(): BodyContent {
+  return {
+    state: 'unavailable',
+    size: 0,
+    capturedSize: 0,
+    reason: 'redaction-failed',
+  };
 }
 
 export function redactHeaders(
@@ -247,16 +345,12 @@ function contentType(mimeType: string): string {
   return mimeType.split(';', 1)[0]!.trim().toLowerCase();
 }
 
-function redactJsonText(
-  text: string,
-  config: RedactionConfig,
-  context: TraversalContext,
-): string {
+function redactJsonText(text: string, config: RedactionConfig): string {
   try {
     const parsed: unknown = JSON.parse(text);
     return JSON.stringify(redactUnknown(parsed, config));
   } catch {
-    return redactValuePatterns(text, context);
+    return REDACTED;
   }
 }
 
@@ -313,7 +407,8 @@ function dispositionParameter(
 }
 
 function redactMultipartPart(rawPart: string, context: TraversalContext): string {
-  if (rawPart.startsWith('--')) return rawPart;
+  if (rawPart === '') return '';
+  if (rawPart.startsWith('--')) return '--';
   const leadingLength = rawPart.startsWith('\r\n')
     ? 2
     : rawPart.startsWith('\n')
@@ -323,28 +418,40 @@ function redactMultipartPart(rawPart: string, context: TraversalContext): string
   const separator = part.indexOf('\r\n\r\n');
   const fallbackSeparator = separator < 0 ? part.indexOf('\n\n') : -1;
   const headerEnd = separator >= 0 ? separator : fallbackSeparator;
-  if (headerEnd < 0) return redactValuePatterns(rawPart, context);
+  if (headerEnd < 0) return REDACTED;
 
   const separatorLength = separator >= 0 ? 4 : 2;
   const headers = part.slice(0, headerEnd).split(/\r?\n/u);
   const disposition = headers.find((header) =>
     header.toLowerCase().startsWith('content-disposition:'),
   );
-  if (disposition === undefined) return rawPart;
-  if (dispositionParameter(disposition, 'filename') !== undefined) {
-    return rawPart;
-  }
+  if (disposition === undefined) return REDACTED;
 
   const name = dispositionParameter(disposition, 'name');
-  if (name === undefined) return rawPart;
+  if (
+    name === undefined ||
+    name.length > 256 ||
+    name.includes('\r') ||
+    name.includes('\n')
+  ) {
+    return REDACTED;
+  }
   const valueStart = leadingLength + headerEnd + separatorLength;
   const trailingLength = rawPart.endsWith('\r\n') ? 2 : rawPart.endsWith('\n') ? 1 : 0;
   const valueEnd = rawPart.length - trailingLength;
   const value = rawPart.slice(valueStart, valueEnd);
-  const redacted = isSensitiveField(name, context)
-    ? REDACTED
-    : redactValuePatterns(value, context);
-  return `${rawPart.slice(0, valueStart)}${redacted}${rawPart.slice(valueEnd)}`;
+  const filename = dispositionParameter(disposition, 'filename');
+  const redacted =
+    filename !== undefined || isSensitiveField(name, context)
+      ? REDACTED
+      : redactValuePatterns(value, context);
+  const safeName = /^[A-Za-z0-9_.-]+$/u.test(name) ? name : JSON.stringify(name);
+  const safeDisposition =
+    `Content-Disposition: form-data; name=${safeName}` +
+    (filename === undefined ? '' : `; filename="${REDACTED}"`);
+  const lineEnding = separator >= 0 ? '\r\n' : '\n';
+  const trailing = rawPart.slice(valueEnd);
+  return `${rawPart.slice(0, leadingLength)}${safeDisposition}${lineEnding}${lineEnding}${redacted}${trailing}`;
 }
 
 function redactMultipartText(
@@ -353,7 +460,7 @@ function redactMultipartText(
   context: TraversalContext,
 ): string {
   const boundary = multipartBoundary(mimeType);
-  if (boundary === undefined) return redactValuePatterns(text, context);
+  if (boundary === undefined) return REDACTED;
   const delimiter = `--${boundary}`;
   return text
     .split(delimiter)
@@ -371,7 +478,7 @@ function redactBodyText(
 
   const mime = contentType(mimeType);
   if (mime === 'application/json' || mime.endsWith('+json')) {
-    return redactJsonText(text, config, context);
+    return redactJsonText(text, config);
   }
   if (mime === 'application/x-www-form-urlencoded') {
     return redactFormText(text, context);
@@ -383,30 +490,29 @@ function redactBodyText(
 }
 
 export function redactBody(body: BodyContent, config: RedactionConfig): BodyContent {
-  const output = redactUnknown(body, config);
-  if (output === null || typeof output !== 'object') {
-    return {
-      state: 'unavailable',
-      size: 0,
-      capturedSize: 0,
-      reason: 'redaction-failed',
-    };
-  }
+  try {
+    const output = redactUnknown(body, config);
+    if (output === null || typeof output !== 'object') {
+      return redactionFailedBody();
+    }
 
-  const text = readDataProperty(body, 'text');
-  const mimeType = readDataProperty(body, 'mimeType');
-  if (typeof text === 'string') {
-    defineDataProperty(
-      output,
-      'text',
-      redactBodyText(
-        text,
-        typeof mimeType === 'string' ? mimeType : 'text/plain',
-        config,
-      ),
-    );
+    const text = readDataProperty(body, 'text');
+    const mimeType = readDataProperty(body, 'mimeType');
+    if (typeof text === 'string') {
+      defineDataProperty(
+        output,
+        'text',
+        redactBodyText(
+          text,
+          typeof mimeType === 'string' ? mimeType : 'text/plain',
+          config,
+        ),
+      );
+    }
+    return output as BodyContent;
+  } catch {
+    return redactionFailedBody();
   }
-  return output as BodyContent;
 }
 
 function redactNestedRequestData(
@@ -424,8 +530,16 @@ function redactNestedRequestData(
   }
 
   const headers = readDataProperty(source, 'headers');
-  if (Array.isArray(headers)) {
-    defineDataProperty(target, 'headers', redactHeaders(headers, config));
+  if (
+    headers !== null &&
+    typeof headers === 'object' &&
+    dataContainerKind(headers) === 'array'
+  ) {
+    defineDataProperty(
+      target,
+      'headers',
+      redactHeaders(headers as readonly Header[], config),
+    );
   }
   const body = readDataProperty(source, 'body');
   if (body !== null && typeof body === 'object') {
@@ -433,45 +547,48 @@ function redactNestedRequestData(
   }
 }
 
+function redactionFailedRequest(): CapturedRequest {
+  return {
+    id: REDACTED,
+    url: REDACTED,
+    method: 'UNKNOWN',
+    startedAt: 0,
+    request: { headers: [] },
+    response: {
+      status: 0,
+      headers: [],
+      body: redactionFailedBody(),
+    },
+    timing: { totalMs: 0 },
+    evidence: {},
+  };
+}
+
 export function redactRequest(
   request: CapturedRequest,
   config: RedactionConfig,
 ): CapturedRequest {
-  const output = redactUnknown(request, config);
-  if (output === null || typeof output !== 'object') {
-    return {
-      id: REDACTED,
-      url: REDACTED,
-      method: 'UNKNOWN',
-      startedAt: 0,
-      request: { headers: [] },
-      response: {
-        status: 0,
-        headers: [],
-        body: {
-          state: 'unavailable',
-          size: 0,
-          capturedSize: 0,
-          reason: 'redaction-failed',
-        },
-      },
-      timing: { totalMs: 0 },
-      evidence: {},
-    };
+  try {
+    const output = redactUnknown(request, config);
+    if (output === null || typeof output !== 'object') {
+      return redactionFailedRequest();
+    }
+
+    const url = readDataProperty(request, 'url');
+    if (typeof url === 'string') {
+      defineDataProperty(output, 'url', redactUrl(url, config));
+    }
+
+    const requestSource = readDataProperty(request, 'request');
+    const requestTarget = readDataProperty(output, 'request');
+    redactNestedRequestData(requestSource, requestTarget, config);
+
+    const responseSource = readDataProperty(request, 'response');
+    const responseTarget = readDataProperty(output, 'response');
+    redactNestedRequestData(responseSource, responseTarget, config);
+
+    return output as CapturedRequest;
+  } catch {
+    return redactionFailedRequest();
   }
-
-  const url = readDataProperty(request, 'url');
-  if (typeof url === 'string') {
-    defineDataProperty(output, 'url', redactUrl(url, config));
-  }
-
-  const requestSource = readDataProperty(request, 'request');
-  const requestTarget = readDataProperty(output, 'request');
-  redactNestedRequestData(requestSource, requestTarget, config);
-
-  const responseSource = readDataProperty(request, 'response');
-  const responseTarget = readDataProperty(output, 'response');
-  redactNestedRequestData(responseSource, responseTarget, config);
-
-  return output as CapturedRequest;
 }

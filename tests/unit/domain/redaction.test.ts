@@ -252,6 +252,92 @@ describe('redactRequest', () => {
     expect(serialized).not.toContain('request-secret');
     expect(serialized).toContain(REDACTED);
   });
+
+  it('removes hostile serializer hooks and non-JSON primitives', () => {
+    const closureSecret = 'closure-value-4711';
+    const hostile = {
+      safe: 'visible',
+      nested: {
+        toJSON: () => closureSecret,
+        callable: () => closureSecret,
+        symbol: Symbol(closureSecret),
+        bigint: 9_007_199_254_740_993n,
+      },
+    };
+
+    const result = redactUnknown(hostile, DEFAULT_REDACTION_CONFIG) as {
+      nested: Record<string, unknown>;
+    };
+
+    expect(() => JSON.stringify(result)).not.toThrow();
+    expect(() => structuredClone(result)).not.toThrow();
+    expect(JSON.stringify(result)).not.toContain(closureSecret);
+    expect(result.nested).toMatchObject({
+      toJSON: REDACTED,
+      callable: REDACTED,
+      symbol: REDACTED,
+      bigint: REDACTED,
+    });
+  });
+
+  it('keeps the full redacted request safe to stringify and clone', () => {
+    const closureSecret = 'request-closure-5823';
+    const hostile = {
+      ...requestFixture(),
+      serializer: {
+        toJSON: () => closureSecret,
+        bigint: 12n,
+      },
+    } as CapturedRequest;
+
+    const result = redactRequest(hostile, DEFAULT_REDACTION_CONFIG);
+
+    expect(() => JSON.stringify(result)).not.toThrow();
+    expect(() => structuredClone(result)).not.toThrow();
+    expect(JSON.stringify(result)).not.toContain(closureSecret);
+  });
+
+  it('fails closed for revoked Proxies at public boundaries', () => {
+    const revocable = Proxy.revocable({}, {});
+    revocable.revoke();
+
+    expect(() =>
+      redactUnknown(revocable.proxy, DEFAULT_REDACTION_CONFIG),
+    ).not.toThrow();
+    expect(redactUnknown(revocable.proxy, DEFAULT_REDACTION_CONFIG)).toBe(REDACTED);
+
+    const result = redactRequest(
+      revocable.proxy as CapturedRequest,
+      DEFAULT_REDACTION_CONFIG,
+    );
+    expect(JSON.stringify(result)).toContain('redaction-failed');
+  });
+
+  it('bounds side-effecting descriptor traps and fails closed', () => {
+    let descriptorCalls = 0;
+    const hostile = new Proxy(
+      {},
+      {
+        ownKeys: () => ['safe'],
+        getOwnPropertyDescriptor: () => {
+          descriptorCalls += 1;
+          throw new Error('side effect');
+        },
+      },
+    );
+
+    expect(redactUnknown(hostile, DEFAULT_REDACTION_CONFIG)).toBe(REDACTED);
+    expect(descriptorCalls).toBe(1);
+  });
+
+  it('rejects non-DTO object prototypes', () => {
+    class HostileRecord {
+      raw = 'class-value-8156';
+    }
+
+    expect(redactUnknown(new HostileRecord(), DEFAULT_REDACTION_CONFIG)).toBe(REDACTED);
+    expect(redactUnknown(new Date(0), DEFAULT_REDACTION_CONFIG)).toBe(REDACTED);
+  });
 });
 
 describe('redaction helpers', () => {
@@ -289,6 +375,91 @@ describe('redaction helpers', () => {
     });
   });
 
+  it('recognizes validated unsecured JWTs and modern secret-key shapes', () => {
+    const unsecuredJwt = 'eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.eyJzdWIiOiIxMjMifQ.';
+
+    expect(
+      redactUnknown(
+        {
+          jwt: unsecuredJwt,
+          modernKey: 'sk-proj-abc123XYZ',
+        },
+        DEFAULT_REDACTION_CONFIG,
+      ),
+    ).toEqual({
+      jwt: REDACTED,
+      modernKey: REDACTED,
+    });
+  });
+
+  it('preserves domain-like values and non-sensitive name fragments', () => {
+    expect(
+      redactUnknown(
+        {
+          homepage: 'www.example.com',
+          secretary: 'visible',
+          sessionDuration: 30,
+          tokenizerModel: 'visible',
+        },
+        DEFAULT_REDACTION_CONFIG,
+      ),
+    ).toEqual({
+      homepage: 'www.example.com',
+      secretary: 'visible',
+      sessionDuration: 30,
+      tokenizerModel: 'visible',
+    });
+  });
+
+  it('redacts boundary-aware API-key and session credential names', () => {
+    expect(
+      redactUnknown(
+        {
+          clientApiKey: 'client-value-9267',
+          userSessionId: 'session-value-0378',
+        },
+        DEFAULT_REDACTION_CONFIG,
+      ),
+    ).toEqual({
+      clientApiKey: REDACTED,
+      userSessionId: REDACTED,
+    });
+  });
+
+  it('falls back to default names for malformed custom field settings', () => {
+    const config = {
+      ...DEFAULT_REDACTION_CONFIG,
+      fieldNames: null,
+    } as unknown as typeof DEFAULT_REDACTION_CONFIG;
+
+    expect(
+      redactUnknown({ password: 'default-value-1489', safe: 'visible' }, config),
+    ).toEqual({
+      password: REDACTED,
+      safe: 'visible',
+    });
+  });
+
+  it('skips sparse, accessor, primitive, and incomplete headers', () => {
+    let getterCalls = 0;
+    const headers: unknown[] = [];
+    headers.length = 2;
+    Object.defineProperty(headers, '0', {
+      enumerable: true,
+      get: () => {
+        getterCalls += 1;
+        return { name: 'Authorization', value: 'accessor-value-2590' };
+      },
+    });
+    headers.push(null, 'primitive', { name: 'X-Incomplete' });
+    headers.push({ name: 'X-Safe', value: 'visible' });
+
+    expect(
+      redactHeaders(headers as readonly Header[], DEFAULT_REDACTION_CONFIG),
+    ).toEqual([{ name: 'X-Safe', value: 'visible' }]);
+    expect(getterCalls).toBe(0);
+  });
+
   it('redacts URL query fields while preserving duplicates and formatting', () => {
     const result = redactUrl(
       'https://api.test/items?To_Ken=one&to-ken=two&page=2#result',
@@ -319,6 +490,15 @@ describe('redaction helpers', () => {
   it('fails closed for an unparseable URL containing a bearer token', () => {
     const result = redactUrl(
       'http://[invalid Bearer url-secret',
+      DEFAULT_REDACTION_CONFIG,
+    );
+
+    expect(result).toBe(REDACTED);
+  });
+
+  it('fails closed for an unparseable URL with an arbitrary secret', () => {
+    const result = redactUrl(
+      'http://[invalid/arbitrary-value-4711',
       DEFAULT_REDACTION_CONFIG,
     );
 
@@ -429,6 +609,122 @@ describe('redaction helpers', () => {
     expect(malformedMultipart.text).toBe(REDACTED);
   });
 
+  it('fails closed for malformed structured bodies with arbitrary secrets', () => {
+    const cases: readonly BodyContent[] = [
+      {
+        state: 'available',
+        size: 31,
+        capturedSize: 31,
+        text: '{"safe":"arbitrary-json-4711"',
+        mimeType: 'application/json',
+      },
+      {
+        state: 'available',
+        size: 24,
+        capturedSize: 24,
+        text: 'arbitrary-multipart-5823',
+        mimeType: 'multipart/form-data',
+      },
+      {
+        state: 'available',
+        size: 67,
+        capturedSize: 67,
+        text: [
+          '--b',
+          'X-Unrecognized: value',
+          '',
+          'arbitrary-part-6934',
+          '--b--',
+          '',
+        ].join('\r\n'),
+        mimeType: 'multipart/form-data; boundary=b',
+      },
+      {
+        state: 'available',
+        size: 130,
+        capturedSize: 130,
+        text: [
+          '--b',
+          'Content-Disposition: form-data; name="upload"; filename="safe.txt"',
+          '',
+          'arbitrary-file-7045',
+          '--b--',
+          '',
+        ].join('\r\n'),
+        mimeType: 'multipart/form-data; boundary=b',
+      },
+    ];
+
+    for (const body of cases) {
+      const result = redactBody(body, DEFAULT_REDACTION_CONFIG);
+      expect(result.text).toContain(REDACTED);
+      expect(result.text).not.toMatch(/arbitrary-(?:json|multipart|part|file)-\d+/u);
+    }
+  });
+
+  it('fails closed for malformed multipart disposition parameters', () => {
+    const body: BodyContent = {
+      state: 'available',
+      size: 80,
+      capturedSize: 80,
+      text: [
+        '--b',
+        'Content-Disposition: form-data; name',
+        '',
+        'malformed-value-3601',
+        '--b--',
+        '',
+      ].join('\r\n'),
+      mimeType: 'multipart/form-data; ignored=value; boundary=b',
+    };
+
+    const result = redactBody(body, DEFAULT_REDACTION_CONFIG);
+
+    expect(result.text).toContain(REDACTED);
+    expect(result.text).not.toContain('malformed-value-3601');
+  });
+
+  it('canonicalizes and redacts multipart names containing spaces', () => {
+    const config = {
+      ...DEFAULT_REDACTION_CONFIG,
+      fieldNames: [...DEFAULT_REDACTION_CONFIG.fieldNames, 'Private Note'],
+    };
+    const body: BodyContent = {
+      state: 'available',
+      size: 90,
+      capturedSize: 90,
+      text: [
+        '--b',
+        'Content-Disposition: form-data; name="Private Note"',
+        '',
+        'private-value-4712',
+        '--b--',
+        '',
+      ].join('\r\n'),
+      mimeType: 'multipart/form-data; boundary=b',
+    };
+
+    const result = redactBody(body, config);
+
+    expect(result.text).toContain('name="Private Note"');
+    expect(result.text).toContain(REDACTED);
+    expect(result.text).not.toContain('private-value-4712');
+  });
+
+  it('uses safe plain-text handling when body MIME metadata is absent', () => {
+    const result = redactBody(
+      {
+        state: 'available',
+        size: 25,
+        capturedSize: 25,
+        text: 'Bearer no-mime-value-5823',
+      },
+      DEFAULT_REDACTION_CONFIG,
+    );
+
+    expect(result.text).toBe(REDACTED);
+  });
+
   it('redacts LF multipart fields while preserving file parts', () => {
     const body: BodyContent = {
       state: 'available',
@@ -452,7 +748,8 @@ describe('redaction helpers', () => {
     const result = redactBody(body, DEFAULT_REDACTION_CONFIG);
 
     expect(result.text).toContain(`token\n\n${REDACTED}`);
-    expect(result.text).toContain('file-content');
+    expect(result.text).toContain(`filename="${REDACTED}"`);
+    expect(result.text).not.toContain('file-content');
     expect(result.text).not.toContain('field-secret');
   });
 

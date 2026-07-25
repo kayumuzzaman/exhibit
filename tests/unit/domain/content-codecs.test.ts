@@ -134,6 +134,21 @@ describe('decodeTextBody', () => {
     });
   });
 
+  it('hard-caps an arbitrarily large requested byte limit', () => {
+    const text = 'x'.repeat(600 * 1024);
+
+    const result = decodeTextBody({
+      text,
+      mimeType: 'text/plain',
+      maxBytes: Number.MAX_SAFE_INTEGER,
+    });
+
+    expect(result.text).toHaveLength(512 * 1024);
+    expect(result.capturedBytes).toBe(512 * 1024);
+    expect(result.originalBytes).toBe(600 * 1024);
+    expect(result.truncated).toBe(true);
+  });
+
   it('decodes vendor JSON MIME types', () => {
     expect(
       decodeTextBody({

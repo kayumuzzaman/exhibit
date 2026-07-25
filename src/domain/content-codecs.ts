@@ -2,6 +2,7 @@ const DEFAULT_MAX_BYTES = 512 * 1024;
 const DEFAULT_MAX_DEPTH = 32;
 const DEFAULT_MAX_KEYS = 10_000;
 const MAX_MULTIPART_BOUNDARY_LENGTH = 200;
+const MAX_INSPECTED_CODE_UNITS = DEFAULT_MAX_BYTES + 1;
 
 export type DecodedField = Readonly<{
   name: string;
@@ -49,9 +50,9 @@ function readDataProperty(input: object, key: PropertyKey): unknown {
   }
 }
 
-function finiteLimit(value: unknown, fallback: number): number {
+function finiteLimit(value: unknown, fallback: number, maximum: number): number {
   return typeof value === 'number' && Number.isFinite(value) && value >= 0
-    ? Math.floor(value)
+    ? Math.min(Math.floor(value), maximum)
     : fallback;
 }
 
@@ -67,8 +68,9 @@ function boundUtf8(text: string, maxBytes: number): BoundedText {
   let capturedBytes = 0;
   let accepting = true;
   const captured: string[] = [];
+  const inspectedCodeUnits = Math.min(text.length, MAX_INSPECTED_CODE_UNITS);
 
-  for (let index = 0; index < text.length; index += 1) {
+  for (let index = 0; index < inspectedCodeUnits; index += 1) {
     const codePoint = text.codePointAt(index)!;
     const width = utf8Width(codePoint);
     originalBytes += width;
@@ -83,11 +85,16 @@ function boundUtf8(text: string, maxBytes: number): BoundedText {
     if (codePoint > 0xffff) index += 1;
   }
 
+  const fullyInspected = inspectedCodeUnits === text.length;
+  const reportedOriginalBytes = fullyInspected
+    ? originalBytes
+    : Math.max(originalBytes + 1, text.length);
+
   return {
     text: captured.join(''),
-    originalBytes,
+    originalBytes: reportedOriginalBytes,
     capturedBytes,
-    truncated: capturedBytes < originalBytes,
+    truncated: !fullyInspected || capturedBytes < originalBytes,
   };
 }
 
@@ -228,8 +235,8 @@ export function decodeTextBody(input: DecodeTextBodyInput | string): DecodedBody
   const maxDepthValue = isStringInput ? undefined : readDataProperty(input, 'maxDepth');
   const text = typeof textValue === 'string' ? textValue : '';
   const mimeType = typeof mimeTypeValue === 'string' ? mimeTypeValue : 'text/plain';
-  const maxBytes = finiteLimit(maxBytesValue, DEFAULT_MAX_BYTES);
-  const maxDepth = finiteLimit(maxDepthValue, DEFAULT_MAX_DEPTH);
+  const maxBytes = finiteLimit(maxBytesValue, DEFAULT_MAX_BYTES, DEFAULT_MAX_BYTES);
+  const maxDepth = finiteLimit(maxDepthValue, DEFAULT_MAX_DEPTH, DEFAULT_MAX_DEPTH);
   const bounded = boundUtf8(text, maxBytes);
 
   if (bounded.truncated) return textResult(bounded);
