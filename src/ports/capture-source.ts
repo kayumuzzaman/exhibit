@@ -1,6 +1,8 @@
+import type { HarEntryLike, RetrievedContent } from '../features/capture/har-types';
+
 export type CaptureObservation = Readonly<{
-  entry: unknown;
-  content?: unknown;
+  entry: HarEntryLike;
+  content?: RetrievedContent;
   observedAt: number;
 }>;
 
