@@ -77,10 +77,14 @@ describe('normalizeObservation', () => {
       },
     });
 
-    const request = normalizeObservation({ entry: raw, observedAt: 7 }, DEFAULT_LIMITS);
+    const request = normalizeObservation(
+      { entry: raw, observedAt: 7 },
+      DEFAULT_LIMITS,
+      'req-own-fields',
+    );
 
     expect(request).toMatchObject({
-      id: 'GET::7',
+      id: 'req-own-fields',
       url: '',
       startedAt: 1_700_000_000_000,
       request: { headers: [] },
@@ -159,10 +163,11 @@ describe('normalizeObservation', () => {
     const request = normalizeObservation(
       { entry: null, observedAt: Number.NaN },
       DEFAULT_LIMITS,
+      'req-malformed',
     );
 
     expect(request).toEqual({
-      id: 'GET::0',
+      id: 'req-malformed',
       url: '',
       method: 'GET',
       startedAt: 0,

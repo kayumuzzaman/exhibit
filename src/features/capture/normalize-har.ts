@@ -255,10 +255,10 @@ function timing(entry: unknown): RequestTiming {
   return output as RequestTiming;
 }
 
-function startedAt(entry: unknown, observedAt: number): number {
+function startedAt(entry: unknown): number {
   const timestamp = stringValue(ownData(entry, 'startedDateTime'));
   const parsed = timestamp === undefined ? Number.NaN : Date.parse(timestamp);
-  return Number.isFinite(parsed) ? parsed : observedAt;
+  return Number.isFinite(parsed) ? parsed : 0;
 }
 
 function retrievedContent(
@@ -270,7 +270,9 @@ function retrievedContent(
   if (text === undefined) return undefined;
   const encoding = ownData(value, 'encoding');
   const mime = stringValue(ownData(value, 'mimeType')) ?? fallbackMime;
-  const state = ownData(value, 'state') === 'streamed' ? 'streamed' : undefined;
+  const rawState = ownData(value, 'state');
+  const state =
+    rawState === 'streamed' || rawState === 'unavailable' ? rawState : undefined;
   const unavailableReason = stringValue(ownData(value, 'unavailableReason'));
   if (encoding !== '' && encoding !== 'base64') return undefined;
   return {
@@ -297,6 +299,7 @@ function deepFreeze<T>(value: T): T {
 export function normalizeObservation(
   observation: CaptureObservation,
   limits: SessionLimits,
+  id = createOpaqueRequestId(),
 ): CapturedRequest {
   const entry = ownData(observation, 'entry');
   const request = ownData(entry, 'request');
@@ -310,14 +313,13 @@ export function normalizeObservation(
   const transportSize = finiteNonNegative(ownData(response, 'bodySize'));
   const declaredSize =
     decodedSize ?? (content === undefined ? transportSize : undefined) ?? 0;
-  const observedAt = finiteNonNegative(ownData(observation, 'observedAt')) ?? 0;
   const statusText = stringValue(ownData(response, 'statusText'));
 
   return deepFreeze({
-    id: `${method}:${url}:${observedAt}`,
+    id,
     url,
     method,
-    startedAt: startedAt(entry, observedAt),
+    startedAt: startedAt(entry),
     request: {
       headers: normalizeHeaders(ownData(request, 'headers')),
       body: requestBody(request, limits.maxBodyBytes),
@@ -331,4 +333,15 @@ export function normalizeObservation(
     timing: timing(entry),
     evidence: normalizeEvidence(entry, response),
   });
+}
+
+let fallbackRequestSequence = 0;
+
+function createOpaqueRequestId(): string {
+  try {
+    return `req-${crypto.randomUUID()}`;
+  } catch {
+    fallbackRequestSequence += 1;
+    return `req-${fallbackRequestSequence.toString(36)}`;
+  }
 }

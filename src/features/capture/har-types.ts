@@ -7,7 +7,7 @@ export type RetrievedContent = Readonly<{
   text: string;
   encoding: '' | 'base64';
   mimeType?: string;
-  state?: 'streamed';
+  state?: 'streamed' | 'unavailable';
   unavailableReason?: string;
 }>;
 

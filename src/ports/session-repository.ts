@@ -1,8 +1,8 @@
-import type { RecordingSession } from '../domain/model';
+import type { SanitizedRecordingSession } from '../domain/sanitized';
 
 export interface SessionRepository {
-  load(sessionId: string): Promise<RecordingSession | null>;
-  loadCurrent(tabId: string): Promise<RecordingSession | null>;
-  save(session: RecordingSession): Promise<void>;
+  load(sessionId: string): Promise<SanitizedRecordingSession | null>;
+  loadCurrent(tabId: string): Promise<SanitizedRecordingSession | null>;
+  save(session: SanitizedRecordingSession): Promise<void>;
   clear(sessionId: string): Promise<void>;
 }

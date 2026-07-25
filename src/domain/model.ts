@@ -2,7 +2,23 @@ export type RetentionMode = 'ephemeral' | 'persistent';
 
 export type RecordingPhase = 'stopped' | 'starting' | 'recording' | 'stopping';
 
+export type CaptureIssueCode =
+  | 'classification-failed'
+  | 'content-api-unavailable'
+  | 'content-callback-timeout'
+  | 'explanation-failed'
+  | 'har-api-unavailable'
+  | 'har-callback-timeout'
+  | 'invalid-content-encoding'
+  | 'invalid-har'
+  | 'invalid-started-time'
+  | 'interaction-start-failed'
+  | 'normalization-failed'
+  | 'redaction-failed'
+  | 'sink-failed';
+
 export type SessionWarningCode =
+  | CaptureIssueCode
   | 'capture-failed'
   | 'corrupt-session'
   | 'migration-cleanup-failed'

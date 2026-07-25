@@ -5,6 +5,11 @@ import type {
   RecordingSession,
   SessionLimits,
 } from '../../../src/domain/model';
+import { redactSession, DEFAULT_REDACTION_CONFIG } from '../../../src/domain/redaction';
+import type {
+  SanitizedCapturedRequest,
+  SanitizedRecordingSession,
+} from '../../../src/domain/sanitized';
 import {
   addBounded,
   calculateRequestBytes,
@@ -13,21 +18,26 @@ import {
   validateSessionLimits,
 } from '../../../src/domain/ring-buffer';
 import { createSession } from '../../../src/domain/session';
-import { requestWith } from '../../helpers/request-factory';
+import { sanitizedRequestWith } from '../../helpers/request-factory';
 
-function sessionWithLimits(limits: Partial<SessionLimits>): RecordingSession {
-  return freezeSession({
-    ...createSession('tab-5', 'https://app.test', 1_000),
-    limits: {
-      maxRequests: limits.maxRequests ?? 10,
-      maxBytes: limits.maxBytes ?? 10_000,
-      maxBodyBytes: limits.maxBodyBytes ?? 1_000,
-    },
-  });
+function sessionWithLimits(limits: Partial<SessionLimits>): SanitizedRecordingSession {
+  return freezeSession(
+    redactSession(
+      {
+        ...createSession('tab-5', 'https://app.test', 1_000),
+        limits: {
+          maxRequests: limits.maxRequests ?? 10,
+          maxBytes: limits.maxBytes ?? 10_000,
+          maxBodyBytes: limits.maxBodyBytes ?? 1_000,
+        },
+      },
+      DEFAULT_REDACTION_CONFIG,
+    ),
+  );
 }
 
-function sizedRequest(id: string, text: string): CapturedRequest {
-  return requestWith({ id, responseText: text });
+function sizedRequest(id: string, text: string): SanitizedCapturedRequest {
+  return sanitizedRequestWith({ id, responseText: text });
 }
 
 describe('bounded recording sessions', () => {
@@ -78,7 +88,7 @@ describe('bounded recording sessions', () => {
         serializations += 1;
         return value;
       },
-    } as CapturedRequest;
+    } as unknown as SanitizedCapturedRequest;
     const first = addBounded(sessionWithLimits({}), instrumented);
 
     expect(serializations).toBe(1);
@@ -148,7 +158,7 @@ describe('bounded recording sessions', () => {
     expect(Object.isFrozen(request)).toBe(false);
     expect(Object.isFrozen(session.requests[0])).toBe(true);
     expect(() => {
-      (session.requests as CapturedRequest[]).push(request);
+      (session.requests as unknown as CapturedRequest[]).push(request);
     }).toThrow(TypeError);
     expect(() => {
       (session.requests[0]!.response as { status: number }).status = 500;
@@ -158,10 +168,13 @@ describe('bounded recording sessions', () => {
 
   it('normalizes legacy bookkeeping when freezing a valid direct-requests session', () => {
     const request = sizedRequest('legacy', 'data');
-    const legacy = {
-      ...createSession('tab-5', 'https://app.test', 2_000),
-      requests: [request],
-    } as RecordingSession;
+    const legacy = redactSession(
+      {
+        ...createSession('tab-5', 'https://app.test', 2_000),
+        requests: [request],
+      },
+      DEFAULT_REDACTION_CONFIG,
+    );
 
     const frozen = freezeSession(legacy);
 
@@ -171,12 +184,15 @@ describe('bounded recording sessions', () => {
 
   it('recomputes forged caller bookkeeping instead of trusting matching shapes', () => {
     const request = sizedRequest('forged', 'evidence');
-    const forged = {
-      ...createSession('tab-5', 'https://app.test', 2_100),
-      requests: [request],
-      requestBytes: [1],
-      byteCount: 1,
-    };
+    const forged = redactSession(
+      {
+        ...createSession('tab-5', 'https://app.test', 2_100),
+        requests: [request],
+        requestBytes: [1],
+        byteCount: 1,
+      },
+      DEFAULT_REDACTION_CONFIG,
+    );
 
     const frozen = freezeSession(forged);
 
@@ -193,52 +209,67 @@ describe('bounded recording sessions', () => {
       }),
     ).toThrow(RangeError);
 
-    const sparse = {
-      ...createSession('tab-5', 'https://app.test', 2_200),
-      requests: new Array<CapturedRequest>(1),
-      requestBytes: [0],
-      byteCount: 0,
-    };
+    const sparse = redactSession(
+      {
+        ...createSession('tab-5', 'https://app.test', 2_200),
+        requests: new Array<CapturedRequest>(1),
+        requestBytes: [0],
+        byteCount: 0,
+      },
+      DEFAULT_REDACTION_CONFIG,
+    );
     expect(() => freezeSession(sparse)).toThrow(TypeError);
   });
 
   it('prevents a forged byte count from admitting a request above the cap', () => {
     const request = sizedRequest('hidden-oversize', 'x'.repeat(1_000));
-    const forged = {
-      ...createSession('tab-5', 'https://app.test', 2_300),
-      limits: { maxRequests: 5, maxBytes: 100, maxBodyBytes: 50 },
-      requests: [request],
-      requestBytes: [1],
-      byteCount: 1,
-    };
+    const forged = redactSession(
+      {
+        ...createSession('tab-5', 'https://app.test', 2_300),
+        limits: { maxRequests: 5, maxBytes: 100, maxBodyBytes: 50 },
+        requests: [request],
+        requestBytes: [1],
+        byteCount: 1,
+      },
+      DEFAULT_REDACTION_CONFIG,
+    );
 
     expect(() => freezeSession(forged)).toThrow(RangeError);
   });
 
   it('rejects malformed collection shapes and over-count external sessions', () => {
-    const malformed = {
-      ...createSession('tab-5', 'https://app.test', 2_400),
-      interactions: {} as RecordingSession['interactions'],
-    };
+    const malformed = redactSession(
+      {
+        ...createSession('tab-5', 'https://app.test', 2_400),
+        interactions: {} as RecordingSession['interactions'],
+      },
+      DEFAULT_REDACTION_CONFIG,
+    );
     expect(() => freezeSession(malformed)).toThrow(TypeError);
 
-    const overCount = {
-      ...createSession('tab-5', 'https://app.test', 2_500),
-      limits: { maxRequests: 1, maxBytes: 10_000, maxBodyBytes: 1_000 },
-      requests: [sizedRequest('one', ''), sizedRequest('two', '')],
-    };
+    const overCount = redactSession(
+      {
+        ...createSession('tab-5', 'https://app.test', 2_500),
+        limits: { maxRequests: 1, maxBytes: 10_000, maxBodyBytes: 1_000 },
+        requests: [sizedRequest('one', ''), sizedRequest('two', '')],
+      },
+      DEFAULT_REDACTION_CONFIG,
+    );
     expect(() => freezeSession(overCount)).toThrow(RangeError);
   });
 
   it('normalizes a raw session on insertion and fails closed for undefined JSON', () => {
-    const raw = createSession('tab-5', 'https://app.test', 2_600);
+    const raw = redactSession(
+      createSession('tab-5', 'https://app.test', 2_600),
+      DEFAULT_REDACTION_CONFIG,
+    );
     const inserted = addBounded(raw, sizedRequest('raw-insert', 'body'));
     expect(inserted.requests[0]?.id).toBe('raw-insert');
 
     const unserializable = {
       ...sizedRequest('undefined-json', ''),
       toJSON: () => undefined,
-    } as CapturedRequest;
+    } as unknown as SanitizedCapturedRequest;
     const rejected = addBounded(inserted, unserializable);
     expect(rejected.warnings).toContainEqual(
       expect.objectContaining({

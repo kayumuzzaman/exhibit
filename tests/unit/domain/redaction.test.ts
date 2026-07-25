@@ -13,13 +13,14 @@ import {
 
 function requestFixture(
   overrides: Partial<{
+    id: string;
     url: string;
     requestHeaders: readonly Header[];
     requestBody: BodyContent;
   }> = {},
 ): CapturedRequest {
   return {
-    id: 'request-1',
+    id: overrides.id ?? 'request-1',
     url: overrides.url ?? 'https://api.test/items?page=2',
     method: 'POST',
     startedAt: 1_000,
@@ -80,6 +81,18 @@ function redactJsonValue(value: unknown, config = DEFAULT_REDACTION_CONFIG): unk
 }
 
 describe('redactRequest', () => {
+  it('reissues a non-opaque identifier before granting sanitized type', () => {
+    const result = redactRequest(
+      requestFixture({
+        id: 'POST:https://app.test/save?token=id-secret',
+      }),
+      DEFAULT_REDACTION_CONFIG,
+    );
+
+    expect(result.id).toMatch(/^req-[a-z0-9-]+$/u);
+    expect(result.id).not.toMatch(/POST|app\.test|id-secret/iu);
+  });
+
   it.each([
     [
       'authorization header',
@@ -211,7 +224,7 @@ describe('redactRequest', () => {
     const result = redactRequest(
       request,
       DEFAULT_REDACTION_CONFIG,
-    ) as CapturedRequest & { extra: { items: unknown } };
+    ) as unknown as CapturedRequest & { extra: { items: unknown } };
 
     expect(result.extra).toEqual({
       items: [{ safe: 'visible' }],
@@ -292,7 +305,7 @@ describe('redactRequest', () => {
     const result = redactRequest(
       request,
       DEFAULT_REDACTION_CONFIG,
-    ) as CapturedRequest & {
+    ) as unknown as CapturedRequest & {
       hostile: { nested: Record<string, unknown> };
     };
 

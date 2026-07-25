@@ -1,16 +1,16 @@
+import type { RetentionMode, SessionWarning } from '../../domain/model';
 import type {
-  CapturedRequest,
-  RecordingSession,
-  RetentionMode,
-  SessionWarning,
-} from '../../domain/model';
+  SanitizedCapturedRequest,
+  SanitizedRecordingSession,
+} from '../../domain/sanitized';
 import { addBounded, freezeSession } from '../../domain/ring-buffer';
+import type { CaptureIssue } from '../../ports/capture-source';
 import type { SessionRepository } from '../../ports/session-repository';
 import { reduceSession } from './session-reducer';
 
 export interface SessionLifecycle {
-  start(): Promise<void>;
-  stop(): Promise<void>;
+  start(startedAt: number): Promise<void>;
+  stop(stoppedAt: number): Promise<void>;
 }
 
 export interface SessionController {
@@ -18,13 +18,14 @@ export interface SessionController {
   stop(): Promise<void>;
   clear(): Promise<void>;
   setRetention(retention: RetentionMode): Promise<void>;
-  accept(request: CapturedRequest): Promise<void>;
+  accept(request: SanitizedCapturedRequest): Promise<void>;
+  warn(issue: CaptureIssue): void;
   subscribe(listener: () => void): () => void;
-  getSnapshot(): RecordingSession;
+  getSnapshot(): SanitizedRecordingSession;
 }
 
 export type SessionControllerDependencies = Readonly<{
-  initialSession: RecordingSession;
+  initialSession: SanitizedRecordingSession;
   repositories: Readonly<Record<RetentionMode, SessionRepository>>;
   lifecycle?: SessionLifecycle;
   clock?: () => number;
@@ -35,49 +36,56 @@ const noopLifecycle: SessionLifecycle = {
   async stop() {},
 };
 
-function persistenceWarning(error: unknown): SessionWarning {
+function persistenceWarning(): SessionWarning {
   return {
     code: 'persistence-disabled',
-    message:
-      error instanceof Error
-        ? `Local persistence was disabled: ${error.message}`
-        : 'Local persistence was disabled after an unknown storage failure.',
+    message: 'Local persistence was disabled after a storage failure.',
   };
 }
 
-function migrationWarning(error: unknown): SessionWarning {
+function migrationWarning(): SessionWarning {
   return {
     code: 'migration-failed',
-    message:
-      error instanceof Error
-        ? `Retention migration failed: ${error.message}`
-        : 'Retention migration failed; the previous mode remains active.',
+    message: 'Retention migration failed; the previous mode remains active.',
   };
 }
 
-function migrationCleanupWarning(
-  migrationError: unknown,
-  cleanupError: unknown,
-): SessionWarning {
-  const migrationMessage =
-    migrationError instanceof Error ? migrationError.message : 'unknown failure';
-  const cleanupMessage =
-    cleanupError instanceof Error ? cleanupError.message : 'unknown cleanup failure';
+function migrationCleanupWarning(): SessionWarning {
   return {
     code: 'migration-cleanup-failed',
-    message: `Retention migration failed (${migrationMessage}); cleanup also failed (${cleanupMessage}). Residual target evidence will be removed by Clear.`,
+    message:
+      'Retention migration and cleanup failed. Clear removes residual local evidence.',
   };
 }
 
-function captureWarning(error: unknown): SessionWarning {
+function captureWarning(): SessionWarning {
   return {
     code: 'capture-failed',
-    message:
-      error instanceof Error
-        ? `Capture lifecycle failed: ${error.message}`
-        : 'Capture lifecycle failed.',
+    message: 'Capture lifecycle failed.',
   };
 }
+
+const CAPTURE_ISSUE_MESSAGES: Readonly<Record<CaptureIssue['code'], string>> =
+  Object.freeze({
+    'classification-failed': 'Request classification was unavailable.',
+    'content-api-unavailable':
+      'Response content was unavailable from the DevTools API.',
+    'content-callback-timeout': 'Response content retrieval timed out.',
+    'explanation-failed': 'Request explanation was unavailable.',
+    'har-api-unavailable': 'The DevTools HAR snapshot was unavailable.',
+    'har-callback-timeout': 'The DevTools HAR snapshot timed out.',
+    'invalid-content-encoding':
+      'Response content used an unsupported DevTools encoding.',
+    'invalid-har': 'The DevTools HAR snapshot was malformed.',
+    'invalid-started-time':
+      'A network entry was skipped because its start time was invalid.',
+    'interaction-start-failed':
+      'Interaction capture was unavailable; network capture continued.',
+    'normalization-failed':
+      'A captured request could not be normalized and was skipped.',
+    'redaction-failed': 'A captured request failed closed during redaction.',
+    'sink-failed': 'A sanitized request could not be added to the session.',
+  });
 
 export function createSessionController(
   dependencies: SessionControllerDependencies,
@@ -104,7 +112,7 @@ export function createSessionController(
     }
   }
 
-  function replace(next: RecordingSession): void {
+  function replace(next: SanitizedRecordingSession): void {
     if (next !== snapshot) {
       snapshot = next;
       notify();
@@ -125,9 +133,9 @@ export function createSessionController(
     }
     try {
       await activeRepository().save(snapshot);
-    } catch (error) {
+    } catch {
       persistenceEnabled = false;
-      warn(persistenceWarning(error));
+      warn(persistenceWarning());
     }
   }
 
@@ -153,14 +161,17 @@ export function createSessionController(
     if (snapshot.phase === 'recording') {
       return;
     }
-    replace(reduceSession(snapshot, { type: 'phase', phase: 'starting', at: clock() }));
+    const startedAt = clock();
+    replace(
+      reduceSession(snapshot, { type: 'phase', phase: 'starting', at: startedAt }),
+    );
     try {
-      await lifecycle.start();
+      await lifecycle.start(startedAt);
       replace(
         reduceSession(snapshot, {
           type: 'phase',
           phase: 'recording',
-          at: clock(),
+          at: startedAt,
         }),
       );
       await persistPhaseSnapshot();
@@ -169,10 +180,10 @@ export function createSessionController(
         reduceSession(snapshot, {
           type: 'phase',
           phase: 'stopped',
-          at: clock(),
+          at: startedAt,
         }),
       );
-      warn(captureWarning(error));
+      warn(captureWarning());
       throw error;
     }
   }
@@ -181,18 +192,21 @@ export function createSessionController(
     if (snapshot.phase === 'stopped') {
       return;
     }
-    replace(reduceSession(snapshot, { type: 'phase', phase: 'stopping', at: clock() }));
+    const stoppedAt = clock();
+    replace(
+      reduceSession(snapshot, { type: 'phase', phase: 'stopping', at: stoppedAt }),
+    );
     try {
-      await lifecycle.stop();
+      await lifecycle.stop(stoppedAt);
     } catch (error) {
-      warn(captureWarning(error));
+      warn(captureWarning());
       throw error;
     } finally {
       replace(
         reduceSession(snapshot, {
           type: 'phase',
           phase: 'stopped',
-          at: clock(),
+          at: stoppedAt,
         }),
       );
     }
@@ -257,7 +271,7 @@ export function createSessionController(
           persistenceEnabled = true;
         } else {
           persistenceEnabled = false;
-          warn(persistenceWarning(clearErrors[0]));
+          warn(persistenceWarning());
         }
       });
       const tracked = operation.finally(() => {
@@ -279,8 +293,8 @@ export function createSessionController(
         if (target === previous) {
           try {
             await target.save(migrated);
-          } catch (error) {
-            warn(migrationWarning(error));
+          } catch {
+            warn(migrationWarning());
             return;
           }
           persistenceEnabled = true;
@@ -290,14 +304,14 @@ export function createSessionController(
         try {
           await target.save(migrated);
           await previous.clear(snapshot.id);
-        } catch (error) {
+        } catch {
           try {
             await target.clear(snapshot.id);
-          } catch (cleanupError) {
-            warn(migrationCleanupWarning(error, cleanupError));
+          } catch {
+            warn(migrationCleanupWarning());
             return;
           }
-          warn(migrationWarning(error));
+          warn(migrationWarning());
           return;
         }
         persistenceEnabled = true;
@@ -322,14 +336,21 @@ export function createSessionController(
       }
       try {
         await persistence;
-      } catch (error) {
+      } catch {
         await queueOperation(async () => {
           if (retention === snapshot.retention && repository === activeRepository()) {
             persistenceEnabled = false;
-            warn(persistenceWarning(error));
+            warn(persistenceWarning());
           }
         });
       }
+    },
+
+    warn(issue): void {
+      warn({
+        code: issue.code,
+        message: CAPTURE_ISSUE_MESSAGES[issue.code],
+      });
     },
 
     subscribe(listener): () => void {
@@ -339,7 +360,7 @@ export function createSessionController(
       };
     },
 
-    getSnapshot(): RecordingSession {
+    getSnapshot(): SanitizedRecordingSession {
       return snapshot;
     },
   };

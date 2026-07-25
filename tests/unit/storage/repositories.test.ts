@@ -2,7 +2,13 @@ import { IDBFactory } from 'fake-indexeddb';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { RecordingSession } from '../../../src/domain/model';
+import {
+  redactRequest,
+  redactSession,
+  DEFAULT_REDACTION_CONFIG,
+} from '../../../src/domain/redaction';
 import { addBounded, freezeSession } from '../../../src/domain/ring-buffer';
+import type { SanitizedRecordingSession } from '../../../src/domain/sanitized';
 import { createSession } from '../../../src/domain/session';
 import {
   createIndexedDbSessionRepository,
@@ -22,14 +28,19 @@ import { requestWith } from '../../helpers/request-factory';
 function recordedSession(
   id = 'tab-5:1000',
   retention: RecordingSession['retention'] = 'ephemeral',
-): RecordingSession {
-  return freezeSession({
-    ...createSession('tab-5', 'https://app.test', 1_000),
-    id,
-    retention,
-    phase: 'recording',
-    startedAt: 1_000,
-  });
+): SanitizedRecordingSession {
+  return freezeSession(
+    redactSession(
+      {
+        ...createSession('tab-5', 'https://app.test', 1_000),
+        id,
+        retention,
+        phase: 'recording',
+        startedAt: 1_000,
+      },
+      DEFAULT_REDACTION_CONFIG,
+    ),
+  );
 }
 
 function clone<T>(value: T): T {
@@ -88,33 +99,36 @@ function setPath(root: unknown, path: readonly string[], value: unknown): void {
 }
 
 function validStoredSession(): unknown {
-  const request = {
-    ...requestWith({
-      id: 'schema-request',
-      requestHeaders: [{ name: 'accept', value: 'application/json' }],
-      responseHeaders: [{ name: 'content-type', value: 'application/json' }],
-      responseStatusText: 'OK',
-      responseText: '{"ok":true}',
-      responseMime: 'application/json',
-      durationMs: 8,
-      initiator: 'fetch',
-      fromCache: false,
-      fromServiceWorker: false,
-      redirectUrl: '',
-      classification: {
-        kind: 'rest',
-        confidence: 'confirmed' as const,
-        evidence: ['method and content type'],
-        actionId: 'action-1',
+  const request = redactRequest(
+    {
+      ...requestWith({
+        id: 'schema-request',
+        requestHeaders: [{ name: 'accept', value: 'application/json' }],
+        responseHeaders: [{ name: 'content-type', value: 'application/json' }],
+        responseStatusText: 'OK',
+        responseText: '{"ok":true}',
+        responseMime: 'application/json',
+        durationMs: 8,
+        initiator: 'fetch',
+        fromCache: false,
+        fromServiceWorker: false,
+        redirectUrl: '',
+        classification: {
+          kind: 'rest',
+          confidence: 'confirmed' as const,
+          evidence: ['method and content type'],
+          actionId: 'action-1',
+        },
+      }),
+      explanation: {
+        outcome: 'success',
+        summary: 'Request completed.',
+        guidance: ['Inspect response.'],
+        evidence: ['HTTP 200'],
       },
-    }),
-    explanation: {
-      outcome: 'success',
-      summary: 'Request completed.',
-      guidance: ['Inspect response.'],
-      evidence: ['HTTP 200'],
     },
-  };
+    DEFAULT_REDACTION_CONFIG,
+  );
   const session = addBounded(
     freezeSession({
       ...recordedSession('schema-1'),
@@ -1097,10 +1111,48 @@ describe('stored session schema validation', () => {
     const recovered = decodeStoredSession(proxy, 'schema-1');
 
     expect(gets).toBe(0);
-    expect(recovered.requests[0]?.id).toBe('schema-request');
+    expect(recovered.requests[0]?.id).toMatch(/^req-[a-z0-9-]+$/u);
   });
 
-  it('serializes each request once during valid or mismatched hydration', () => {
+  it('re-redacts old schema requests and reissues URL-derived identifiers', () => {
+    const stored = validStoredSession() as {
+      session: {
+        requests: Array<Record<string, unknown>>;
+        requestBytes: number[];
+        byteCount: number;
+      };
+    };
+    const request = stored.session.requests[0]!;
+    request.id = 'POST:https://app.test/save?token=id-secret';
+    request.url = 'https://app.test/save?token=query-secret';
+    request.request = {
+      headers: [{ name: 'Authorization', value: 'Bearer header-secret' }],
+      body: {
+        state: 'available',
+        size: 27,
+        capturedSize: 27,
+        text: '{"password":"body-secret"}',
+        mimeType: 'application/json',
+      },
+    };
+    request.classification = {
+      kind: 'api',
+      confidence: 'likely',
+      evidence: ['Bearer analysis-secret'],
+    };
+    refreshStoredBookkeeping(stored);
+
+    const recovered = decodeStoredSession(stored, 'schema-1');
+    const serialized = JSON.stringify(recovered);
+
+    expect(recovered.requests[0]?.id).toMatch(/^req-[a-z0-9-]+$/u);
+    expect(recovered.requests[0]?.classification).toBeUndefined();
+    expect(serialized).not.toMatch(
+      /id-secret|query-secret|header-secret|body-secret|analysis-secret/u,
+    );
+  });
+
+  it('validates raw bytes before re-redacting valid hydration', () => {
     const valid = validStoredSession();
     const stringify = vi.spyOn(JSON, 'stringify');
     const requestSerializationCount = () =>
@@ -1112,7 +1164,7 @@ describe('stored session schema validation', () => {
       }).length;
 
     const recovered = decodeStoredSession(valid, 'schema-1');
-    expect(recovered.requests[0]?.id).toBe('schema-request');
+    expect(recovered.requests[0]?.id).toMatch(/^req-[a-z0-9-]+$/u);
     expect(requestSerializationCount()).toBe(1);
 
     stringify.mockClear();

@@ -1,9 +1,5 @@
-import type {
-  CapturedRequest,
-  RecordingSession,
-  SessionLimits,
-  SessionWarning,
-} from './model';
+import type { SessionLimits, SessionWarning } from './model';
+import type { SanitizedCapturedRequest, SanitizedRecordingSession } from './sanitized';
 
 const textEncoder = new TextEncoder();
 export const MAX_SESSION_WARNINGS = 100;
@@ -27,7 +23,7 @@ export function validateSessionLimits(limits: SessionLimits): SessionLimits {
   return limits;
 }
 
-function serializeRequest(request: CapturedRequest): string {
+function serializeRequest(request: SanitizedCapturedRequest): string {
   const serialized = JSON.stringify(request);
   if (serialized === undefined) {
     throw new TypeError('Captured request is not serializable.');
@@ -35,7 +31,7 @@ function serializeRequest(request: CapturedRequest): string {
   return serialized;
 }
 
-export function calculateRequestBytes(request: CapturedRequest): number {
+export function calculateRequestBytes(request: SanitizedCapturedRequest): number {
   return textEncoder.encode(serializeRequest(request)).byteLength;
 }
 
@@ -61,7 +57,9 @@ function deepFreeze<T>(value: T, visited = new WeakSet<object>()): T {
   return Object.freeze(value);
 }
 
-export function freezeSession(session: RecordingSession): RecordingSession {
+export function freezeSession(
+  session: SanitizedRecordingSession,
+): SanitizedRecordingSession {
   if (trustedSessions.has(session)) {
     return session;
   }
@@ -86,10 +84,10 @@ export function freezeSession(session: RecordingSession): RecordingSession {
 }
 
 function cloneAndFreeze(
-  session: RecordingSession,
+  session: SanitizedRecordingSession,
   requestBytes: readonly number[],
   byteCount: number,
-): RecordingSession {
+): SanitizedRecordingSession {
   const clone = structuredClone({
     ...session,
     requests: [...session.requests],
@@ -104,9 +102,9 @@ function cloneAndFreeze(
 }
 
 function appendWarning(
-  session: RecordingSession,
+  session: SanitizedRecordingSession,
   warning: SessionWarning,
-): RecordingSession {
+): SanitizedRecordingSession {
   return cloneAndFreeze(
     {
       ...session,
@@ -118,9 +116,9 @@ function appendWarning(
 }
 
 export function addBounded(
-  session: RecordingSession,
-  request: CapturedRequest,
-): RecordingSession {
+  session: SanitizedRecordingSession,
+  request: SanitizedCapturedRequest,
+): SanitizedRecordingSession {
   validateSessionLimits(session.limits);
   const normalized = trustedSessions.has(session) ? session : freezeSession(session);
   let serialized: string;
@@ -144,7 +142,7 @@ export function addBounded(
     });
   }
 
-  const clonedRequest = JSON.parse(serialized) as CapturedRequest;
+  const clonedRequest = JSON.parse(serialized) as SanitizedCapturedRequest;
   const requests = [...normalized.requests, clonedRequest];
   const sizes = [...normalized.requestBytes, requestBytes];
   let byteCount = normalized.byteCount + requestBytes;

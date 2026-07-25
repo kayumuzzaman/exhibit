@@ -117,6 +117,12 @@ export function applyBodyPolicy(
   if (content === undefined) return unavailable(declared, 'content-not-retrieved');
 
   const mime = mimeType(content.mimeType);
+  if (content.state === 'unavailable') {
+    return unavailable(
+      declared,
+      content.unavailableReason ?? 'content-api-unavailable',
+    );
+  }
   if (content.state === 'streamed') {
     return {
       state: 'streamed',

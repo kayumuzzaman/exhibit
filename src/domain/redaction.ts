@@ -1,4 +1,11 @@
-import type { BodyContent, CapturedRequest, Header } from './model';
+import type {
+  BodyContent,
+  CapturedRequest,
+  Header,
+  RecordingSession,
+  SessionWarning,
+} from './model';
+import type { SanitizedCapturedRequest, SanitizedRecordingSession } from './sanitized';
 import { parseMultipartBody } from './multipart';
 import {
   DEFAULT_REDACTION_CONFIG,
@@ -16,6 +23,10 @@ const MAX_DEPTH = 32;
 const MAX_KEYS = 10_000;
 const MAX_PATTERN_SCAN_CHARACTERS = 1024 * 1024;
 const MAX_JWT_SEGMENT_CHARACTERS = 64 * 1024;
+const OPAQUE_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/u;
+const SENSITIVE_ID_PATTERN =
+  /(?:authorization|cookie|credential|csrf|password|secret|session|token|xsrf)/iu;
+let opaqueRequestSequence = 0;
 
 const AUTHORIZATION_HEADER_NAMES = new Set(['authorization', 'proxyauthorization']);
 const COOKIE_HEADER_NAMES = new Set(['cookie', 'setcookie']);
@@ -230,6 +241,23 @@ function redactValuePatterns(value: string, context: TraversalContext): string {
     containsValidatedJwt(value)
     ? REDACTED
     : value;
+}
+
+function newOpaqueRequestId(): string {
+  try {
+    return `req-${crypto.randomUUID()}`;
+  } catch {
+    opaqueRequestSequence += 1;
+    return `req-local-${opaqueRequestSequence.toString(36)}`;
+  }
+}
+
+function opaqueRequestId(value: unknown): string {
+  return typeof value === 'string' &&
+    OPAQUE_ID_PATTERN.test(value) &&
+    !SENSITIVE_ID_PATTERN.test(value)
+    ? value
+    : newOpaqueRequestId();
 }
 
 function redactUnknownWithContext(
@@ -511,9 +539,9 @@ function redactNestedRequestData(
   }
 }
 
-function redactionFailedRequest(): CapturedRequest {
+function redactionFailedRequest(): SanitizedCapturedRequest {
   return {
-    id: REDACTED,
+    id: newOpaqueRequestId(),
     url: REDACTED,
     method: 'UNKNOWN',
     startedAt: 0,
@@ -525,7 +553,7 @@ function redactionFailedRequest(): CapturedRequest {
     },
     timing: { totalMs: 0 },
     evidence: {},
-  };
+  } as unknown as SanitizedCapturedRequest;
 }
 
 /**
@@ -537,12 +565,14 @@ function redactionFailedRequest(): CapturedRequest {
 export function redactRequest(
   request: CapturedRequest,
   config: RedactionConfig,
-): CapturedRequest {
+): SanitizedCapturedRequest {
   try {
     const output = redactTrustedDto(request, config);
     if (output === null || typeof output !== 'object') {
       return redactionFailedRequest();
     }
+
+    defineDataProperty(output, 'id', opaqueRequestId(readDataProperty(request, 'id')));
 
     const url = readDataProperty(request, 'url');
     if (typeof url === 'string') {
@@ -557,8 +587,119 @@ export function redactRequest(
     const responseTarget = readDataProperty(output, 'response');
     redactNestedRequestData(responseSource, responseTarget, config);
 
-    return output as CapturedRequest;
+    return output as SanitizedCapturedRequest;
   } catch {
     return redactionFailedRequest();
   }
+}
+
+const SAFE_WARNING_MESSAGES: Readonly<Record<SessionWarning['code'], string>> = {
+  'classification-failed': 'Request classification was unavailable.',
+  'content-api-unavailable': 'Response content was unavailable from the DevTools API.',
+  'content-callback-timeout': 'Response content retrieval timed out.',
+  'explanation-failed': 'Request explanation was unavailable.',
+  'har-api-unavailable': 'The DevTools HAR snapshot was unavailable.',
+  'har-callback-timeout': 'The DevTools HAR snapshot timed out.',
+  'invalid-content-encoding': 'Response content used an unsupported DevTools encoding.',
+  'invalid-har': 'The DevTools HAR snapshot was malformed.',
+  'invalid-started-time':
+    'A network entry was skipped because its start time was invalid.',
+  'interaction-start-failed':
+    'Interaction capture was unavailable; network capture continued.',
+  'normalization-failed': 'A captured request could not be normalized and was skipped.',
+  'redaction-failed': 'A captured request failed closed during redaction.',
+  'sink-failed': 'A sanitized request could not be added to the session.',
+  'capture-failed': 'Capture lifecycle failed.',
+  'corrupt-session':
+    'Stored session could not be validated. Original local evidence was retained.',
+  'migration-cleanup-failed':
+    'Retention migration and cleanup failed. Clear removes residual local evidence.',
+  'migration-failed': 'Retention migration failed; the previous mode remains active.',
+  'persistence-disabled': 'Local persistence was disabled after a storage failure.',
+  'request-too-large': 'Request could not be stored within session limits.',
+};
+
+/**
+ * Trusted persistence boundary for newly created and recovered sessions.
+ * Recovered request data is redacted again; old byte bookkeeping is discarded.
+ */
+export function redactSession(
+  session: RecordingSession,
+  config: RedactionConfig,
+): SanitizedRecordingSession {
+  const requests = session.requests.map((request) => redactRequest(request, config));
+  const warnings = session.warnings.map((warning) => ({
+    code: warning.code,
+    message: SAFE_WARNING_MESSAGES[warning.code],
+  }));
+  return {
+    ...session,
+    requests,
+    requestBytes: [],
+    byteCount: 0,
+    warnings,
+  } as unknown as SanitizedRecordingSession;
+}
+
+function recoveredRequestId(): string {
+  return newOpaqueRequestId();
+}
+
+/**
+ * Recovery boundary for stored schema data. Legacy IDs and analysis may have
+ * been produced before current privacy guarantees, so IDs are reissued and
+ * analysis is discarded instead of being trusted or cast.
+ */
+export function redactRecoveredSession(
+  session: RecordingSession,
+  config: RedactionConfig,
+): SanitizedRecordingSession {
+  const idMap = new Map<string, string>();
+  const ids = session.requests.map((request) => {
+    const id = recoveredRequestId();
+    idMap.set(request.id, id);
+    return id;
+  });
+  const requests = session.requests.map((request, index) => {
+    const redacted = redactRequest(request, config);
+    const redirectParentId = redacted.evidence.redirectParentId;
+    const mappedParent =
+      redirectParentId === undefined ? undefined : idMap.get(redirectParentId);
+    const evidence = {
+      ...(redacted.evidence.fromCache === undefined
+        ? {}
+        : { fromCache: redacted.evidence.fromCache }),
+      ...(redacted.evidence.fromServiceWorker === undefined
+        ? {}
+        : { fromServiceWorker: redacted.evidence.fromServiceWorker }),
+      ...(redacted.evidence.redirectUrl === undefined
+        ? {}
+        : { redirectUrl: redacted.evidence.redirectUrl }),
+      ...(redacted.evidence.initiator === undefined
+        ? {}
+        : { initiator: redacted.evidence.initiator }),
+      ...(mappedParent === undefined ? {} : { redirectParentId: mappedParent }),
+    };
+    return {
+      id: ids[index]!,
+      url: redacted.url,
+      method: redacted.method,
+      startedAt: redacted.startedAt,
+      request: redacted.request,
+      response: redacted.response,
+      timing: redacted.timing,
+      evidence,
+    } as SanitizedCapturedRequest;
+  });
+  const warnings = session.warnings.map((warning) => ({
+    code: warning.code,
+    message: SAFE_WARNING_MESSAGES[warning.code],
+  }));
+  return {
+    ...session,
+    requests,
+    requestBytes: [],
+    byteCount: 0,
+    warnings,
+  } as unknown as SanitizedRecordingSession;
 }

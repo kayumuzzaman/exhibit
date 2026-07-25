@@ -1,11 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import type {
-  RecordingPhase,
-  RecordingSession,
-  RetentionMode,
-} from '../../../src/domain/model';
+import type { RecordingPhase, RetentionMode } from '../../../src/domain/model';
+import { redactSession, DEFAULT_REDACTION_CONFIG } from '../../../src/domain/redaction';
 import { freezeSession } from '../../../src/domain/ring-buffer';
+import type { SanitizedRecordingSession } from '../../../src/domain/sanitized';
 import { createSession } from '../../../src/domain/session';
 import {
   createSessionController,
@@ -13,11 +11,11 @@ import {
 } from '../../../src/features/session/session-controller';
 import { reduceSession } from '../../../src/features/session/session-reducer';
 import type { SessionRepository } from '../../../src/ports/session-repository';
-import { requestWith } from '../../helpers/request-factory';
+import { sanitizedRequestWith as requestWith } from '../../helpers/request-factory';
 
 class MemoryRepository implements SessionRepository {
   readonly calls: string[];
-  value: RecordingSession | null = null;
+  value: SanitizedRecordingSession | null = null;
   saveError: unknown | null = null;
   clearError: unknown | null = null;
   saveGate: Promise<void> | null = null;
@@ -30,15 +28,15 @@ class MemoryRepository implements SessionRepository {
     this.calls = calls;
   }
 
-  async load(): Promise<RecordingSession | null> {
+  async load(): Promise<SanitizedRecordingSession | null> {
     return this.value;
   }
 
-  async loadCurrent(tabId: string): Promise<RecordingSession | null> {
+  async loadCurrent(tabId: string): Promise<SanitizedRecordingSession | null> {
     return this.value?.tabId === tabId ? this.value : null;
   }
 
-  async save(session: RecordingSession): Promise<void> {
+  async save(session: SanitizedRecordingSession): Promise<void> {
     this.calls.push(`${this.name}:save:${session.retention}`);
     if (this.saveGate !== null) {
       await this.saveGate;
@@ -78,13 +76,18 @@ function deferred(): {
 function initialSession(
   phase: RecordingPhase = 'stopped',
   retention: RetentionMode = 'ephemeral',
-): RecordingSession {
-  return freezeSession({
-    ...createSession('tab-5', 'https://app.test', 1_000),
-    phase,
-    retention,
-    startedAt: phase === 'stopped' ? null : 1_000,
-  });
+): SanitizedRecordingSession {
+  return freezeSession(
+    redactSession(
+      {
+        ...createSession('tab-5', 'https://app.test', 1_000),
+        phase,
+        retention,
+        startedAt: phase === 'stopped' ? null : 1_000,
+      },
+      DEFAULT_REDACTION_CONFIG,
+    ),
+  );
 }
 
 function controllerFixture(
@@ -108,6 +111,34 @@ function controllerFixture(
 }
 
 describe('session controller lifecycle', () => {
+  it('stores distinct fixed capture issues without caller text or raw identifiers', () => {
+    const { controller } = controllerFixture();
+
+    controller.warn({
+      code: 'classification-failed',
+      message: 'Bearer warning-secret',
+      requestId: 'GET:https://app.test?token=id-secret',
+    });
+    controller.warn({
+      code: 'explanation-failed',
+      message: 'Bearer second-secret',
+    });
+
+    expect(controller.getSnapshot().warnings).toEqual([
+      {
+        code: 'classification-failed',
+        message: 'Request classification was unavailable.',
+      },
+      {
+        code: 'explanation-failed',
+        message: 'Request explanation was unavailable.',
+      },
+    ]);
+    expect(JSON.stringify(controller.getSnapshot().warnings)).not.toMatch(
+      /warning-secret|second-secret|id-secret/u,
+    );
+  });
+
   it('uses safe default lifecycle and clock dependencies', async () => {
     const repository = new MemoryRepository('shared');
     const controller = createSessionController({
@@ -443,7 +474,7 @@ describe('session controller lifecycle', () => {
     expect(controller.getSnapshot().requests).toEqual([]);
     expect(controller.getSnapshot().warnings).toContainEqual({
       code: 'persistence-disabled',
-      message: 'Local persistence was disabled after an unknown storage failure.',
+      message: 'Local persistence was disabled after a storage failure.',
     });
   });
 
@@ -515,7 +546,7 @@ describe('session controller persistence and observers', () => {
 
     expect(controller.getSnapshot().warnings).toContainEqual({
       code: 'persistence-disabled',
-      message: 'Local persistence was disabled after an unknown storage failure.',
+      message: 'Local persistence was disabled after a storage failure.',
     });
   });
 
@@ -725,7 +756,8 @@ describe('session controller persistence and observers', () => {
 
     expect(controller.getSnapshot().warnings).toContainEqual({
       code: 'migration-cleanup-failed',
-      message: expect.stringMatching(/unknown failure.*unknown cleanup failure/i),
+      message:
+        'Retention migration and cleanup failed. Clear removes residual local evidence.',
     });
   });
 

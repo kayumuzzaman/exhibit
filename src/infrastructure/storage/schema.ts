@@ -13,12 +13,18 @@ import type {
   SessionWarning,
   SessionWarningCode,
 } from '../../domain/model';
+import type { SanitizedRecordingSession } from '../../domain/sanitized';
 import {
   freezeSession,
   MAX_SESSION_WARNINGS,
   validateSessionLimits,
 } from '../../domain/ring-buffer';
-import { redactUnknown, REDACTED } from '../../domain/redaction';
+import {
+  redactRecoveredSession,
+  redactSession,
+  redactUnknown,
+  REDACTED,
+} from '../../domain/redaction';
 import { DEFAULT_LIMITS } from '../../domain/session';
 import { DEFAULT_REDACTION_CONFIG } from '../../features/settings/redaction-settings';
 
@@ -37,7 +43,7 @@ const MAX_INTERACTION_URL_CODE_UNITS = 8_192;
 
 export type StoredSession = Readonly<{
   version: typeof STORAGE_SCHEMA_VERSION;
-  session: RecordingSession;
+  session: SanitizedRecordingSession;
 }>;
 
 export type StoredSessionLocator = Readonly<{
@@ -54,6 +60,19 @@ const phases = new Set<RecordingPhase>([
 ]);
 const retentions = new Set<RetentionMode>(['ephemeral', 'persistent']);
 const warningCodes = new Set<SessionWarningCode>([
+  'classification-failed',
+  'content-api-unavailable',
+  'content-callback-timeout',
+  'explanation-failed',
+  'har-api-unavailable',
+  'har-callback-timeout',
+  'invalid-content-encoding',
+  'invalid-har',
+  'invalid-started-time',
+  'interaction-start-failed',
+  'normalization-failed',
+  'redaction-failed',
+  'sink-failed',
   'capture-failed',
   'corrupt-session',
   'migration-cleanup-failed',
@@ -519,7 +538,7 @@ function serializedBytes(value: unknown): number {
 function parseSession(
   value: unknown,
   expectedSessionId: string,
-): RecordingSession | null {
+): SanitizedRecordingSession | null {
   if (
     !isRecord(value) ||
     !hasOnlyKeys(value, [
@@ -571,49 +590,63 @@ function parseSession(
     return null;
   }
 
-  let normalized: RecordingSession;
-  try {
-    normalized = freezeSession(value as RecordingSession);
-  } catch {
-    return null;
-  }
+  const rawRequestBytes = (value.requests as CapturedRequest[]).map((request) =>
+    serializedBytes(request),
+  );
   if (
-    normalized.requestBytes.some(
+    rawRequestBytes.some(
       (bytes, index) => bytes !== (value.requestBytes as number[])[index],
     ) ||
-    normalized.byteCount !== value.byteCount
+    rawRequestBytes.reduce((total, bytes) => total + bytes, 0) !== value.byteCount
   ) {
+    return null;
+  }
+
+  let normalized: SanitizedRecordingSession;
+  try {
+    normalized = freezeSession(
+      redactRecoveredSession(value as RecordingSession, DEFAULT_REDACTION_CONFIG),
+    );
+  } catch {
     return null;
   }
   return normalized;
 }
 
-export function createCorruptSession(sessionId: string, tabId = ''): RecordingSession {
-  return freezeSession({
-    id: sessionId,
-    tabId,
-    origin: '',
-    phase: 'stopped',
-    retention: 'ephemeral',
-    limits: DEFAULT_LIMITS,
-    startedAt: null,
-    stoppedAt: null,
-    requests: [],
-    requestBytes: [],
-    byteCount: 0,
-    interactions: [],
-    evictedCount: 0,
-    warnings: [
+export function createCorruptSession(
+  sessionId: string,
+  tabId = '',
+): SanitizedRecordingSession {
+  return freezeSession(
+    redactSession(
       {
-        code: 'corrupt-session',
-        message:
-          'Stored session could not be validated. Original local evidence was retained.',
+        id: sessionId,
+        tabId,
+        origin: '',
+        phase: 'stopped',
+        retention: 'ephemeral',
+        limits: DEFAULT_LIMITS,
+        startedAt: null,
+        stoppedAt: null,
+        requests: [],
+        requestBytes: [],
+        byteCount: 0,
+        interactions: [],
+        evictedCount: 0,
+        warnings: [
+          {
+            code: 'corrupt-session',
+            message:
+              'Stored session could not be validated. Original local evidence was retained.',
+          },
+        ],
       },
-    ],
-  });
+      DEFAULT_REDACTION_CONFIG,
+    ),
+  );
 }
 
-export function encodeStoredSession(session: RecordingSession): StoredSession {
+export function encodeStoredSession(session: SanitizedRecordingSession): StoredSession {
   const frozen = freezeSession(session);
   const stored = {
     version: STORAGE_SCHEMA_VERSION,
@@ -629,7 +662,7 @@ export function decodeStoredSession(
   value: unknown,
   sessionId: string,
   recoveryTabId = '',
-): RecordingSession {
+): SanitizedRecordingSession {
   try {
     const cloned = cloneSafePlainData(value);
     if (

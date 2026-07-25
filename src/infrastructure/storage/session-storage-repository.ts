@@ -1,4 +1,4 @@
-import type { RecordingSession } from '../../domain/model';
+import type { SanitizedRecordingSession } from '../../domain/sanitized';
 import type { SessionRepository } from '../../ports/session-repository';
 import {
   decodeSessionLocator,
@@ -125,7 +125,7 @@ export function createSessionStorageRepository(
   }
 
   return {
-    async load(sessionId): Promise<RecordingSession | null> {
+    async load(sessionId): Promise<SanitizedRecordingSession | null> {
       await flush().catch(() => undefined);
       const key = keyFor(sessionId);
       return queueOperation(async () => {
@@ -141,7 +141,7 @@ export function createSessionStorageRepository(
       });
     },
 
-    async loadCurrent(tabId): Promise<RecordingSession | null> {
+    async loadCurrent(tabId): Promise<SanitizedRecordingSession | null> {
       await flush().catch(() => undefined);
       return queueOperation(async () => {
         const locatorKey = currentKeyFor(tabId);

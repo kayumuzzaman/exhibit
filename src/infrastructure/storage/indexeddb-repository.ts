@@ -1,4 +1,4 @@
-import type { RecordingSession } from '../../domain/model';
+import type { SanitizedRecordingSession } from '../../domain/sanitized';
 import type { SessionRepository } from '../../ports/session-repository';
 import {
   decodeSessionLocator,
@@ -83,7 +83,7 @@ export function createIndexedDbSessionRepository(
     return `current:${tabId}`;
   }
 
-  async function saveAtomic(session: RecordingSession): Promise<void> {
+  async function saveAtomic(session: SanitizedRecordingSession): Promise<void> {
     const stored = encodeStoredSession(session);
     const locator = encodeSessionLocator(session);
     const opened = await database;
@@ -103,7 +103,7 @@ export function createIndexedDbSessionRepository(
   }
 
   return {
-    async load(sessionId): Promise<RecordingSession | null> {
+    async load(sessionId): Promise<SanitizedRecordingSession | null> {
       const value = await execute(
         await database,
         'readonly',
@@ -119,14 +119,14 @@ export function createIndexedDbSessionRepository(
       return session;
     },
 
-    async loadCurrent(tabId): Promise<RecordingSession | null> {
+    async loadCurrent(tabId): Promise<SanitizedRecordingSession | null> {
       const opened = await database;
-      return new Promise<RecordingSession | null>((resolve, reject) => {
+      return new Promise<SanitizedRecordingSession | null>((resolve, reject) => {
         const transaction = opened.transaction(
           [SESSION_STORE, SETTINGS_STORE],
           'readonly',
         );
-        let result: RecordingSession | null = null;
+        let result: SanitizedRecordingSession | null = null;
         const locatorRequest = transaction
           .objectStore(SETTINGS_STORE)
           .get(currentKey(tabId));

@@ -1,9 +1,5 @@
-import type {
-  RecordingPhase,
-  RecordingSession,
-  RetentionMode,
-  SessionWarning,
-} from '../../domain/model';
+import type { RecordingPhase, RetentionMode, SessionWarning } from '../../domain/model';
+import type { SanitizedRecordingSession } from '../../domain/sanitized';
 import { freezeSession } from '../../domain/ring-buffer';
 
 export type SessionAction =
@@ -25,7 +21,10 @@ export type SessionAction =
       warning: SessionWarning;
     }>;
 
-function hasWarning(session: RecordingSession, warning: SessionWarning): boolean {
+function hasWarning(
+  session: SanitizedRecordingSession,
+  warning: SessionWarning,
+): boolean {
   return session.warnings.some(
     (existing) =>
       existing.code === warning.code && existing.requestId === warning.requestId,
@@ -33,9 +32,9 @@ function hasWarning(session: RecordingSession, warning: SessionWarning): boolean
 }
 
 export function reduceSession(
-  session: RecordingSession,
+  session: SanitizedRecordingSession,
   action: SessionAction,
-): RecordingSession {
+): SanitizedRecordingSession {
   switch (action.type) {
     case 'phase':
       return freezeSession({

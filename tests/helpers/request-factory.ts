@@ -4,6 +4,8 @@ import type {
   Classification,
   Header,
 } from '../../src/domain/model';
+import { redactRequest, DEFAULT_REDACTION_CONFIG } from '../../src/domain/redaction';
+import type { SanitizedCapturedRequest } from '../../src/domain/sanitized';
 
 type RequestOverrides = Readonly<{
   id?: string;
@@ -71,4 +73,10 @@ export function requestWith(overrides: RequestOverrides = {}): CapturedRequest {
       ? {}
       : { classification: overrides.classification }),
   };
+}
+
+export function sanitizedRequestWith(
+  overrides: RequestOverrides = {},
+): SanitizedCapturedRequest {
+  return redactRequest(requestWith(overrides), DEFAULT_REDACTION_CONFIG);
 }
