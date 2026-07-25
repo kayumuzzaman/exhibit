@@ -31,6 +31,20 @@ const ALWAYS_SENSITIVE_NAME_WORDS = new Set([
   'xsrf',
 ]);
 const SESSION_CREDENTIAL_WORDS = new Set(['id', 'token', 'key', 'secret', 'cookie']);
+const NORMALIZED_CREDENTIAL_SUFFIXES = [
+  'password',
+  'passwd',
+  'passphrase',
+  'token',
+  'secret',
+  'apikey',
+  'session',
+  'sessionid',
+  'credential',
+  'credentials',
+  'csrf',
+  'xsrf',
+] as const;
 
 const VALUE_PATTERNS = [
   /\bbearer[ \t]+[A-Za-z0-9._~+/-]+={0,2}/iu,
@@ -153,7 +167,11 @@ function traversalContext(config: RedactionConfig): TraversalContext {
 
 function isSensitiveField(fieldName: string, context: TraversalContext): boolean {
   const normalized = normalizeFieldName(fieldName);
-  return context.fieldNames.has(normalized) || isBuiltInSensitiveName(fieldName);
+  return (
+    context.fieldNames.has(normalized) ||
+    NORMALIZED_CREDENTIAL_SUFFIXES.some((suffix) => normalized.endsWith(suffix)) ||
+    isBuiltInSensitiveName(fieldName)
+  );
 }
 
 function decodeJwtSegment(segment: string): unknown {
@@ -255,12 +273,21 @@ function redactUnknownWithContext(
   return output;
 }
 
-export function redactUnknown(value: unknown, config: RedactionConfig): unknown {
+function redactTrustedDto(value: unknown, config: RedactionConfig): unknown {
   try {
     return redactUnknownWithContext(value, traversalContext(config), 0);
   } catch {
     return REDACTED;
   }
+}
+
+/**
+ * Untrusted-value boundary. Object inputs are rejected without reflection;
+ * structural traversal is reserved for internally normalized typed DTOs.
+ */
+export function redactUnknown(value: unknown, config: RedactionConfig): unknown {
+  if (value !== null && typeof value === 'object') return REDACTED;
+  return redactTrustedDto(value, config);
 }
 
 function redactQueryParameters(
@@ -348,7 +375,7 @@ function contentType(mimeType: string): string {
 function redactJsonText(text: string, config: RedactionConfig): string {
   try {
     const parsed: unknown = JSON.parse(text);
-    return JSON.stringify(redactUnknown(parsed, config));
+    return JSON.stringify(redactTrustedDto(parsed, config));
   } catch {
     return REDACTED;
   }
@@ -462,10 +489,20 @@ function redactMultipartText(
   const boundary = multipartBoundary(mimeType);
   if (boundary === undefined) return REDACTED;
   const delimiter = `--${boundary}`;
-  return text
-    .split(delimiter)
-    .map((part) => redactMultipartPart(part, context))
-    .join(delimiter);
+  const segments = text.split(delimiter);
+  if (segments.length < 2) return REDACTED;
+  const closingIndex = segments.findIndex(
+    (segment, index) => index > 0 && segment.startsWith('--'),
+  );
+  if (closingIndex < 0) return REDACTED;
+
+  return [
+    '',
+    ...segments
+      .slice(1, closingIndex)
+      .map((part) => redactMultipartPart(part, context)),
+    '--',
+  ].join(delimiter);
 }
 
 function redactBodyText(
@@ -489,9 +526,14 @@ function redactBodyText(
   return redactValuePatterns(text, context);
 }
 
+/**
+ * Trusted DTO boundary. `body` must come from Payloadra normalization, not an
+ * arbitrary page object or Proxy. Violations fail closed, but JavaScript Proxy
+ * reflection can execute traps before reporting failure.
+ */
 export function redactBody(body: BodyContent, config: RedactionConfig): BodyContent {
   try {
-    const output = redactUnknown(body, config);
+    const output = redactTrustedDto(body, config);
     if (output === null || typeof output !== 'object') {
       return redactionFailedBody();
     }
@@ -564,12 +606,18 @@ function redactionFailedRequest(): CapturedRequest {
   };
 }
 
+/**
+ * Trusted DTO boundary. `request` must be an internally normalized
+ * `CapturedRequest`; arbitrary objects use `redactUnknown` and fail closed.
+ * The outer catch protects contract violations, but cannot undo Proxy traps
+ * already executed by JavaScript reflection.
+ */
 export function redactRequest(
   request: CapturedRequest,
   config: RedactionConfig,
 ): CapturedRequest {
   try {
-    const output = redactUnknown(request, config);
+    const output = redactTrustedDto(request, config);
     if (output === null || typeof output !== 'object') {
       return redactionFailedRequest();
     }

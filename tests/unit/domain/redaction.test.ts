@@ -64,6 +64,21 @@ function requestWithUrl(url: string): CapturedRequest {
   return requestFixture({ url });
 }
 
+function redactJsonValue(value: unknown, config = DEFAULT_REDACTION_CONFIG): unknown {
+  const text = JSON.stringify(value);
+  const result = redactBody(
+    {
+      state: 'available',
+      size: text.length,
+      capturedSize: text.length,
+      text,
+      mimeType: 'application/json',
+    },
+    config,
+  );
+  return JSON.parse(result.text ?? 'null');
+}
+
 describe('redactRequest', () => {
   it.each([
     [
@@ -119,7 +134,7 @@ describe('redactRequest', () => {
     expect(result.request).not.toBe(request.request);
   });
 
-  it('never invokes getters or mutates prototypes while traversing hostile input', () => {
+  it('rejects hostile unknown objects without getters or prototype mutation', () => {
     let getterCalls = 0;
     const value = Object.create(null) as Record<string, unknown>;
     Object.defineProperties(value, {
@@ -137,15 +152,10 @@ describe('redactRequest', () => {
       },
     });
 
-    const result = redactUnknown(value, DEFAULT_REDACTION_CONFIG) as Record<
-      string,
-      unknown
-    >;
+    const result = redactUnknown(value, DEFAULT_REDACTION_CONFIG);
 
     expect(getterCalls).toBe(0);
-    expect(result.token).toBe(REDACTED);
-    expect(result.safe).toBe('visible');
-    expect(Object.getPrototypeOf(result)).toBeNull();
+    expect(result).toBe(REDACTED);
     expect(({} as { polluted?: boolean }).polluted).toBeUndefined();
   });
 
@@ -157,7 +167,11 @@ describe('redactRequest', () => {
       deep = { child: deep };
     }
 
-    const result = redactUnknown({ cyclic, deep }, DEFAULT_REDACTION_CONFIG);
+    const request = {
+      ...requestFixture(),
+      hostile: { cyclic, deep },
+    } as CapturedRequest;
+    const result = redactRequest(request, DEFAULT_REDACTION_CONFIG);
     const serialized = JSON.stringify(result);
 
     expect(serialized).toContain('"safe":"visible"');
@@ -174,10 +188,7 @@ describe('redactRequest', () => {
       });
     }
 
-    const result = redactUnknown(hostile, DEFAULT_REDACTION_CONFIG) as Record<
-      string,
-      unknown
-    >;
+    const result = redactJsonValue(hostile) as Record<string, unknown>;
 
     expect(Object.keys(result)).toHaveLength(10_000);
     expect(JSON.stringify(result)).not.toContain('tail-secret');
@@ -193,7 +204,16 @@ describe('redactRequest', () => {
       },
     };
 
-    expect(redactUnknown(value, DEFAULT_REDACTION_CONFIG)).toEqual({
+    const request = {
+      ...requestFixture(),
+      extra: value,
+    } as CapturedRequest;
+    const result = redactRequest(
+      request,
+      DEFAULT_REDACTION_CONFIG,
+    ) as CapturedRequest & { extra: { items: unknown } };
+
+    expect(result.extra).toEqual({
       items: [{ safe: 'visible' }],
     });
     expect(getterCalls).toBe(0);
@@ -206,7 +226,7 @@ describe('redactRequest', () => {
     };
 
     expect(
-      redactUnknown(
+      redactJsonValue(
         { note: 'Bearer visible-by-choice', token: 'always-secret' },
         config,
       ),
@@ -265,14 +285,21 @@ describe('redactRequest', () => {
       },
     };
 
-    const result = redactUnknown(hostile, DEFAULT_REDACTION_CONFIG) as {
-      nested: Record<string, unknown>;
+    const request = {
+      ...requestFixture(),
+      hostile,
+    } as CapturedRequest;
+    const result = redactRequest(
+      request,
+      DEFAULT_REDACTION_CONFIG,
+    ) as CapturedRequest & {
+      hostile: { nested: Record<string, unknown> };
     };
 
     expect(() => JSON.stringify(result)).not.toThrow();
     expect(() => structuredClone(result)).not.toThrow();
     expect(JSON.stringify(result)).not.toContain(closureSecret);
-    expect(result.nested).toMatchObject({
+    expect(result.hostile.nested).toMatchObject({
       toJSON: REDACTED,
       callable: REDACTED,
       symbol: REDACTED,
@@ -313,7 +340,7 @@ describe('redactRequest', () => {
     expect(JSON.stringify(result)).toContain('redaction-failed');
   });
 
-  it('bounds side-effecting descriptor traps and fails closed', () => {
+  it('avoids side-effecting descriptor traps at the unknown boundary', () => {
     let descriptorCalls = 0;
     const hostile = new Proxy(
       {},
@@ -327,7 +354,58 @@ describe('redactRequest', () => {
     );
 
     expect(redactUnknown(hostile, DEFAULT_REDACTION_CONFIG)).toBe(REDACTED);
-    expect(descriptorCalls).toBe(1);
+    expect(descriptorCalls).toBe(0);
+  });
+
+  it('does not reflect over arbitrary objects at the public unknown boundary', () => {
+    let ownKeyCalls = 0;
+    let prototypeCalls = 0;
+    let descriptorCalls = 0;
+    const hostile = new Proxy(
+      { safe: 'visible' },
+      {
+        ownKeys: () => {
+          ownKeyCalls += 1;
+          return ['safe'];
+        },
+        getPrototypeOf: () => {
+          prototypeCalls += 1;
+          return Object.prototype;
+        },
+        getOwnPropertyDescriptor: () => {
+          descriptorCalls += 1;
+          return {
+            enumerable: true,
+            configurable: true,
+            get value() {
+              throw new Error('trap-return getter');
+            },
+          };
+        },
+      },
+    );
+
+    expect(redactUnknown(hostile, DEFAULT_REDACTION_CONFIG)).toBe(REDACTED);
+    expect({ ownKeyCalls, prototypeCalls, descriptorCalls }).toEqual({
+      ownKeyCalls: 0,
+      prototypeCalls: 0,
+      descriptorCalls: 0,
+    });
+  });
+
+  it('does not inspect plain-object descriptors at the public unknown boundary', () => {
+    let getterCalls = 0;
+    const hostile = Object.create(null) as Record<string, unknown>;
+    Object.defineProperty(hostile, 'safe', {
+      enumerable: true,
+      get: () => {
+        getterCalls += 1;
+        return 'getter-value-6934';
+      },
+    });
+
+    expect(redactUnknown(hostile, DEFAULT_REDACTION_CONFIG)).toBe(REDACTED);
+    expect(getterCalls).toBe(0);
   });
 
   it('rejects non-DTO object prototypes', () => {
@@ -362,7 +440,7 @@ describe('redaction helpers', () => {
 
   it('redacts compound sensitive names and common AWS key shapes', () => {
     expect(
-      redactUnknown(
+      redactJsonValue(
         {
           userPasswordConfirmation: 'hunter2',
           note: 'AKIAIOSFODNN7EXAMPLE',
@@ -379,7 +457,7 @@ describe('redaction helpers', () => {
     const unsecuredJwt = 'eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.eyJzdWIiOiIxMjMifQ.';
 
     expect(
-      redactUnknown(
+      redactJsonValue(
         {
           jwt: unsecuredJwt,
           modernKey: 'sk-proj-abc123XYZ',
@@ -394,7 +472,7 @@ describe('redaction helpers', () => {
 
   it('preserves domain-like values and non-sensitive name fragments', () => {
     expect(
-      redactUnknown(
+      redactJsonValue(
         {
           homepage: 'www.example.com',
           secretary: 'visible',
@@ -413,7 +491,7 @@ describe('redaction helpers', () => {
 
   it('redacts boundary-aware API-key and session credential names', () => {
     expect(
-      redactUnknown(
+      redactJsonValue(
         {
           clientApiKey: 'client-value-9267',
           userSessionId: 'session-value-0378',
@@ -426,6 +504,33 @@ describe('redaction helpers', () => {
     });
   });
 
+  it('redacts normalized credential suffixes without separator or case hints', () => {
+    const value = {
+      USERPASSWORD: 'upper-value-7045',
+      userpassword: 'lower-value-8156',
+      clientapikey: 'client-value-9267',
+      userAPIKey: 'camel-value-0378',
+    };
+    const text = JSON.stringify(value);
+    const result = redactBody(
+      {
+        state: 'available',
+        size: text.length,
+        capturedSize: text.length,
+        text,
+        mimeType: 'application/json',
+      },
+      DEFAULT_REDACTION_CONFIG,
+    );
+
+    expect(JSON.parse(result.text ?? '')).toEqual({
+      USERPASSWORD: REDACTED,
+      userpassword: REDACTED,
+      clientapikey: REDACTED,
+      userAPIKey: REDACTED,
+    });
+  });
+
   it('falls back to default names for malformed custom field settings', () => {
     const config = {
       ...DEFAULT_REDACTION_CONFIG,
@@ -433,7 +538,7 @@ describe('redaction helpers', () => {
     } as unknown as typeof DEFAULT_REDACTION_CONFIG;
 
     expect(
-      redactUnknown({ password: 'default-value-1489', safe: 'visible' }, config),
+      redactJsonValue({ password: 'default-value-1489', safe: 'visible' }, config),
     ).toEqual({
       password: REDACTED,
       safe: 'visible',
@@ -579,7 +684,7 @@ describe('redaction helpers', () => {
     };
 
     expect(
-      redactUnknown({ private_note: 'custom-secret', safe: 'visible' }, config),
+      redactJsonValue({ private_note: 'custom-secret', safe: 'visible' }, config),
     ).toEqual({ private_note: REDACTED, safe: 'visible' });
   });
 
@@ -682,6 +787,50 @@ describe('redaction helpers', () => {
 
     expect(result.text).toContain(REDACTED);
     expect(result.text).not.toContain('malformed-value-3601');
+  });
+
+  it('discards a forged multipart preamble before the opening boundary', () => {
+    const body: BodyContent = {
+      state: 'available',
+      size: 180,
+      capturedSize: 180,
+      text: [
+        'Content-Disposition: form-data; name=safe',
+        '',
+        'preamble-value-1489',
+        '--b',
+        'Content-Disposition: form-data; name=safe',
+        '',
+        'visible',
+        '--b--',
+        '',
+      ].join('\r\n'),
+      mimeType: 'multipart/form-data; boundary=b',
+    };
+
+    const result = redactBody(body, DEFAULT_REDACTION_CONFIG);
+
+    expect(result.text).not.toContain('preamble-value-1489');
+    expect(result.text).toContain('visible');
+  });
+
+  it('fails closed when multipart content has no closing delimiter', () => {
+    const body: BodyContent = {
+      state: 'available',
+      size: 90,
+      capturedSize: 90,
+      text: [
+        '--b',
+        'Content-Disposition: form-data; name=safe',
+        '',
+        'unclosed-value-2590',
+      ].join('\r\n'),
+      mimeType: 'multipart/form-data; boundary=b',
+    };
+
+    const result = redactBody(body, DEFAULT_REDACTION_CONFIG);
+
+    expect(result.text).toBe(REDACTED);
   });
 
   it('canonicalizes and redacts multipart names containing spaces', () => {

@@ -114,6 +114,7 @@ describe('decodeTextBody', () => {
       kind: 'text',
       text: 'plain text',
       originalBytes: 10,
+      originalBytesExact: true,
       capturedBytes: 10,
       truncated: false,
     });
@@ -147,6 +148,33 @@ describe('decodeTextBody', () => {
     expect(result.capturedBytes).toBe(512 * 1024);
     expect(result.originalBytes).toBe(600 * 1024);
     expect(result.truncated).toBe(true);
+  });
+
+  it('marks uninspected multibyte tails as a lower-bound byte count', () => {
+    const text = `${'x'.repeat(512 * 1024 + 1)}${'😀'.repeat(100)}`;
+    const authoritativeBytes = new TextEncoder().encode(text).byteLength;
+
+    const result = decodeTextBody({
+      text,
+      mimeType: 'text/plain',
+      maxBytes: 512 * 1024,
+    });
+
+    expect(result.originalBytesExact).toBe(false);
+    expect(result.originalBytes).toBeLessThan(authoritativeBytes);
+    expect(result.originalBytes).toBeGreaterThan(result.capturedBytes);
+  });
+
+  it('marks fully inspected byte counts as exact', () => {
+    expect(
+      decodeTextBody({
+        text: 'é€',
+        mimeType: 'text/plain',
+      }),
+    ).toMatchObject({
+      originalBytes: 5,
+      originalBytesExact: true,
+    });
   });
 
   it('decodes vendor JSON MIME types', () => {

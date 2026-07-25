@@ -20,6 +20,7 @@ export type DecodedBody = Readonly<{
   value?: unknown;
   fields?: readonly DecodedField[];
   originalBytes: number;
+  originalBytesExact: boolean;
   capturedBytes: number;
   truncated: boolean;
   issue?: DecodedBodyIssue;
@@ -35,6 +36,7 @@ export type DecodeTextBodyInput = Readonly<{
 type BoundedText = Readonly<{
   text: string;
   originalBytes: number;
+  originalBytesExact: boolean;
   capturedBytes: number;
   truncated: boolean;
 }>;
@@ -93,6 +95,7 @@ function boundUtf8(text: string, maxBytes: number): BoundedText {
   return {
     text: captured.join(''),
     originalBytes: reportedOriginalBytes,
+    originalBytesExact: fullyInspected,
     capturedBytes,
     truncated: !fullyInspected || capturedBytes < originalBytes,
   };
@@ -221,6 +224,7 @@ function textResult(bounded: BoundedText, issue?: DecodedBodyIssue): DecodedBody
     kind: 'text',
     text: bounded.text,
     originalBytes: bounded.originalBytes,
+    originalBytesExact: bounded.originalBytesExact,
     capturedBytes: bounded.capturedBytes,
     truncated: bounded.truncated,
     ...(issue === undefined ? {} : { issue }),
@@ -252,6 +256,7 @@ export function decodeTextBody(input: DecodeTextBodyInput | string): DecodedBody
         text: bounded.text,
         value,
         originalBytes: bounded.originalBytes,
+        originalBytesExact: bounded.originalBytesExact,
         capturedBytes: bounded.capturedBytes,
         truncated: false,
       };
@@ -270,6 +275,7 @@ export function decodeTextBody(input: DecodeTextBodyInput | string): DecodedBody
       text: bounded.text,
       fields: fields.slice(0, DEFAULT_MAX_KEYS),
       originalBytes: bounded.originalBytes,
+      originalBytesExact: bounded.originalBytesExact,
       capturedBytes: bounded.capturedBytes,
       truncated: false,
     };
@@ -283,6 +289,7 @@ export function decodeTextBody(input: DecodeTextBodyInput | string): DecodedBody
       text: bounded.text,
       fields,
       originalBytes: bounded.originalBytes,
+      originalBytesExact: bounded.originalBytesExact,
       capturedBytes: bounded.capturedBytes,
       truncated: false,
     };
