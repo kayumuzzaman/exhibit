@@ -1,9 +1,9 @@
+.superpowers/
+docs/superpowers/plans/
+docs/superpowers/specs/
 node_modules/
 .output/
 .wxt/
-.worktrees/
-.superpowers/
 coverage/
 playwright-report/
 test-results/
-*.log
