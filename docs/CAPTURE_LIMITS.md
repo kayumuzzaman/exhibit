@@ -71,6 +71,12 @@ recording continues in network-only mode and the panel says grouping is
 unavailable. Untrusted (script-generated) events are recorded as hints and are
 never used to claim a user action occurred.
 
+Interaction capability lives in the MV3 service worker, whose state does not
+survive termination. Chrome disconnects an idle extension port after several
+minutes, so a long recording with no page interaction can lose interaction
+grouping while network capture continues. Stop and start recording to
+re-establish it.
+
 ## Timing
 
 Timing comes from the HAR record. TLS time belongs to its parent connect phase
