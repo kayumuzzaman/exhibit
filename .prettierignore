@@ -9,3 +9,4 @@ node_modules/
 coverage/
 playwright-report/
 test-results/
+tests/fixtures/next-app/.next/

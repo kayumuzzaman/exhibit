@@ -54,6 +54,20 @@ export function apiPathEvidence(url: string): string | undefined {
     : undefined;
 }
 
+const ROUTER_VARY_HEADERS = ['next-router-state-tree', 'next-router-prefetch'];
+
+/**
+ * Next.js route handlers no longer advertise themselves with `X-Powered-By`,
+ * but they still vary on the router's own request headers. Those header names
+ * are framework-specific, so their presence in `Vary` is protocol evidence.
+ */
+function variesOnRouterHeaders(headers: readonly Header[]): boolean {
+  const vary = headerValue(headers, 'vary')?.toLowerCase();
+  if (vary === undefined) return false;
+  const listed = new Set(vary.split(',').map((value) => value.trim()));
+  return ROUTER_VARY_HEADERS.every((name) => listed.has(name));
+}
+
 export function nextFrameworkEvidence(request: CapturedRequest): readonly string[] {
   const evidence: string[] = [];
   const poweredBy = headerValue(request.response.headers, 'x-powered-by');
@@ -65,6 +79,9 @@ export function nextFrameworkEvidence(request: CapturedRequest): readonly string
   }
   if (presentHeader(request.response.headers, 'x-nextjs-matched-path')) {
     evidence.push('Response header X-Nextjs-Matched-Path is present.');
+  }
+  if (variesOnRouterHeaders(request.response.headers)) {
+    evidence.push('Response header Vary lists Next.js router request headers.');
   }
   return frozenEvidence(evidence);
 }

@@ -5,5 +5,6 @@
     "strict": true,
     "noUncheckedIndexedAccess": true,
     "exactOptionalPropertyTypes": true
-  }
+  },
+  "exclude": ["../.output", "tests/fixtures/next-app"]
 }

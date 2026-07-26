@@ -11,6 +11,7 @@ export default tseslint.config(
       '.worktrees/**',
       '.wxt/**',
       'coverage/**',
+      'tests/fixtures/next-app/.next/**',
       'node_modules/**',
       'playwright-report/**',
       'test-results/**',
@@ -27,6 +28,26 @@ export default tseslint.config(
         defineBackground: 'readonly',
         defineUnlistedScript: 'readonly',
       },
+    },
+  },
+  {
+    // Playwright requires an object destructuring pattern for fixture inputs.
+    files: ['tests/e2e/extension.fixture.ts'],
+    rules: { 'no-empty-pattern': 'off' },
+  },
+  {
+    files: ['tests/fixtures/**/public/*.js'],
+    languageOptions: {
+      globals: { ...globals.browser, ...globals.serviceworker },
+    },
+  },
+  {
+    files: ['tests/fixtures/next-app/**/*.{ts,tsx,mjs}'],
+    languageOptions: {
+      globals: { ...globals.browser, ...globals.node },
+    },
+    rules: {
+      '@typescript-eslint/no-unsafe-assignment': 'off',
     },
   },
 );

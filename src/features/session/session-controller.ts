@@ -1,6 +1,7 @@
 import type { RetentionMode, SessionWarning } from '../../domain/model';
 import type {
   SanitizedCapturedRequest,
+  SanitizedInteractionEvent,
   SanitizedRecordingSession,
 } from '../../domain/sanitized';
 import { addBounded, freezeSession } from '../../domain/ring-buffer';
@@ -19,6 +20,7 @@ export interface SessionController {
   clear(): Promise<void>;
   setRetention(retention: RetentionMode): Promise<void>;
   accept(request: SanitizedCapturedRequest): Promise<void>;
+  acceptInteraction(interaction: SanitizedInteractionEvent): void;
   warn(issue: CaptureIssue): void;
   subscribe(listener: () => void): () => void;
   getSnapshot(): SanitizedRecordingSession;
@@ -344,6 +346,10 @@ export function createSessionController(
           }
         });
       }
+    },
+
+    acceptInteraction(interaction): void {
+      replace(reduceSession(snapshot, { type: 'interaction', interaction }));
     },
 
     warn(issue): void {

@@ -13,6 +13,7 @@ import type {
   SessionWarning,
   SessionWarningCode,
 } from '../../domain/model';
+import { withRecoveredAnalysis } from '../../domain/analysis';
 import type { SanitizedRecordingSession } from '../../domain/sanitized';
 import {
   freezeSession,
@@ -607,7 +608,9 @@ function parseSession(
   let normalized: SanitizedRecordingSession;
   try {
     normalized = freezeSession(
-      redactRecoveredSession(value as RecordingSession, DEFAULT_REDACTION_CONFIG),
+      withRecoveredAnalysis(
+        redactRecoveredSession(value as RecordingSession, DEFAULT_REDACTION_CONFIG),
+      ),
     );
   } catch {
     return null;

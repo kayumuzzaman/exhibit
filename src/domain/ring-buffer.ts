@@ -1,8 +1,13 @@
 import type { SessionLimits, SessionWarning } from './model';
-import type { SanitizedCapturedRequest, SanitizedRecordingSession } from './sanitized';
+import type {
+  SanitizedCapturedRequest,
+  SanitizedInteractionEvent,
+  SanitizedRecordingSession,
+} from './sanitized';
 
 const textEncoder = new TextEncoder();
 export const MAX_SESSION_WARNINGS = 100;
+export const MAX_SESSION_INTERACTIONS = 1_000;
 const trustedSessions = new WeakSet<object>();
 
 function isPositiveInteger(value: number): boolean {
@@ -99,6 +104,28 @@ function cloneAndFreeze(
   const frozen = deepFreeze(clone);
   trustedSessions.add(frozen);
   return frozen;
+}
+
+/**
+ * Appends a sanitized interaction event within a fixed bound so a noisy page
+ * cannot grow the session without limit. Byte accounting is unchanged because
+ * interaction events are not part of the request byte budget.
+ */
+export function addInteractionBounded(
+  session: SanitizedRecordingSession,
+  interaction: SanitizedInteractionEvent,
+): SanitizedRecordingSession {
+  const normalized = trustedSessions.has(session) ? session : freezeSession(session);
+  return cloneAndFreeze(
+    {
+      ...normalized,
+      interactions: [...normalized.interactions, interaction].slice(
+        -MAX_SESSION_INTERACTIONS,
+      ),
+    },
+    normalized.requestBytes,
+    normalized.byteCount,
+  );
 }
 
 function appendWarning(

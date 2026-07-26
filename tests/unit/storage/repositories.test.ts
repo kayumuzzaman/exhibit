@@ -1152,7 +1152,12 @@ describe('stored session schema validation', () => {
     const serialized = JSON.stringify(recovered);
 
     expect(recovered.requests[0]?.id).toMatch(/^req-[a-z0-9-]+$/u);
-    expect(recovered.requests[0]?.classification).toBeUndefined();
+    // Stored analysis is discarded; classification is recomputed from the
+    // sanitized evidence so recovered sessions stay usable without trusting it.
+    expect(recovered.requests[0]?.classification?.evidence).not.toContain(
+      'Bearer analysis-secret',
+    );
+    expect(recovered.requests[0]?.explanation?.summary).toEqual(expect.any(String));
     expect(serialized).not.toMatch(
       /id-secret|query-secret|header-secret|body-secret|analysis-secret/u,
     );

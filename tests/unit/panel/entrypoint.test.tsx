@@ -2,7 +2,8 @@
 
 import { act, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { IDBFactory } from 'fake-indexeddb';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 type ThemeName = 'dark' | 'default';
 
@@ -36,6 +37,13 @@ function installChrome(
       },
     },
     runtime: {},
+    storage: {
+      session: {
+        get: async () => ({}),
+        set: async () => undefined,
+        remove: async () => undefined,
+      },
+    },
   });
   return {
     emitTheme(theme) {
@@ -49,6 +57,10 @@ async function bootEntrypoint(): Promise<void> {
   vi.resetModules();
   await import('../../../entrypoints/panel/main');
 }
+
+beforeEach(() => {
+  vi.stubGlobal('indexedDB', new IDBFactory());
+});
 
 afterEach(() => {
   vi.unstubAllGlobals();

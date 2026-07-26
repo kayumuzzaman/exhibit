@@ -1,6 +1,9 @@
 import type { RecordingPhase, RetentionMode, SessionWarning } from '../../domain/model';
-import type { SanitizedRecordingSession } from '../../domain/sanitized';
-import { freezeSession } from '../../domain/ring-buffer';
+import type {
+  SanitizedInteractionEvent,
+  SanitizedRecordingSession,
+} from '../../domain/sanitized';
+import { addInteractionBounded, freezeSession } from '../../domain/ring-buffer';
 
 export type SessionAction =
   | Readonly<{
@@ -11,6 +14,10 @@ export type SessionAction =
   | Readonly<{
       type: 'clear';
       at: number;
+    }>
+  | Readonly<{
+      type: 'interaction';
+      interaction: SanitizedInteractionEvent;
     }>
   | Readonly<{
       type: 'retention';
@@ -59,6 +66,8 @@ export function reduceSession(
         evictedCount: 0,
         warnings: [],
       });
+    case 'interaction':
+      return addInteractionBounded(session, action.interaction);
     case 'retention':
       return freezeSession({ ...session, retention: action.retention });
     case 'warning':

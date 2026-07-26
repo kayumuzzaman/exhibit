@@ -132,7 +132,7 @@ export function InspectView({
             <p className="eyebrow">Request body</p>
             <h3>Captured payload</h3>
           </div>
-          <BodyViewer body={request.request.body} />
+          <BodyViewer body={request.request.body} key={request.id} />
         </section>
       )}
     </div>
@@ -158,7 +158,7 @@ export function InspectView({
           <p className="eyebrow">Response body</p>
           <h3>Captured result</h3>
         </div>
-        <BodyViewer body={request.response.body} />
+        <BodyViewer body={request.response.body} key={request.id} />
       </section>
     </div>
   );

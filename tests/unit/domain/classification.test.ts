@@ -83,6 +83,44 @@ describe('classifyRequest', () => {
     });
   });
 
+  it('accepts a router Vary signature as probable framework evidence', () => {
+    const result = classifyRequest(
+      requestWith({
+        url: 'https://app.test/api/profile',
+        responseMime: 'application/json',
+        responseHeaders: [
+          {
+            name: 'vary',
+            value:
+              'rsc, next-router-state-tree, next-router-prefetch, next-router-segment-prefetch',
+          },
+        ],
+      }),
+    );
+
+    expect(result).toEqual({
+      kind: 'next-api',
+      confidence: 'likely',
+      evidence: [
+        'URL path contains /api/.',
+        'Response header Vary lists Next.js router request headers.',
+        'A browser observer cannot prove which server-side route implementation handled the request.',
+      ],
+    });
+  });
+
+  it('ignores an unrelated Vary header as framework evidence', () => {
+    const result = classifyRequest(
+      requestWith({
+        url: 'https://app.test/api/profile',
+        responseMime: 'application/json',
+        responseHeaders: [{ name: 'vary', value: 'Accept-Encoding, Origin' }],
+      }),
+    );
+
+    expect(result.kind).toBe('api');
+  });
+
   it('accepts Next.js-specific cache metadata as probable framework evidence', () => {
     const result = classifyRequest(
       requestWith({

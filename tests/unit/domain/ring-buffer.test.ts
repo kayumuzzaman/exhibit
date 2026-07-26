@@ -5,15 +5,22 @@ import type {
   RecordingSession,
   SessionLimits,
 } from '../../../src/domain/model';
-import { redactSession, DEFAULT_REDACTION_CONFIG } from '../../../src/domain/redaction';
+import {
+  redactInteractionEvent,
+  redactSession,
+  DEFAULT_REDACTION_CONFIG,
+} from '../../../src/domain/redaction';
 import type {
   SanitizedCapturedRequest,
+  SanitizedInteractionEvent,
   SanitizedRecordingSession,
 } from '../../../src/domain/sanitized';
 import {
   addBounded,
+  addInteractionBounded,
   calculateRequestBytes,
   freezeSession,
+  MAX_SESSION_INTERACTIONS,
   MAX_SESSION_WARNINGS,
   validateSessionLimits,
 } from '../../../src/domain/ring-buffer';
@@ -285,5 +292,46 @@ describe('bounded recording sessions', () => {
         requestId: unserializable.id,
       }),
     );
+  });
+});
+
+describe('addInteractionBounded', () => {
+  function interaction(id: string, occurredAt: number): SanitizedInteractionEvent {
+    return redactInteractionEvent(
+      {
+        id,
+        tabId: 'tab-5',
+        kind: 'click',
+        occurredAt,
+        trust: 'trusted',
+        target: { tag: 'button', text: 'Save profile' },
+      },
+      DEFAULT_REDACTION_CONFIG,
+    );
+  }
+
+  it('appends interaction evidence without changing request byte accounting', () => {
+    const session = addBounded(
+      sessionWithLimits({ maxRequests: 5 }),
+      sizedRequest('request-1', 'body'),
+    );
+
+    const next = addInteractionBounded(session, interaction('event-1', 1_100));
+
+    expect(next.interactions).toHaveLength(1);
+    expect(next.interactions[0]?.target?.text).toBe('Save profile');
+    expect(next.byteCount).toBe(session.byteCount);
+    expect(Object.isFrozen(next.interactions)).toBe(true);
+  });
+
+  it('keeps only the most recent bounded interaction window', () => {
+    let session = sessionWithLimits({ maxRequests: 5 });
+    for (let index = 0; index < MAX_SESSION_INTERACTIONS + 5; index += 1) {
+      session = addInteractionBounded(session, interaction(`event-${index}`, index));
+    }
+
+    expect(session.interactions).toHaveLength(MAX_SESSION_INTERACTIONS);
+    expect(session.interactions[0]?.occurredAt).toBe(5);
+    expect(session.interactions.at(-1)?.occurredAt).toBe(MAX_SESSION_INTERACTIONS + 4);
   });
 });

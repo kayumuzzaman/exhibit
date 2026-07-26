@@ -6,8 +6,11 @@ import type {
   Explanation,
   SessionLimits,
 } from '../../domain/model';
-import { createRequestRedactor } from '../../domain/redaction';
-import type { SanitizedCapturedRequest } from '../../domain/sanitized';
+import { createRequestRedactor, redactInteractionEvent } from '../../domain/redaction';
+import type {
+  SanitizedCapturedRequest,
+  SanitizedInteractionEvent,
+} from '../../domain/sanitized';
 import type { RedactionConfig } from '../settings/redaction-settings';
 import { DEFAULT_REDACTION_CONFIG } from '../settings/redaction-settings';
 import type {
@@ -27,6 +30,7 @@ export type Result<T, E> =
 
 export interface RecordingSink {
   accept(request: SanitizedCapturedRequest): Promise<void>;
+  acceptInteraction(interaction: SanitizedInteractionEvent): void;
   warn(issue: CaptureIssue): void;
   getSnapshot(): Readonly<{ limits: SessionLimits }>;
 }
@@ -245,6 +249,7 @@ export function createRecordingPipeline(
   let generation = 0;
   let startupGate: Promise<boolean> = Promise.resolve(true);
   let unsubscribe: (() => void) | null = null;
+  let unsubscribeInteractions: (() => void) | null = null;
   let processingTail = Promise.resolve();
   const accepted: SanitizedCapturedRequest[] = [];
 
@@ -331,7 +336,48 @@ export function createRecordingPipeline(
     });
   }
 
+  /**
+   * Trusted boundary for page-supplied interaction evidence: every event is
+   * redacted before it reaches the session, and stale generations are dropped.
+   */
+  function subscribeInteractions(
+    interactions: InteractionSource,
+    expectedGeneration: number,
+  ): void {
+    releaseInteractionSubscription();
+    const config = dependencies.redactionConfig ?? DEFAULT_REDACTION_CONFIG;
+    try {
+      unsubscribeInteractions = interactions.subscribe((event) => {
+        if (!active || generation !== expectedGeneration) return;
+        try {
+          dependencies.controller.acceptInteraction(
+            redactInteractionEvent(event, config),
+          );
+        } catch {
+          warn(fixedIssue('redaction-failed'));
+        }
+      });
+    } catch {
+      unsubscribeInteractions = null;
+      warn({
+        code: 'interaction-start-failed',
+        message: 'Interaction capture was unavailable; network capture continued.',
+      });
+    }
+  }
+
+  function releaseInteractionSubscription(): void {
+    if (unsubscribeInteractions === null) return;
+    try {
+      unsubscribeInteractions();
+    } catch {
+      // A disposed interaction source is already unsubscribed.
+    }
+    unsubscribeInteractions = null;
+  }
+
   async function stopSources(stoppedAt: number): Promise<unknown> {
+    releaseInteractionSubscription();
     let captureFailure: unknown;
     try {
       await dependencies.capture.stop(stoppedAt);
@@ -372,6 +418,7 @@ export function createRecordingPipeline(
           options.interaction !== undefined
         ) {
           interactionRequested = true;
+          subscribeInteractions(dependencies.interactions, generation);
           try {
             interactionStartup = Promise.resolve(
               dependencies.interactions.start(options.interaction),
@@ -387,6 +434,7 @@ export function createRecordingPipeline(
           const result = await interactionStartup;
           interactionActive = result?.status === 'active';
           if (!interactionActive) {
+            releaseInteractionSubscription();
             warn({
               code: 'interaction-start-failed',
               message:
@@ -400,6 +448,7 @@ export function createRecordingPipeline(
         generation += 1;
         unsubscribe();
         unsubscribe = null;
+        releaseInteractionSubscription();
         if (interactionRequested && dependencies.interactions !== undefined) {
           try {
             await dependencies.interactions.stop();

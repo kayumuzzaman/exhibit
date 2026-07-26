@@ -4,11 +4,15 @@ import type {
   CapturedRequest,
   Classification,
   Explanation,
+  InteractionEvent,
   SessionLimits,
 } from '../../src/domain/model';
 import { DEFAULT_REDACTION_CONFIG, redactSession } from '../../src/domain/redaction';
 import { freezeSession } from '../../src/domain/ring-buffer';
-import type { SanitizedCapturedRequest } from '../../src/domain/sanitized';
+import type {
+  SanitizedCapturedRequest,
+  SanitizedInteractionEvent,
+} from '../../src/domain/sanitized';
 import { createSession } from '../../src/domain/session';
 import {
   createRecordingPipeline,
@@ -64,12 +68,17 @@ class ManualCapture implements CaptureSource {
 
 class MemorySink implements RecordingSink {
   readonly accepted: SanitizedCapturedRequest[] = [];
+  readonly interactions: SanitizedInteractionEvent[] = [];
   readonly issues: Array<{ code: string; message: string; requestId?: string }> = [];
 
   constructor(private readonly limits: SessionLimits = LIMITS) {}
 
   async accept(request: SanitizedCapturedRequest): Promise<void> {
     this.accepted.push(request);
+  }
+
+  acceptInteraction(interaction: SanitizedInteractionEvent): void {
+    this.interactions.push(interaction);
   }
 
   warn(issue: { code: string; message: string; requestId?: string }): void {
@@ -581,5 +590,171 @@ describe('recording pipeline', () => {
       'classification-failed',
       'explanation-failed',
     ]);
+  });
+});
+
+describe('interaction evidence', () => {
+  function trustedClick(id: string, occurredAt: number): InteractionEvent {
+    return {
+      id,
+      tabId: '7',
+      kind: 'click',
+      occurredAt,
+      trust: 'trusted',
+      target: { tag: 'button', text: 'Save profile' },
+      url: 'https://app.test/page?token=query-secret',
+    };
+  }
+
+  function manualInteractions(): InteractionSource & {
+    emit(event: InteractionEvent): void;
+    readonly stops: number;
+  } {
+    const listeners = new Set<(event: InteractionEvent) => void>();
+    let stops = 0;
+    return {
+      async start(context) {
+        return {
+          status: 'active',
+          tabId: context.tabId,
+          origin: 'https://app.test',
+          documentId: 'document-1',
+          leaseId: 'lease-1',
+        };
+      },
+      async stop() {
+        stops += 1;
+      },
+      subscribe(listener) {
+        listeners.add(listener);
+        return () => listeners.delete(listener);
+      },
+      emit(event) {
+        for (const listener of listeners) listener(event);
+      },
+      get stops() {
+        return stops;
+      },
+    };
+  }
+
+  it('forwards redacted interaction evidence into the session while recording', async () => {
+    const capture = new ManualCapture();
+    const sink = new MemorySink();
+    const interactions = manualInteractions();
+    const pipeline = createRecordingPipeline({
+      capture,
+      controller: sink,
+      interactions,
+    });
+
+    await pipeline.start(1_000, {
+      interaction: { tabId: 7, url: 'https://app.test/page' },
+    });
+    interactions.emit(trustedClick('raw-interaction-id', 1_100));
+    await pipeline.stop(2_000);
+
+    expect(sink.interactions).toHaveLength(1);
+    const stored = sink.interactions[0]!;
+    expect(stored.kind).toBe('click');
+    expect(stored.trust).toBe('trusted');
+    expect(stored.target?.text).toBe('Save profile');
+    expect(stored.id).not.toBe('raw-interaction-id');
+    expect(JSON.stringify(stored)).not.toContain('query-secret');
+  });
+
+  it('drops interaction evidence observed after recording stops', async () => {
+    const capture = new ManualCapture();
+    const sink = new MemorySink();
+    const interactions = manualInteractions();
+    const pipeline = createRecordingPipeline({
+      capture,
+      controller: sink,
+      interactions,
+    });
+
+    await pipeline.start(1_000, {
+      interaction: { tabId: 7, url: 'https://app.test/page' },
+    });
+    await pipeline.stop(2_000);
+    interactions.emit(trustedClick('late-event', 3_000));
+
+    expect(sink.interactions).toHaveLength(0);
+    expect(interactions.stops).toBe(1);
+  });
+
+  it('records a network-only warning and ignores events when interactions fail', async () => {
+    const capture = new ManualCapture();
+    const sink = new MemorySink();
+    const interactions = manualInteractions();
+    interactions.start = async () => ({
+      status: 'network-only',
+      reason: 'permission-denied',
+    });
+    const pipeline = createRecordingPipeline({
+      capture,
+      controller: sink,
+      interactions,
+    });
+
+    await pipeline.start(1_000, {
+      interaction: { tabId: 7, url: 'https://app.test/page' },
+    });
+    interactions.emit(trustedClick('ignored-event', 1_100));
+    await pipeline.stop(2_000);
+
+    expect(sink.interactions).toHaveLength(0);
+    expect(sink.issues.map((issue) => issue.code)).toContain(
+      'interaction-start-failed',
+    );
+  });
+
+  it('continues network capture when the interaction source cannot be subscribed', async () => {
+    const capture = new ManualCapture();
+    const sink = new MemorySink();
+    const interactions = manualInteractions();
+    interactions.subscribe = () => {
+      throw new Error('subscribe unavailable');
+    };
+    const pipeline = createRecordingPipeline({
+      capture,
+      controller: sink,
+      interactions,
+    });
+
+    await pipeline.start(1_000, {
+      interaction: { tabId: 7, url: 'https://app.test/page' },
+    });
+    capture.emit({ type: 'observation', observation: observation() });
+    await pipeline.stop(2_000);
+
+    expect(sink.issues.map((issue) => issue.code)).toContain(
+      'interaction-start-failed',
+    );
+    expect(sink.accepted).toHaveLength(1);
+  });
+
+  it('reports a redaction failure without breaking the recording', async () => {
+    const capture = new ManualCapture();
+    const sink = new MemorySink();
+    const interactions = manualInteractions();
+    sink.acceptInteraction = () => {
+      throw new Error('sink rejected the interaction');
+    };
+    const pipeline = createRecordingPipeline({
+      capture,
+      controller: sink,
+      interactions,
+    });
+
+    await pipeline.start(1_000, {
+      interaction: { tabId: 7, url: 'https://app.test/page' },
+    });
+    interactions.emit(trustedClick('raw-interaction-id', 1_100));
+    capture.emit({ type: 'observation', observation: observation() });
+    await pipeline.stop(2_000);
+
+    expect(sink.issues.map((issue) => issue.code)).toContain('redaction-failed');
+    expect(sink.accepted).toHaveLength(1);
   });
 });

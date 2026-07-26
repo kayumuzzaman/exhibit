@@ -64,6 +64,7 @@ describe('bootPanel', () => {
       async clear() {},
       async setRetention() {},
       async accept() {},
+      acceptInteraction() {},
       warn() {},
       subscribe: () => () => undefined,
       getSnapshot: () => snapshot,

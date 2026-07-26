@@ -62,6 +62,7 @@ function controllerFake(initial = sessionWith()): SessionController & {
     },
     async setRetention() {},
     async accept() {},
+    acceptInteraction() {},
     warn() {},
     subscribe(listener) {
       listeners.add(listener);

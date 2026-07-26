@@ -1,7 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import type { RecordingPhase, RetentionMode } from '../../../src/domain/model';
-import { redactSession, DEFAULT_REDACTION_CONFIG } from '../../../src/domain/redaction';
+import {
+  redactInteractionEvent,
+  redactSession,
+  DEFAULT_REDACTION_CONFIG,
+} from '../../../src/domain/redaction';
 import { freezeSession } from '../../../src/domain/ring-buffer';
 import type { SanitizedRecordingSession } from '../../../src/domain/sanitized';
 import { createSession } from '../../../src/domain/session';
@@ -891,5 +895,55 @@ describe('session controller persistence and observers', () => {
 
     expect(duplicate).toBe(warned);
     expect(stopped.stoppedAt).toBeNull();
+  });
+});
+
+describe('session controller interaction evidence', () => {
+  it('appends sanitized interaction evidence and notifies subscribers', () => {
+    const { controller } = controllerFixture();
+    let notifications = 0;
+    controller.subscribe(() => {
+      notifications += 1;
+    });
+
+    controller.acceptInteraction(
+      redactInteractionEvent(
+        {
+          id: 'interaction-1',
+          tabId: 'tab-1',
+          kind: 'click',
+          occurredAt: 1_500,
+          trust: 'trusted',
+          target: { tag: 'button', text: 'Save profile' },
+        },
+        DEFAULT_REDACTION_CONFIG,
+      ),
+    );
+
+    const snapshot = controller.getSnapshot();
+    expect(snapshot.interactions).toHaveLength(1);
+    expect(snapshot.interactions[0]?.target?.text).toBe('Save profile');
+    expect(notifications).toBe(1);
+    expect(Object.isFrozen(snapshot.interactions)).toBe(true);
+  });
+
+  it('drops interaction evidence when the session is cleared', async () => {
+    const { controller } = controllerFixture();
+    controller.acceptInteraction(
+      redactInteractionEvent(
+        {
+          id: 'interaction-1',
+          tabId: 'tab-1',
+          kind: 'submit',
+          occurredAt: 1_500,
+          trust: 'trusted',
+        },
+        DEFAULT_REDACTION_CONFIG,
+      ),
+    );
+
+    await controller.clear();
+
+    expect(controller.getSnapshot().interactions).toEqual([]);
   });
 });

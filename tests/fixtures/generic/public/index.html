@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Payloadra generic fixture</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 24px;
+        font-family: system-ui, sans-serif;
+        background: #0d1117;
+        color: #e6edf3;
+      }
+      h1 {
+        font-size: 18px;
+      }
+      .fixture-controls {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        max-width: 720px;
+      }
+      button {
+        padding: 6px 10px;
+        font: inherit;
+        color: inherit;
+        background: #21262d;
+        border: 1px solid #30363d;
+        border-radius: 6px;
+        cursor: pointer;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Payloadra generic fixture</h1>
+    <p id="fixture-ready">Fixture ready.</p>
+    <div id="fixture-root"></div>
+    <script src="/actions.js"></script>
+    <script>
+      renderFixtureControls(document.querySelector('#fixture-root'));
+    </script>
+  </body>
+</html>
