@@ -970,3 +970,23 @@ describe('PayloadraApp failure reporting', () => {
     expect(used()).toBeLessThanOrEqual(1_150 - 300 - 14);
   });
 });
+
+describe('PayloadraApp drawer lifecycle', () => {
+  it('closes the filters drawer when the layout becomes wide', async () => {
+    setViewport(900);
+    const user = userEvent.setup();
+    render(<PayloadraApp controller={controllerFake()} />);
+
+    await user.click(screen.getByRole('button', { name: 'Open session rail' }));
+    expect(
+      await screen.findByRole('dialog', { name: 'Session filters' }),
+    ).toBeVisible();
+
+    act(() => setViewport(1_440));
+
+    expect(screen.queryByRole('dialog', { name: 'Session filters' })).toBeNull();
+    expect(
+      screen.getAllByRole('navigation', { name: 'Session workspace' }),
+    ).toHaveLength(1);
+  });
+});

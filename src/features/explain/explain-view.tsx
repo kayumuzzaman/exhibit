@@ -1,3 +1,5 @@
+import { useMemo } from 'react';
+
 import type { BodyContent, InteractionGroup } from '../../domain/model';
 import { explainRequest } from '../../domain/explanation';
 import type { SanitizedCapturedRequest } from '../../domain/sanitized';
@@ -66,8 +68,14 @@ export function ExplainView({
   relatedRequests?: readonly SanitizedCapturedRequest[];
   request: SanitizedCapturedRequest;
 }>) {
-  const explanation = explainRequest(request, relatedRequests);
-  const fields = submittedFields(request.request.body);
+  // Each of these parses up to 64 KB of body text, so they are derived from the
+  // request rather than recomputed on every parent render.
+  const explanation = useMemo(
+    () => explainRequest(request, relatedRequests),
+    [relatedRequests, request],
+  );
+  const fields = useMemo(() => submittedFields(request.request.body), [request]);
+  const returned = useMemo(() => resultSummary(request.response.body), [request]);
 
   return (
     <article aria-label="Plain-language request explanation" className="explain-view">
@@ -97,7 +105,7 @@ export function ExplainView({
         <section aria-labelledby="result-heading" className="explain-section">
           <p className="eyebrow">Returned shape</p>
           <h3 id="result-heading">Result</h3>
-          <p>{resultSummary(request.response.body)}</p>
+          <p>{returned}</p>
         </section>
         <RelatedRequests relatedRequests={relatedRequests} request={request} />
         <Guidance explanation={explanation} request={request} />

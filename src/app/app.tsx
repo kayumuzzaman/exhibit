@@ -517,6 +517,11 @@ function PanelShell({
   }
 
   const narrowLayout = mode === 'narrow' || mode === 'phone';
+  // The wide layout renders the rail inline, so a drawer left open would
+  // duplicate the navigation and strand focus on its unmounted trigger.
+  useEffect(() => {
+    if (mode === 'wide') setRailDrawer(false);
+  }, [mode]);
   const detailRef = useRef<HTMLElement | null>(null);
   const ledgerRef = useRef<HTMLDivElement | null>(null);
   // The narrow layout swaps two mutually exclusive subtrees, so whichever

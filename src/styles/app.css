@@ -1614,6 +1614,10 @@
 
 .timing-waterfall__scale {
   display: flex;
+  /* The ticks must span the bar track, not the whole component, or every bar
+     reads short against the axis. Offsets mirror the row grid below. */
+  margin-right: calc(48px + var(--space-2));
+  margin-left: calc(66px + var(--space-2));
   justify-content: space-between;
   padding-bottom: var(--space-1);
   border-bottom: 1px solid var(--divider-strong);
