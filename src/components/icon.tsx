@@ -4,6 +4,7 @@ export type IconName =
   | 'archive'
   | 'back'
   | 'clear'
+  | 'copy'
   | 'export'
   | 'filter'
   | 'menu'
@@ -15,6 +16,7 @@ const PATHS: Readonly<Record<IconName, string>> = {
   archive: 'M4 5h16v15H4z M2 2h20v4H2z M9 10h6',
   back: 'm15 18-6-6 6-6 M9 12h11',
   clear: 'M5 7h14 M9 7V4h6v3 M7 7l1 13h8l1-13 M10 11v5 M14 11v5',
+  copy: 'M9 9h11v11H9z M4 4h11v5 M4 4v11h5',
   export: 'M12 3v12 M7 8l5-5 5 5 M5 14v6h14v-6',
   filter: 'M3 5h18l-7 8v6l-4 2v-8z',
   menu: 'M4 7h16 M4 12h16 M4 17h16',

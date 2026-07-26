@@ -72,6 +72,7 @@ export type RequestTiming = Readonly<{
   blockedMs?: number;
   dnsMs?: number;
   connectMs?: number;
+  sslMs?: number;
   sendMs?: number;
   waitMs?: number;
   receiveMs?: number;

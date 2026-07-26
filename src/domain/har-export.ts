@@ -21,6 +21,7 @@ function harTimings(timing: RequestTiming) {
     blocked: harTiming(timing.blockedMs),
     dns: harTiming(timing.dnsMs),
     connect: harTiming(timing.connectMs),
+    ssl: harTiming(timing.sslMs),
     send: harTiming(timing.sendMs),
     wait: harTiming(timing.waitMs),
     receive: harTiming(timing.receiveMs),

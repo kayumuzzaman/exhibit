@@ -1029,9 +1029,10 @@ describe('stored session schema validation', () => {
     setPath(stored, ['session', 'requests', '0', 'timing', 'blockedMs'], 0);
     setPath(stored, ['session', 'requests', '0', 'timing', 'dnsMs'], 1);
     setPath(stored, ['session', 'requests', '0', 'timing', 'connectMs'], 2);
-    setPath(stored, ['session', 'requests', '0', 'timing', 'sendMs'], 3);
-    setPath(stored, ['session', 'requests', '0', 'timing', 'waitMs'], 4);
-    setPath(stored, ['session', 'requests', '0', 'timing', 'receiveMs'], 5);
+    setPath(stored, ['session', 'requests', '0', 'timing', 'sslMs'], 3);
+    setPath(stored, ['session', 'requests', '0', 'timing', 'sendMs'], 4);
+    setPath(stored, ['session', 'requests', '0', 'timing', 'waitMs'], 5);
+    setPath(stored, ['session', 'requests', '0', 'timing', 'receiveMs'], 6);
     const session = stored.session as Record<string, unknown>;
     const request = (session.requests as Record<string, unknown>[])[0]!;
     const serialized = JSON.stringify(request);
@@ -1042,7 +1043,8 @@ describe('stored session schema validation', () => {
     const recovered = decodeStoredSession(stored, 'schema-1');
 
     expect(recovered.requests).toHaveLength(1);
-    expect(recovered.requests[0]?.timing.receiveMs).toBe(5);
+    expect(recovered.requests[0]?.timing.sslMs).toBe(3);
+    expect(recovered.requests[0]?.timing.receiveMs).toBe(6);
   });
 
   it('returns corruption recovery for cyclic or oversized envelopes', () => {

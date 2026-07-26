@@ -334,6 +334,29 @@ describe('toSanitizedHar', () => {
 
     expect(har.log.entries[0]?.request).not.toHaveProperty('postData');
   });
+
+  it('preserves normalized SSL timing in sanitized HAR evidence', () => {
+    const request = rawRequest('ssl-timing', {
+      timing: {
+        totalMs: 30,
+        blockedMs: 1,
+        dnsMs: 2,
+        connectMs: 8,
+        sslMs: 5,
+        sendMs: 2,
+        waitMs: 12,
+        receiveMs: 5,
+      },
+    });
+    const har = JSON.parse(toSanitizedHar(safeSession([request]))) as {
+      log: { entries: Array<{ timings: Record<string, number> }> };
+    };
+
+    expect(har.log.entries[0]?.timings).toMatchObject({
+      connect: 8,
+      ssl: 5,
+    });
+  });
 });
 
 describe('toQaReport', () => {

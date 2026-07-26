@@ -228,6 +228,7 @@ function timing(entry: unknown): RequestTiming {
     ['blocked', 'blockedMs'],
     ['dns', 'dnsMs'],
     ['connect', 'connectMs'],
+    ['ssl', 'sslMs'],
     ['send', 'sendMs'],
     ['wait', 'waitMs'],
     ['receive', 'receiveMs'],
@@ -237,6 +238,7 @@ function timing(entry: unknown): RequestTiming {
     blockedMs?: number;
     dnsMs?: number;
     connectMs?: number;
+    sslMs?: number;
     sendMs?: number;
     waitMs?: number;
     receiveMs?: number;
@@ -246,7 +248,8 @@ function timing(entry: unknown): RequestTiming {
     const value = finiteNonNegative(ownData(source, harField));
     if (value !== undefined) {
       output[normalizedField] = value;
-      if (componentTotal !== undefined) {
+      // HAR defines SSL as a subset of connect; summing both would double count it.
+      if (normalizedField !== 'sslMs' && componentTotal !== undefined) {
         componentTotal = finiteNonNegative(componentTotal + value);
       }
     }

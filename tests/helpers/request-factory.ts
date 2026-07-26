@@ -25,6 +25,7 @@ type RequestOverrides = Readonly<{
   fromCache?: boolean;
   fromServiceWorker?: boolean;
   redirectUrl?: string;
+  redirectParentId?: string;
   classification?: Classification;
 }>;
 
@@ -68,6 +69,9 @@ export function requestWith(overrides: RequestOverrides = {}): CapturedRequest {
       ...(overrides.redirectUrl === undefined
         ? {}
         : { redirectUrl: overrides.redirectUrl }),
+      ...(overrides.redirectParentId === undefined
+        ? {}
+        : { redirectParentId: overrides.redirectParentId }),
     },
     ...(overrides.classification === undefined
       ? {}

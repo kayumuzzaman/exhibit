@@ -24,7 +24,7 @@ import type {
   SanitizedRecordingSession,
 } from '../../../src/domain/sanitized';
 import type { SessionController } from '../../../src/features/session/session-controller';
-import { sanitizedRequestWith } from '../../helpers/request-factory';
+import { requestWith, sanitizedRequestWith } from '../../helpers/request-factory';
 
 function sessionWith(
   phase: RecordingPhase = 'stopped',
@@ -236,6 +236,185 @@ describe('PayloadraApp', () => {
     expect(screen.getByRole('searchbox', { name: 'Search requests' })).toHaveValue(
       'profile',
     );
+  });
+
+  it('integrates correlated Explain and lazy Inspect workspaces for the selected request', async () => {
+    setViewport(1_440);
+    const user = userEvent.setup();
+    const request = sanitizedRequestWith({
+      id: 'save',
+      method: 'POST',
+      startedAt: 2_000,
+      url: 'https://checkout.example/api/profile',
+      responseText: '{"saved":true}',
+      classification: {
+        kind: 'next-server-action',
+        confidence: 'confirmed',
+        actionId: '40f3a8b1',
+        evidence: ['Next-Action header'],
+      },
+    });
+    const session = redactSession(
+      {
+        ...createSession('tab-9', 'https://checkout.example', 1_000),
+        phase: 'recording',
+        requests: [request],
+        requestBytes: [32],
+        interactions: [
+          {
+            id: 'click-save',
+            tabId: 'tab-9',
+            kind: 'click' as const,
+            occurredAt: 1_990,
+            trust: 'trusted' as const,
+            target: { tag: 'button', text: 'Save profile' },
+          },
+        ],
+      },
+      DEFAULT_REDACTION_CONFIG,
+    );
+    render(<PayloadraApp controller={controllerFake(session)} />);
+
+    await user.click(screen.getByRole('row', { name: /profile/i }));
+
+    expect(
+      screen.getByRole('tablist', { name: 'Request detail workspace' }),
+    ).toBeVisible();
+    expect(
+      screen.getByRole('heading', { name: /Save profile triggered a Server Action/i }),
+    ).toBeVisible();
+    expect(screen.queryByText(/"saved"/)).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('tab', { name: 'Inspect' }));
+    expect(screen.getByRole('tab', { name: 'Response' })).toBeVisible();
+    expect(screen.queryByText(/"saved"/)).not.toBeInTheDocument();
+    await user.click(screen.getByRole('tab', { name: 'Response' }));
+    expect(screen.getByText(/"saved": true/)).toBeVisible();
+  });
+
+  it('threads only the selected interaction calls into Explain and redirect evidence', async () => {
+    setViewport(1_440);
+    const user = userEvent.setup();
+    const requests = [
+      requestWith({
+        id: 'action',
+        method: 'POST',
+        startedAt: 2_000,
+        url: 'https://checkout.example/account',
+        classification: {
+          kind: 'next-server-action',
+          confidence: 'confirmed',
+          actionId: 'action-safe',
+          evidence: ['Next-Action header'],
+        },
+      }),
+      requestWith({
+        id: 'audit',
+        method: 'POST',
+        startedAt: 2_010,
+        url: 'https://checkout.example/api/audit',
+        responseStatus: 204,
+        classification: {
+          kind: 'api',
+          confidence: 'confirmed',
+          evidence: ['Fetch request'],
+        },
+      }),
+      requestWith({
+        id: 'redirect-start',
+        startedAt: 2_020,
+        url: 'https://checkout.example/start',
+        responseStatus: 302,
+        redirectUrl: 'https://checkout.example/middle',
+        classification: {
+          kind: 'api',
+          confidence: 'confirmed',
+          evidence: ['Fetch request'],
+        },
+      }),
+      requestWith({
+        id: 'redirect-middle',
+        startedAt: 2_030,
+        url: 'https://checkout.example/middle',
+        responseStatus: 307,
+        redirectParentId: 'redirect-start',
+        redirectUrl: 'https://checkout.example/final',
+        classification: {
+          kind: 'api',
+          confidence: 'confirmed',
+          evidence: ['Fetch request'],
+        },
+      }),
+      requestWith({
+        id: 'redirect-final',
+        startedAt: 2_040,
+        url: 'https://checkout.example/final',
+        redirectParentId: 'redirect-middle',
+        classification: {
+          kind: 'api',
+          confidence: 'confirmed',
+          evidence: ['Fetch request'],
+        },
+      }),
+      requestWith({
+        id: 'unrelated',
+        startedAt: 10_000,
+        url: 'https://checkout.example/api/unrelated',
+        classification: {
+          kind: 'api',
+          confidence: 'confirmed',
+          evidence: ['Fetch request'],
+        },
+      }),
+    ];
+    const session = redactSession(
+      {
+        ...createSession('tab-9', 'https://checkout.example', 1_000),
+        phase: 'recording',
+        requests,
+        requestBytes: requests.map(() => 32),
+        interactions: [
+          {
+            id: 'click-save',
+            tabId: 'tab-9',
+            kind: 'click' as const,
+            occurredAt: 1_990,
+            trust: 'trusted' as const,
+            target: { tag: 'button', text: 'Save profile' },
+          },
+          {
+            id: 'click-other',
+            tabId: 'tab-9',
+            kind: 'click' as const,
+            occurredAt: 9_990,
+            trust: 'trusted' as const,
+            target: { tag: 'button', text: 'Other action' },
+          },
+        ],
+      },
+      DEFAULT_REDACTION_CONFIG,
+    );
+    render(<PayloadraApp controller={controllerFake(session)} />);
+
+    await user.click(screen.getByRole('row', { name: /\/account/i }));
+    const detail = screen.getByRole('region', { name: 'Request detail' });
+    expect(within(detail).getByText(/POST \/api\/audit/i)).toBeVisible();
+    expect(within(detail).queryByText(/\/api\/unrelated/i)).toBeNull();
+
+    await user.click(screen.getByRole('row', { name: /\/final/i }));
+    await user.click(within(detail).getByRole('tab', { name: 'Inspect' }));
+    await user.click(within(detail).getByRole('tab', { name: 'Evidence' }));
+    expect(
+      within(detail).getByText(
+        /redirect hop 1: https:\/\/checkout\.example\/start → https:\/\/checkout\.example\/middle/i,
+      ),
+    ).toBeVisible();
+    expect(
+      within(detail).getByText(
+        /redirect hop 2: https:\/\/checkout\.example\/middle → https:\/\/checkout\.example\/final/i,
+      ),
+    ).toBeVisible();
+    expect(within(detail).queryByText(/\/api\/unrelated/i)).toBeNull();
   });
 
   it.each([
@@ -553,7 +732,7 @@ describe('PayloadraApp', () => {
     expect(screen.queryByText(/raw detail/i)).not.toBeInTheDocument();
   });
 
-  it('uses a restrained factual handoff for selected sanitized evidence', async () => {
+  it('uses a restrained Explain-first workspace for selected sanitized evidence', async () => {
     setViewport(1_440);
     const user = userEvent.setup();
     const request = sanitizedRequestWith({
@@ -574,9 +753,12 @@ describe('PayloadraApp', () => {
     expect(detail).toHaveTextContent('POST');
     expect(detail).toHaveTextContent('202');
     expect(detail).toHaveTextContent('84 ms');
-    expect(detail).toHaveTextContent(/sanitized request.*ready/i);
-    expect(within(detail).queryByText('Explain')).toBeNull();
-    expect(within(detail).queryByText('Inspect')).toBeNull();
+    expect(within(detail).getByRole('tab', { name: 'Explain' })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    );
+    expect(within(detail).getByRole('tab', { name: 'Inspect' })).toBeVisible();
+    expect(detail).toHaveTextContent(/browser triggered an API request/i);
     expect(container.querySelector('.detail-skeleton')).toBeNull();
   });
 

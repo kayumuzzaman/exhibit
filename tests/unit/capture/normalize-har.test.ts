@@ -7,6 +7,7 @@ describe('normalizeObservation', () => {
   it('normalizes timing, initiator, cache, service-worker, and redirect evidence', () => {
     const request = normalizeObservation(
       observation({
+        time: 24,
         response: {
           status: 302,
           redirectURL: 'https://app.test/final',
@@ -14,14 +15,14 @@ describe('normalizeObservation', () => {
         },
         _fromCache: 'memory',
         _initiator: { type: 'script', url: 'https://app.test/app.js' },
-        timings: { wait: 12, receive: 8 },
+        timings: { ssl: 4, wait: 12, receive: 8 },
       }),
       DEFAULT_LIMITS,
     );
 
     expect(request).toMatchObject({
       response: { status: 302 },
-      timing: { totalMs: 20, waitMs: 12, receiveMs: 8 },
+      timing: { totalMs: 24, sslMs: 4, waitMs: 12, receiveMs: 8 },
       evidence: {
         fromCache: true,
         fromServiceWorker: true,
@@ -240,7 +241,15 @@ describe('normalizeObservation', () => {
     const request = normalizeObservation(
       observation({
         time: Number.NaN,
-        timings: { blocked: -1, dns: 2, connect: 3, send: 4, wait: 5, receive: 6 },
+        timings: {
+          blocked: -1,
+          dns: 2,
+          connect: 3,
+          ssl: 2,
+          send: 4,
+          wait: 5,
+          receive: 6,
+        },
       }),
       DEFAULT_LIMITS,
     );
@@ -249,6 +258,7 @@ describe('normalizeObservation', () => {
       totalMs: 20,
       dnsMs: 2,
       connectMs: 3,
+      sslMs: 2,
       sendMs: 4,
       waitMs: 5,
       receiveMs: 6,

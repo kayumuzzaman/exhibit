@@ -12,7 +12,9 @@ import { Button } from '../components/button';
 import { Dialog, ModalSurface } from '../components/dialog';
 import { Icon } from '../components/icon';
 import { ResizeSeparator } from '../components/resizable';
-import type { RecordingPhase } from '../domain/model';
+import { Tabs, type TabItem } from '../components/tabs';
+import { correlate } from '../domain/correlation';
+import type { InteractionGroup, RecordingPhase } from '../domain/model';
 import { RESTRICTED_PAGE_ORIGIN } from '../domain/inspected-page';
 import type { SanitizedCapturedRequest } from '../domain/sanitized';
 import {
@@ -20,6 +22,8 @@ import {
   type DevtoolsThemeSource,
 } from '../devtools/theme';
 import { filterRequests } from '../features/session/filter-requests';
+import { ExplainView } from '../features/explain/explain-view';
+import { InspectView } from '../features/inspect/inspect-view';
 import { SearchIndex } from '../features/session/search-index';
 import { CommandBar, type ThemeMode } from '../features/session/command-bar';
 import { EmptyState, type EmptyStateKind } from '../features/session/empty-state';
@@ -127,11 +131,49 @@ function requestRoute(request: SanitizedCapturedRequest): string {
   }
 }
 
+function normalizedRequestUrl(value: string): string {
+  try {
+    const url = new URL(value);
+    url.hash = '';
+    url.searchParams.sort();
+    return url.toString();
+  } catch {
+    return value;
+  }
+}
+
+function previousRepeatedRequest(
+  request: SanitizedCapturedRequest | null,
+  requests: readonly SanitizedCapturedRequest[],
+  selectedIndex: number,
+): SanitizedCapturedRequest | undefined {
+  if (request === null || selectedIndex <= 0) return undefined;
+  const method = request.method.toUpperCase();
+  const url = normalizedRequestUrl(request.url);
+  for (let index = selectedIndex - 1; index >= 0; index -= 1) {
+    const candidate = requests[index];
+    if (
+      candidate !== undefined &&
+      candidate.method.toUpperCase() === method &&
+      normalizedRequestUrl(candidate.url) === url
+    ) {
+      return candidate;
+    }
+  }
+  return undefined;
+}
+
 function DetailSlot({
+  compareWith,
+  group,
   onBack,
+  relatedRequests,
   request,
 }: Readonly<{
+  compareWith?: SanitizedCapturedRequest;
+  group: InteractionGroup | null;
   onBack?: () => void;
+  relatedRequests: readonly SanitizedCapturedRequest[];
   request: SanitizedCapturedRequest | null;
 }>) {
   const bodyState = request?.response.body.state;
@@ -177,14 +219,38 @@ function DetailSlot({
               </span>
             </div>
           ) : null}
-          <div className="detail-handoff">
-            <p className="eyebrow">Safe evidence handoff</p>
-            <h3>Sanitized request ready</h3>
-            <p>
-              Timing, response status, and available body evidence were sanitized before
-              this local record was stored.
-            </p>
-          </div>
+          <Tabs
+            defaultActiveId="explain"
+            label="Request detail workspace"
+            tabs={
+              [
+                {
+                  id: 'explain',
+                  label: 'Explain',
+                  content: (
+                    <ExplainView
+                      group={group}
+                      relatedRequests={relatedRequests}
+                      request={request}
+                    />
+                  ),
+                },
+                {
+                  id: 'inspect',
+                  label: 'Inspect',
+                  content: (
+                    <InspectView
+                      {...(compareWith === undefined ? {} : { compareWith })}
+                      group={group}
+                      relatedRequests={relatedRequests}
+                      request={request}
+                    />
+                  ),
+                },
+              ] satisfies readonly TabItem<'explain' | 'inspect'>[]
+            }
+            variant="segmented"
+          />
         </div>
       )}
     </section>
@@ -319,6 +385,27 @@ function PanelShell({
     return index.query(search);
   }, [filtered, search]);
   const selected = session.requests.find(({ id }) => id === selectedId) ?? null;
+  const groups = useMemo(
+    () => correlate({ interactions: session.interactions, requests: session.requests }),
+    [session.interactions, session.requests],
+  );
+  const selectedGroup =
+    selected === null
+      ? null
+      : (groups.find(({ requestIds }) => requestIds.includes(selected.id)) ?? null);
+  const selectedIndex =
+    selected === null ? -1 : session.requests.findIndex(({ id }) => id === selected.id);
+  const compareWith = previousRepeatedRequest(
+    selected,
+    session.requests,
+    selectedIndex,
+  );
+  const relatedRequests =
+    selectedGroup === null
+      ? []
+      : session.requests.filter((request) =>
+          selectedGroup.requestIds.includes(request.id),
+        );
   const columns = wideColumns(window.innerWidth, railWidth, listWidth);
   const warningCodes = useMemo(
     () => new Set(session.warnings.map(({ code }) => code)),
@@ -423,6 +510,8 @@ function PanelShell({
   );
   const detail = (
     <DetailSlot
+      {...(compareWith === undefined ? {} : { compareWith })}
+      group={selectedGroup}
       {...(mode === 'narrow' || mode === 'phone'
         ? {
             onBack: () => {
@@ -430,6 +519,7 @@ function PanelShell({
             },
           }
         : {})}
+      relatedRequests={relatedRequests}
       request={selected}
     />
   );

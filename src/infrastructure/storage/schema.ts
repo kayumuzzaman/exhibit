@@ -290,6 +290,7 @@ function isTiming(value: unknown): value is RequestTiming {
       'blockedMs',
       'dnsMs',
       'connectMs',
+      'sslMs',
       'sendMs',
       'waitMs',
       'receiveMs',
@@ -299,6 +300,7 @@ function isTiming(value: unknown): value is RequestTiming {
     isOptionalDuration(value.blockedMs) &&
     isOptionalDuration(value.dnsMs) &&
     isOptionalDuration(value.connectMs) &&
+    isOptionalDuration(value.sslMs) &&
     isOptionalDuration(value.sendMs) &&
     isOptionalDuration(value.waitMs) &&
     isOptionalDuration(value.receiveMs)
