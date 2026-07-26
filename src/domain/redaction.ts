@@ -44,6 +44,25 @@ const ALWAYS_SENSITIVE_NAME_WORDS = new Set([
   'csrf',
   'xsrf',
 ]);
+
+/**
+ * Names that are a credential in their entirety. Matched exactly, because the
+ * same stems appear inside descriptive names — `sessionDuration` and
+ * `signatureVersion` are metadata, while `X-Session` and `X-Proxy-Auth` are the
+ * credential itself.
+ */
+const EXACT_SENSITIVE_NAMES = new Set([
+  'auth',
+  'xauth',
+  'authentication',
+  'xauthentication',
+  'proxyauth',
+  'xproxyauth',
+  'session',
+  'xsession',
+  'sig',
+  'xsig',
+]);
 const SESSION_CREDENTIAL_WORDS = new Set(['id', 'token', 'key', 'secret', 'cookie']);
 const NORMALIZED_CREDENTIAL_SUFFIXES = [
   'password',
@@ -57,6 +76,12 @@ const NORMALIZED_CREDENTIAL_SUFFIXES = [
   'credentials',
   'csrf',
   'xsrf',
+  'signature',
+  'accesskey',
+  'secretkey',
+  'privatekey',
+  'codeverifier',
+  'codechallenge',
 ] as const;
 const NORMALIZED_SESSION_CREDENTIAL_SUFFIXES = [
   'sessionid',
@@ -73,6 +98,11 @@ const VALUE_PATTERNS = [
   /\bAIza[A-Za-z0-9_-]{20,}\b/u,
   /\b(?:gh[pousr]|github_pat)_[A-Za-z0-9_]{20,}\b/iu,
   /\b(?:api[_ -]?key|token|secret|password|passwd|passphrase|credentials?|csrf|xsrf|session(?:[_ -]?(?:id|token|key|secret|cookie))?)[ \t]*[:=][ \t]*[^\s,;&]+/iu,
+  // `Basic dXNlcjpwYXNz` decodes straight back to user:password. The length
+  // floor keeps prose such as "basic plan" out of the match.
+  /\bbasic[ \t]+[A-Za-z0-9+/]{16,}={0,2}/iu,
+  // Markup-delimited credentials, which the `key=value` rule cannot see.
+  /<[ \t]*(?:password|passwd|passphrase|token|secret|credentials?|api[_ -]?key)\b[^>]*>[^<]+/iu,
 ] as const;
 const JWT_CANDIDATE_PATTERN =
   /(?:^|[^A-Za-z0-9_-])([A-Za-z0-9_-]{2,})\.([A-Za-z0-9_-]{2,})\.([A-Za-z0-9_-]*)(?=$|[^A-Za-z0-9_-])/gu;
@@ -189,6 +219,7 @@ function isSensitiveField(fieldName: string, context: TraversalContext): boolean
   const normalized = normalizeFieldName(fieldName);
   return (
     context.fieldNames.has(normalized) ||
+    EXACT_SENSITIVE_NAMES.has(normalized) ||
     NORMALIZED_CREDENTIAL_SUFFIXES.some((suffix) => normalized.endsWith(suffix)) ||
     NORMALIZED_SESSION_CREDENTIAL_SUFFIXES.some((suffix) =>
       normalized.endsWith(suffix),
@@ -373,6 +404,30 @@ function fragmentContainsCredential(hash: string, context: TraversalContext): bo
   return false;
 }
 
+/**
+ * Path segments are values too: tokens are routinely embedded in a path rather
+ * than a query. Each segment is scanned independently so a credential-shaped
+ * segment is replaced without destroying the surrounding route.
+ */
+function redactPathname(pathname: string, context: TraversalContext): string {
+  if (!pathname.includes('/')) return pathname;
+  return pathname
+    .split('/')
+    .map((segment) => {
+      if (segment === '') return segment;
+      let decoded = segment;
+      try {
+        decoded = decodeURIComponent(segment);
+      } catch {
+        // An undecodable segment is scanned exactly as it was received.
+      }
+      return redactValuePatterns(decoded, context) === REDACTED
+        ? encodeURIComponent(REDACTED)
+        : segment;
+    })
+    .join('/');
+}
+
 export function redactUrl(input: string, config: RedactionConfig): string {
   try {
     const context = traversalContext(config);
@@ -381,6 +436,7 @@ export function redactUrl(input: string, config: RedactionConfig): string {
     if (!SAFE_CAPTURE_URL_PROTOCOLS.has(url.protocol)) return REDACTED;
     if (url.username !== '') url.username = REDACTED;
     if (url.password !== '') url.password = REDACTED;
+    url.pathname = redactPathname(url.pathname, context);
     url.search = redactQueryParameters(url.searchParams, context).toString();
     if (fragmentContainsCredential(url.hash, context)) {
       url.hash = REDACTED;
@@ -504,6 +560,14 @@ function redactBodyText(
   }
   if (mime === 'multipart/form-data') {
     return redactMultipartText(text, mimeType, context);
+  }
+  // A declared MIME type is page-controlled, and JSON is routinely posted as
+  // text/plain to keep a request CORS-simple. Structure is used when the text
+  // actually parses as JSON; anything else falls back to the value scanner.
+  const start = text.trimStart().charAt(0);
+  if (start === '{' || start === '[') {
+    const structured = redactJsonText(text, config);
+    if (structured !== REDACTED) return structured;
   }
   return redactValuePatterns(text, context);
 }

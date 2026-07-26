@@ -39,8 +39,28 @@ user interface, or an export. It cannot be turned off.
 - Raw request identifiers, which are replaced by opaque ids so URLs and
   identifiers cannot be reconstructed from them.
 
+Redaction covers URL path segments as well as query strings, and it applies
+structural redaction to a body that parses as JSON even when the page declared a
+different content type.
+
 Redaction fails closed: if a record cannot be safely redacted, the record is
 dropped or replaced with a redacted placeholder and a warning is recorded.
+
+### What redaction cannot detect
+
+A value is redacted when its **name** indicates a secret or its **shape** matches
+a known credential format. A secret that has neither is indistinguishable from an
+ordinary identifier, and redacting every opaque value would remove the routes and
+payloads the product exists to show. Specifically:
+
+- an opaque token embedded in a path with no recognizable format, such as a bare
+  webhook path segment;
+- an OAuth `code` or `state` query parameter, because those names are also
+  extremely common for non-secret values;
+- a secret written into free-form prose inside an otherwise ordinary field.
+
+Treat exported evidence from an authenticated session as sensitive, and review it
+before sharing it outside your machine.
 
 ## Permissions and why they are needed
 

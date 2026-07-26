@@ -55,6 +55,14 @@ its opaque build identifier, and the panel says so. Next.js RSC headers, action
 headers, and query markers are internal and version-sensitive; the evidence list
 records that caveat with the finding.
 
+## Redaction limits
+
+Redaction fires on a credential-shaped **value** or a credential-indicating
+**name**. A secret with neither — an opaque webhook path segment, an OAuth
+`code`, a password written into prose — cannot be distinguished from an ordinary
+identifier, and redacting every opaque value would erase the evidence the product
+exists to show. See [the privacy policy](./PRIVACY.md) for the full list.
+
 ## Interaction grouping
 
 Interaction capture needs Chrome to grant access to the inspected tab. When it
