@@ -138,3 +138,19 @@ test.describe('accessibility', () => {
     );
   });
 });
+
+test.describe('narrow layout focus', () => {
+  test('moves focus into the detail region and back to the row', async ({
+    payloadra,
+  }) => {
+    await payloadra.startRecording();
+    await payloadra.trigger('save-profile');
+    await payloadra.page.setViewportSize({ width: 390, height: 844 });
+
+    await payloadra.openRequest('/api/profile');
+    await expect(payloadra.detailWorkspace()).toBeFocused();
+
+    await payloadra.page.getByRole('button', { name: 'Back to requests' }).click();
+    await expect(payloadra.requestRows().first()).toBeFocused();
+  });
+});

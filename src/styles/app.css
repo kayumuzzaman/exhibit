@@ -13,6 +13,11 @@
   display: contents;
 }
 
+/* A focus anchor for the ledger that generates no box of its own. */
+.ledger-slot {
+  display: contents;
+}
+
 /**
  * Notices are variable in number and the status region is out of flow, so they
  * are grouped into one row. Without it the workspace lands in an `auto` track
@@ -318,7 +323,9 @@
   display: block;
 }
 
-.workspace--narrow > * {
+/* `.ledger-slot` generates no box, so its child is the real narrow region. */
+.workspace--narrow > *,
+.workspace--narrow > .ledger-slot > * {
   width: 100%;
   height: 100%;
 }
@@ -674,6 +681,10 @@
   background: var(--surface);
 }
 
+.detail-slot__heading > div {
+  min-width: 0;
+}
+
 .detail-slot__heading {
   min-height: 58px;
   padding: 10px var(--space-4);
@@ -682,7 +693,9 @@
 }
 
 .detail-slot__heading h2 {
-  max-width: 40vw;
+  /* The detail column can be far narrower than the viewport, so the heading is
+     capped by its own column and ellipsises instead of being sliced off. */
+  max-width: 100%;
   overflow: hidden;
   font-family: var(--font-evidence);
   font-size: 12px;
@@ -1012,7 +1025,7 @@
   }
 
   .detail-slot__heading h2 {
-    max-width: 55vw;
+    max-width: 100%;
   }
 }
 

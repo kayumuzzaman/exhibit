@@ -6,6 +6,7 @@ import {
   useSyncExternalStore,
   type CSSProperties,
   type ReactNode,
+  type RefObject,
 } from 'react';
 
 import { Button } from '../components/button';
@@ -175,12 +176,14 @@ function previousRepeatedRequest(
 
 function DetailSlot({
   compareWith,
+  containerRef,
   group,
   onBack,
   relatedRequests,
   request,
 }: Readonly<{
   compareWith?: SanitizedCapturedRequest;
+  containerRef?: RefObject<HTMLElement | null>;
   group: InteractionGroup | null;
   onBack?: () => void;
   relatedRequests: readonly SanitizedCapturedRequest[];
@@ -188,7 +191,12 @@ function DetailSlot({
 }>) {
   const bodyState = request?.response.body.state;
   return (
-    <section aria-label="Request detail" className="detail-slot">
+    <section
+      aria-label="Request detail"
+      className="detail-slot"
+      ref={containerRef}
+      tabIndex={-1}
+    >
       <div className="region-heading detail-slot__heading">
         <div>
           <p className="eyebrow">Detail workspace</p>
@@ -508,6 +516,25 @@ function PanelShell({
     setSearch('');
   }
 
+  const narrowLayout = mode === 'narrow' || mode === 'phone';
+  const detailRef = useRef<HTMLElement | null>(null);
+  const ledgerRef = useRef<HTMLDivElement | null>(null);
+  // The narrow layout swaps two mutually exclusive subtrees, so whichever
+  // element had focus is destroyed on every switch. Focus moves into the region
+  // that replaced it instead of falling back to the document body.
+  useEffect(() => {
+    if (!narrowLayout) return;
+    if (mobileDetail && selectedId !== null) {
+      detailRef.current?.focus();
+      return;
+    }
+    ledgerRef.current
+      ?.querySelector<HTMLElement>(
+        'tbody tr[aria-selected="true"], tbody tr[tabindex="0"]',
+      )
+      ?.focus();
+  }, [mobileDetail, narrowLayout, selectedId]);
+
   const rail = (
     <SessionRail
       apiOnly={apiOnly}
@@ -534,9 +561,15 @@ function PanelShell({
       showRailButton={mode !== 'wide'}
     />
   );
+  const ledgerRegion = (
+    <div className="ledger-slot" ref={ledgerRef}>
+      {ledger}
+    </div>
+  );
   const detail = (
     <DetailSlot
       {...(compareWith === undefined ? {} : { compareWith })}
+      containerRef={detailRef}
       group={selectedGroup}
       {...(mode === 'narrow' || mode === 'phone'
         ? {
@@ -567,7 +600,7 @@ function PanelShell({
           onChange={setRailWidth}
           value={columns.rail}
         />
-        {ledger}
+        {ledgerRegion}
         <ResizeSeparator
           label="Resize request ledger"
           max={columns.listMax}
@@ -581,14 +614,14 @@ function PanelShell({
   } else if (mode === 'medium') {
     workspace = (
       <div className="workspace workspace--medium">
-        {ledger}
+        {ledgerRegion}
         {detail}
       </div>
     );
   } else {
     workspace = (
       <div className="workspace workspace--narrow">
-        {selected !== null && mobileDetail ? detail : ledger}
+        {selected !== null && mobileDetail ? detail : ledgerRegion}
       </div>
     );
   }
