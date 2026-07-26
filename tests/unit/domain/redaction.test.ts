@@ -699,6 +699,38 @@ describe('redaction helpers', () => {
     expect(redactUrl(value, DEFAULT_REDACTION_CONFIG)).toBe(REDACTED);
   });
 
+  it.each([
+    'blob:https://app.test/token=secret-original',
+    'BLOB:https://app.test/password=secret-original',
+    'filesystem:https://app.test/temporary/session=secret-original',
+    'chrome-extension://abcdefghijklmnop/token=secret-original',
+    'javascript:credential=secret-original',
+    'custom://app.test/api-key=secret-original',
+  ])('fails closed for unsupported scheme URL %s', (value) => {
+    const result = redactUrl(value, DEFAULT_REDACTION_CONFIG);
+
+    expect(result).toBe(REDACTED);
+    expect(result).not.toContain('secret-original');
+  });
+
+  it('fails closed for unsupported schemes even without a recognized secret', () => {
+    expect(
+      redactUrl('blob:https://app.test/safe-resource', DEFAULT_REDACTION_CONFIG),
+    ).toBe(REDACTED);
+  });
+
+  it('normalizes scheme casing while preserving safe HTTP evidence', () => {
+    expect(
+      redactUrl(
+        'HTTPs://APP.TEST/docs?page=2#installation-guide',
+        DEFAULT_REDACTION_CONFIG,
+      ),
+    ).toBe('https://app.test/docs?page=2#installation-guide');
+    expect(redactUrl('HTTP://APP.TEST/items?page=2', DEFAULT_REDACTION_CONFIG)).toBe(
+      'http://app.test/items?page=2',
+    );
+  });
+
   it('redacts URL credentials and supports relative URLs', () => {
     const credentialed = redactUrl(
       'https://user:password@api.test/items?page=2',

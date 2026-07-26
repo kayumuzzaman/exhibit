@@ -209,6 +209,33 @@ describe('toSafeCurl', () => {
 });
 
 describe('toSanitizedHar', () => {
+  it('fails closed for opaque request, redirect, and interaction URL paths', () => {
+    const request = rawRequest('opaque-urls', {
+      url: 'blob:https://app.test/token=secret-original-request',
+      evidence: {
+        redirectUrl:
+          'filesystem:https://app.test/temporary/password=secret-original-redirect',
+      },
+    });
+    const interaction: InteractionEvent = {
+      id: 'opaque-interaction',
+      tabId: 'tab-1',
+      kind: 'navigation',
+      occurredAt: 1_700_000_000_100,
+      trust: 'trusted',
+      url: 'chrome-extension://abcdefghijklmnop/session=secret-original-interaction',
+    };
+    const session = safeSession([request], [interaction]);
+    const safeRequestValue = session.requests[0]!;
+
+    expect(safeRequestValue.url).toBe(REDACTED);
+    expect(safeRequestValue.evidence.redirectUrl).toBe(REDACTED);
+    expect(session.interactions[0]?.url).toBe(REDACTED);
+    expect(toSafeCurl(safeRequestValue)).not.toContain('secret-original');
+    expect(toSanitizedHar(session)).not.toContain('secret-original');
+    expect(toQaReport(session)).not.toContain('secret-original');
+  });
+
   it('emits deterministic HAR 1.2 entries with sanitized Payloadra metadata', () => {
     const later = rawRequest('later', {
       startedAt: 1_700_000_002_000,

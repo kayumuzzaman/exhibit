@@ -30,6 +30,7 @@ const MAX_PATTERN_SCAN_CHARACTERS = 1024 * 1024;
 const MAX_JWT_SEGMENT_CHARACTERS = 64 * 1024;
 let opaqueRequestSequence = 0;
 
+const SAFE_CAPTURE_URL_PROTOCOLS = new Set(['http:', 'https:']);
 const AUTHORIZATION_HEADER_NAMES = new Set(['authorization', 'proxyauthorization']);
 const COOKIE_HEADER_NAMES = new Set(['cookie', 'setcookie']);
 const ALWAYS_SENSITIVE_NAME_WORDS = new Set([
@@ -377,7 +378,7 @@ export function redactUrl(input: string, config: RedactionConfig): string {
     const context = traversalContext(config);
     const url = new URL(input, 'https://payloadra.invalid');
     const absolute = /^[A-Za-z][A-Za-z0-9+.-]*:/u.test(input) || input.startsWith('//');
-    if (absolute && url.origin === 'null') return REDACTED;
+    if (!SAFE_CAPTURE_URL_PROTOCOLS.has(url.protocol)) return REDACTED;
     if (url.username !== '') url.username = REDACTED;
     if (url.password !== '') url.password = REDACTED;
     url.search = redactQueryParameters(url.searchParams, context).toString();
