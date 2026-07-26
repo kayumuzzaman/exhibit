@@ -66,7 +66,7 @@ const VALUE_PATTERNS = [
   /\bAKIA[A-Z0-9]{16}\b/u,
   /\bAIza[A-Za-z0-9_-]{20,}\b/u,
   /\b(?:gh[pousr]|github_pat)_[A-Za-z0-9_]{20,}\b/iu,
-  /\b(?:api[_ -]?key|token|secret)[ \t]*[:=][ \t]*[^\s,;&]+/iu,
+  /\b(?:api[_ -]?key|token|secret|password|passwd|passphrase|credentials?|csrf|xsrf|session(?:[_ -]?(?:id|token|key|secret|cookie))?)[ \t]*[:=][ \t]*[^\s,;&]+/iu,
 ] as const;
 const JWT_CANDIDATE_PATTERN =
   /(?:^|[^A-Za-z0-9_-])([A-Za-z0-9_-]{2,})\.([A-Za-z0-9_-]{2,})\.([A-Za-z0-9_-]*)(?=$|[^A-Za-z0-9_-])/gu;
@@ -554,6 +554,7 @@ function redactionFailedRequest(id = newOpaqueRequestId()): SanitizedCapturedReq
 function remapRedirectParent(
   output: object,
   request: CapturedRequest,
+  config: RedactionConfig,
   idMap: ReadonlyMap<string, string> | undefined,
 ): void {
   const redactedEvidence = readDataProperty(output, 'evidence');
@@ -578,6 +579,13 @@ function remapRedirectParent(
   }
 
   const rawEvidence = readDataProperty(request, 'evidence');
+  const rawRedirectUrl =
+    rawEvidence !== null && typeof rawEvidence === 'object'
+      ? readDataProperty(rawEvidence, 'redirectUrl')
+      : undefined;
+  if (typeof rawRedirectUrl === 'string') {
+    defineDataProperty(safeEvidence, 'redirectUrl', redactUrl(rawRedirectUrl, config));
+  }
   const rawParent =
     rawEvidence !== null && typeof rawEvidence === 'object'
       ? readDataProperty(rawEvidence, 'redirectParentId')
@@ -615,7 +623,7 @@ function redactRequestWithIdentity(
     const responseSource = readDataProperty(request, 'response');
     const responseTarget = readDataProperty(output, 'response');
     redactNestedRequestData(responseSource, responseTarget, config);
-    remapRedirectParent(output, request, idMap);
+    remapRedirectParent(output, request, config, idMap);
 
     return output as SanitizedCapturedRequest;
   } catch {
