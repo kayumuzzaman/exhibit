@@ -310,7 +310,6 @@ describe('recording pipeline', () => {
 
     expect(sink.accepted).toHaveLength(1);
     expect(sink.accepted[0]).toMatchObject({
-      id: 'req-opaque-1',
       classification: {
         kind: 'unknown',
         confidence: 'unknown',
@@ -323,6 +322,8 @@ describe('recording pipeline', () => {
         evidence: [],
       },
     });
+    expect(sink.accepted[0]?.id).toMatch(/^req-[a-z0-9-]+$/u);
+    expect(sink.accepted[0]?.id).not.toBe('req-opaque-1');
     const serialized = JSON.stringify({
       accepted: sink.accepted,
       classifiedInputs,
@@ -373,10 +374,9 @@ describe('recording pipeline', () => {
     capture.emit({ type: 'observation', observation: secretObservation() });
     await pipeline.stop(2_000);
 
-    expect(relatedSeen.map((related) => related.map((request) => request.id))).toEqual([
-      [],
-      ['req-1'],
-    ]);
+    expect(relatedSeen.map((related) => related.length)).toEqual([0, 1]);
+    expect(relatedSeen[1]?.[0]).toBe(sink.accepted[0]);
+    expect(sink.accepted.map((request) => request.id)).not.toContain('req-1');
     expect(JSON.stringify(relatedSeen)).not.toContain('body-secret');
   });
 
@@ -406,7 +406,14 @@ describe('recording pipeline', () => {
     }
     await pipeline.stop(2_000);
 
-    expect(relatedIds).toEqual([[], ['req-1'], ['req-1', 'req-2'], ['req-2', 'req-3']]);
+    const acceptedIds = sink.accepted.map((request) => request.id);
+    expect(relatedIds).toEqual([
+      [],
+      [acceptedIds[0]!],
+      [acceptedIds[0]!, acceptedIds[1]!],
+      [acceptedIds[1]!, acceptedIds[2]!],
+    ]);
+    expect(acceptedIds).not.toEqual(expect.arrayContaining(['req-1', 'req-2']));
   });
 
   it('isolates normalization faults and continues the serialized queue', async () => {

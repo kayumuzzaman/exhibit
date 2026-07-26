@@ -1154,13 +1154,15 @@ describe('stored session schema validation', () => {
 
   it('validates raw bytes before re-redacting valid hydration', () => {
     const valid = validStoredSession();
+    const storedRequestId = (valid as { session: { requests: Array<{ id: string }> } })
+      .session.requests[0]!.id;
     const stringify = vi.spyOn(JSON, 'stringify');
     const requestSerializationCount = () =>
       stringify.mock.calls.filter(([value]) => {
         if (value === null || typeof value !== 'object' || Array.isArray(value)) {
           return false;
         }
-        return (value as Record<string, unknown>).id === 'schema-request';
+        return (value as Record<string, unknown>).id === storedRequestId;
       }).length;
 
     const recovered = decodeStoredSession(valid, 'schema-1');

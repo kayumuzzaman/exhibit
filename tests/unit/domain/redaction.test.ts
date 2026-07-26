@@ -1,15 +1,23 @@
 import { describe, expect, it } from 'vitest';
 
-import type { BodyContent, CapturedRequest, Header } from '../../../src/domain/model';
+import type {
+  BodyContent,
+  CapturedRequest,
+  Header,
+  RecordingSession,
+} from '../../../src/domain/model';
 import {
   DEFAULT_REDACTION_CONFIG,
   REDACTED,
   redactBody,
   redactHeaders,
+  redactRecoveredSession,
   redactRequest,
+  redactSession,
   redactUnknown,
   redactUrl,
 } from '../../../src/domain/redaction';
+import { createSession } from '../../../src/domain/session';
 
 function requestFixture(
   overrides: Partial<{
@@ -81,6 +89,54 @@ function redactJsonValue(value: unknown, config = DEFAULT_REDACTION_CONFIG): unk
 }
 
 describe('redactRequest', () => {
+  it('always reissues syntactically allowlisted raw-derived identifiers', () => {
+    const result = redactRequest(
+      requestFixture({ id: 'GET-orders-alice42' }),
+      DEFAULT_REDACTION_CONFIG,
+    );
+
+    expect(result.id).toMatch(/^req-[a-z0-9-]+$/u);
+    expect(result.id).not.toBe('GET-orders-alice42');
+    expect(JSON.stringify(result)).not.toContain('GET-orders-alice42');
+  });
+
+  it('reissues session request IDs and remaps redirect parents', () => {
+    const parent = requestFixture({ id: 'GET-orders-alice42' });
+    const child: CapturedRequest = {
+      ...requestFixture({ id: 'GET-orders-alice42-redirect' }),
+      evidence: { redirectParentId: parent.id },
+    };
+    const session: RecordingSession = {
+      ...createSession('tab-1', 'https://app.test', 1_000),
+      requests: [parent, child],
+    };
+
+    const result = redactSession(session, DEFAULT_REDACTION_CONFIG);
+
+    expect(result.requests[0]?.id).not.toBe(parent.id);
+    expect(result.requests[1]?.id).not.toBe(child.id);
+    expect(result.requests[1]?.evidence.redirectParentId).toBe(result.requests[0]?.id);
+    expect(JSON.stringify(result.requests)).not.toMatch(
+      /GET-orders-alice42(?:-redirect)?/u,
+    );
+  });
+
+  it('remaps redirect parents while recovering stored sessions', () => {
+    const parent = requestFixture({ id: 'GET-orders-alice42' });
+    const child: CapturedRequest = {
+      ...requestFixture({ id: 'GET-orders-alice42-redirect' }),
+      evidence: { redirectParentId: parent.id },
+    };
+    const session: RecordingSession = {
+      ...createSession('tab-1', 'https://app.test', 1_000),
+      requests: [parent, child],
+    };
+
+    const result = redactRecoveredSession(session, DEFAULT_REDACTION_CONFIG);
+
+    expect(result.requests[1]?.evidence.redirectParentId).toBe(result.requests[0]?.id);
+  });
+
   it('reissues a non-opaque identifier before granting sanitized type', () => {
     const result = redactRequest(
       requestFixture({

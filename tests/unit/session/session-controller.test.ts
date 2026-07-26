@@ -520,13 +520,15 @@ describe('session controller persistence and observers', () => {
     const ephemeral = new MemoryRepository('ephemeral');
     ephemeral.saveError = new Error('quota');
     const { controller } = controllerFixture({ ephemeral });
+    const safe = requestWith({ id: 'safe' });
+    const stillSafe = requestWith({ id: 'still-safe' });
 
-    await controller.accept(requestWith({ id: 'safe' }));
-    await controller.accept(requestWith({ id: 'still-safe' }));
+    await controller.accept(safe);
+    await controller.accept(stillSafe);
 
     expect(controller.getSnapshot().requests.map(({ id }) => id)).toEqual([
-      'safe',
-      'still-safe',
+      safe.id,
+      stillSafe.id,
     ]);
     expect(controller.getSnapshot().warnings).toEqual([
       expect.objectContaining({
@@ -563,7 +565,8 @@ describe('session controller persistence and observers', () => {
     ephemeral.calls.length = 0;
 
     await controller.clear();
-    await controller.accept(requestWith({ id: 'persisted-after-clear' }));
+    const persistedAfterClear = requestWith({ id: 'persisted-after-clear' });
+    await controller.accept(persistedAfterClear);
 
     expect(ephemeral.calls).toEqual(['ephemeral:clear', 'ephemeral:save:ephemeral']);
     expect(
@@ -571,7 +574,7 @@ describe('session controller persistence and observers', () => {
         .getSnapshot()
         .warnings.some(({ code }) => code === 'persistence-disabled'),
     ).toBe(false);
-    expect(ephemeral.value?.requests[0]?.id).toBe('persisted-after-clear');
+    expect(ephemeral.value?.requests[0]?.id).toBe(persistedAfterClear.id);
   });
 
   it('migrates retention by saving target before clearing the old backend', async () => {
@@ -579,14 +582,15 @@ describe('session controller persistence and observers', () => {
     const ephemeral = new MemoryRepository('ephemeral', calls);
     const persistent = new MemoryRepository('persistent', calls);
     const { controller } = controllerFixture({ ephemeral, persistent });
-    await controller.accept(requestWith({ id: 'redacted-evidence' }));
+    const redactedEvidence = requestWith({ id: 'redacted-evidence' });
+    await controller.accept(redactedEvidence);
     calls.length = 0;
 
     await controller.setRetention('persistent');
 
     expect(calls).toEqual(['persistent:save:persistent', 'ephemeral:clear']);
     expect(controller.getSnapshot().retention).toBe('persistent');
-    expect(persistent.value?.requests[0]?.id).toBe('redacted-evidence');
+    expect(persistent.value?.requests[0]?.id).toBe(redactedEvidence.id);
   });
 
   it('includes an immediately accepted record in a concurrent migration', async () => {
@@ -594,13 +598,14 @@ describe('session controller persistence and observers', () => {
     const ephemeral = new MemoryRepository('ephemeral', calls);
     const persistent = new MemoryRepository('persistent', calls);
     const { controller } = controllerFixture({ ephemeral, persistent });
+    const racingEvidence = requestWith({ id: 'racing-evidence' });
 
-    const accepting = controller.accept(requestWith({ id: 'racing-evidence' }));
+    const accepting = controller.accept(racingEvidence);
     const migrating = controller.setRetention('persistent');
     await Promise.all([accepting, migrating]);
 
     expect(controller.getSnapshot().retention).toBe('persistent');
-    expect(persistent.value?.requests[0]?.id).toBe('racing-evidence');
+    expect(persistent.value?.requests[0]?.id).toBe(racingEvidence.id);
     expect(ephemeral.value).toBeNull();
   });
 
@@ -864,11 +869,10 @@ describe('session controller persistence and observers', () => {
     });
 
     await expect(controller.clear()).rejects.toThrow('clock failed');
-    await expect(
-      controller.accept(requestWith({ id: 'after-failure' })),
-    ).resolves.toBeUndefined();
+    const afterFailure = requestWith({ id: 'after-failure' });
+    await expect(controller.accept(afterFailure)).resolves.toBeUndefined();
 
-    expect(controller.getSnapshot().requests[0]?.id).toBe('after-failure');
+    expect(controller.getSnapshot().requests[0]?.id).toBe(afterFailure.id);
   });
 
   it('covers reducer no-op and already-stopped timestamp behavior directly', () => {

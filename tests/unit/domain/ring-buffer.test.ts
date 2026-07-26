@@ -43,13 +43,17 @@ function sizedRequest(id: string, text: string): SanitizedCapturedRequest {
 describe('bounded recording sessions', () => {
   it('evicts the oldest requests by count and records immutable bookkeeping', () => {
     const initial = sessionWithLimits({ maxRequests: 2 });
-    const next = [
+    const requests = [
       sizedRequest('a', 'one'),
       sizedRequest('b', 'two'),
       sizedRequest('c', 'three'),
-    ].reduce(addBounded, initial);
+    ];
+    const next = requests.reduce(addBounded, initial);
 
-    expect(next.requests.map(({ id }) => id)).toEqual(['b', 'c']);
+    expect(next.requests.map(({ id }) => id)).toEqual([
+      requests[1]!.id,
+      requests[2]!.id,
+    ]);
     expect(next.requestBytes).toHaveLength(2);
     expect(next.byteCount).toBe(
       next.requestBytes.reduce((total, bytes) => total + bytes, 0),
@@ -75,7 +79,7 @@ describe('bounded recording sessions', () => {
     expect(first.byteCount).toBe(unicodeBytes);
 
     const second = addBounded(first, ascii);
-    expect(second.requests.map(({ id }) => id)).toEqual(['ascii']);
+    expect(second.requests.map(({ id }) => id)).toEqual([ascii.id]);
     expect(second.evictedCount).toBe(1);
   });
 
@@ -106,14 +110,15 @@ describe('bounded recording sessions', () => {
       }),
       safe,
     );
-    const next = addBounded(initial, sizedRequest('too-large', 'x'.repeat(200)));
+    const tooLarge = sizedRequest('too-large', 'x'.repeat(200));
+    const next = addBounded(initial, tooLarge);
 
-    expect(next.requests.map(({ id }) => id)).toEqual(['safe']);
+    expect(next.requests.map(({ id }) => id)).toEqual([safe.id]);
     expect(next.byteCount).toBe(safeBytes);
     expect(next.warnings).toContainEqual(
       expect.objectContaining({
         code: 'request-too-large',
-        requestId: 'too-large',
+        requestId: tooLarge.id,
       }),
     );
   });
@@ -126,15 +131,16 @@ describe('bounded recording sessions', () => {
       maxBodyBytes: safeBytes,
     });
     let session = initial;
+    let lastOversizeId = '';
 
     for (let index = 0; index < MAX_SESSION_WARNINGS + 5; index += 1) {
-      session = addBounded(session, sizedRequest(`oversize-${index}`, 'x'.repeat(200)));
+      const request = sizedRequest(`oversize-${index}`, 'x'.repeat(200));
+      lastOversizeId = request.id;
+      session = addBounded(session, request);
     }
 
     expect(session.warnings).toHaveLength(MAX_SESSION_WARNINGS);
-    expect(session.warnings.at(-1)?.requestId).toBe(
-      `oversize-${MAX_SESSION_WARNINGS + 4}`,
-    );
+    expect(session.warnings.at(-1)?.requestId).toBe(lastOversizeId);
   });
 
   it.each([
@@ -263,8 +269,9 @@ describe('bounded recording sessions', () => {
       createSession('tab-5', 'https://app.test', 2_600),
       DEFAULT_REDACTION_CONFIG,
     );
-    const inserted = addBounded(raw, sizedRequest('raw-insert', 'body'));
-    expect(inserted.requests[0]?.id).toBe('raw-insert');
+    const request = sizedRequest('raw-insert', 'body');
+    const inserted = addBounded(raw, request);
+    expect(inserted.requests[0]?.id).toBe(request.id);
 
     const unserializable = {
       ...sizedRequest('undefined-json', ''),
@@ -274,7 +281,7 @@ describe('bounded recording sessions', () => {
     expect(rejected.warnings).toContainEqual(
       expect.objectContaining({
         code: 'request-too-large',
-        requestId: 'undefined-json',
+        requestId: unserializable.id,
       }),
     );
   });

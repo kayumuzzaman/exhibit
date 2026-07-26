@@ -6,7 +6,7 @@ import type {
   Explanation,
   SessionLimits,
 } from '../../domain/model';
-import { redactRequest } from '../../domain/redaction';
+import { createRequestRedactor } from '../../domain/redaction';
 import type { SanitizedCapturedRequest } from '../../domain/sanitized';
 import type { RedactionConfig } from '../settings/redaction-settings';
 import { DEFAULT_REDACTION_CONFIG } from '../settings/redaction-settings';
@@ -21,6 +21,9 @@ import type {
   InteractionStartContext,
 } from '../../ports/interaction-source';
 import { normalizeObservation } from './normalize-har';
+
+export type Result<T, E> =
+  Readonly<{ ok: true; value: T }> | Readonly<{ ok: false; error: E; fallback?: T }>;
 
 export interface RecordingSink {
   accept(request: SanitizedCapturedRequest): Promise<void>;
@@ -46,6 +49,26 @@ export type RecordingPipelineDependencies = Readonly<{
     related: readonly SanitizedCapturedRequest[],
   ) => Explanation;
 }>;
+
+export type RecordingPipelineStageDependencies = Pick<
+  RecordingPipelineDependencies,
+  'normalize' | 'classify' | 'explain' | 'redactionConfig'
+>;
+
+export interface RecordingPipelineStages {
+  normalize(
+    observation: Parameters<typeof normalizeObservation>[0],
+    limits: SessionLimits,
+    id: string,
+  ): Result<CapturedRequest, CaptureIssue>;
+  redact(request: CapturedRequest): Result<SanitizedCapturedRequest, CaptureIssue>;
+  classify(request: SanitizedCapturedRequest): Result<Classification, CaptureIssue>;
+  explain(
+    request: SanitizedCapturedRequest,
+    related: readonly SanitizedCapturedRequest[],
+  ): Result<Explanation, CaptureIssue>;
+  reset(): void;
+}
 
 export type RecordingStartOptions = Readonly<{
   capture?: CaptureOptions;
@@ -77,6 +100,16 @@ const ISSUE_MESSAGES = Object.freeze({
   'redaction-failed': 'A captured request failed closed during redaction.',
   'sink-failed': 'A sanitized request could not be added to the session.',
 });
+
+type PipelineIssueCode = keyof typeof ISSUE_MESSAGES;
+
+function fixedIssue(code: PipelineIssueCode, requestId?: string): CaptureIssue {
+  return {
+    code,
+    message: ISSUE_MESSAGES[code],
+    ...(requestId === undefined ? {} : { requestId }),
+  };
+}
 
 function classificationValid(value: Classification): boolean {
   return (
@@ -127,13 +160,84 @@ function defaultIdFactory(clock: () => number): () => string {
   };
 }
 
-export function createRecordingPipeline(
-  dependencies: RecordingPipelineDependencies,
-): RecordingPipeline {
+export function createRecordingPipelineStages(
+  dependencies: RecordingPipelineStageDependencies = {},
+): RecordingPipelineStages {
   const normalize = dependencies.normalize ?? normalizeObservation;
   const classify = dependencies.classify ?? classifyRequest;
   const explain = dependencies.explain ?? explainRequest;
-  const redactionConfig = dependencies.redactionConfig ?? DEFAULT_REDACTION_CONFIG;
+  const redactor = createRequestRedactor(
+    dependencies.redactionConfig ?? DEFAULT_REDACTION_CONFIG,
+  );
+
+  return {
+    normalize(observation, limits, id): Result<CapturedRequest, CaptureIssue> {
+      try {
+        return { ok: true, value: normalize(observation, limits, id) };
+      } catch {
+        return { ok: false, error: fixedIssue('normalization-failed') };
+      }
+    },
+
+    redact(request: CapturedRequest): Result<SanitizedCapturedRequest, CaptureIssue> {
+      const fallback = redactor.redact(request);
+      if (fallback.response.body.reason === 'redaction-failed') {
+        return {
+          ok: false,
+          error: fixedIssue('redaction-failed'),
+          fallback,
+        };
+      }
+      return { ok: true, value: fallback };
+    },
+
+    classify(request: SanitizedCapturedRequest): Result<Classification, CaptureIssue> {
+      try {
+        const value = classify(request);
+        return classificationValid(value)
+          ? { ok: true, value }
+          : {
+              ok: false,
+              error: fixedIssue('classification-failed', request.id),
+            };
+      } catch {
+        return {
+          ok: false,
+          error: fixedIssue('classification-failed', request.id),
+        };
+      }
+    },
+
+    explain(
+      request: SanitizedCapturedRequest,
+      related: readonly SanitizedCapturedRequest[],
+    ): Result<Explanation, CaptureIssue> {
+      try {
+        const value = explain(request, related);
+        return explanationValid(value)
+          ? { ok: true, value }
+          : {
+              ok: false,
+              error: fixedIssue('explanation-failed', request.id),
+            };
+      } catch {
+        return {
+          ok: false,
+          error: fixedIssue('explanation-failed', request.id),
+        };
+      }
+    },
+
+    reset(): void {
+      redactor.reset();
+    },
+  };
+}
+
+export function createRecordingPipeline(
+  dependencies: RecordingPipelineDependencies,
+): RecordingPipeline {
+  const stages = createRecordingPipelineStages(dependencies);
   const idFactory =
     dependencies.idFactory ?? defaultIdFactory(dependencies.clock ?? Date.now);
   let active = false;
@@ -152,22 +256,6 @@ export function createRecordingPipeline(
     }
   }
 
-  function fixedIssue(
-    code:
-      | 'classification-failed'
-      | 'explanation-failed'
-      | 'normalization-failed'
-      | 'redaction-failed'
-      | 'sink-failed',
-    requestId?: string,
-  ): CaptureIssue {
-    return {
-      code,
-      message: ISSUE_MESSAGES[code],
-      ...(requestId === undefined ? {} : { requestId }),
-    };
-  }
-
   function enqueue(task: () => Promise<void>): void {
     processingTail = processingTail.then(task, task).catch(() => {
       warn(fixedIssue('sink-failed'));
@@ -178,43 +266,39 @@ export function createRecordingPipeline(
     observation: Parameters<typeof normalizeObservation>[0],
   ): Promise<void> {
     const limits = dependencies.controller.getSnapshot().limits;
-    let raw: CapturedRequest;
-    try {
-      raw = normalize(observation, limits, idFactory());
-    } catch {
-      warn(fixedIssue('normalization-failed'));
+    const normalization = stages.normalize(observation, limits, idFactory());
+    if (!normalization.ok) {
+      warn(normalization.error);
       return;
     }
 
-    const redacted = redactRequest(raw, redactionConfig);
+    const redaction = stages.redact(normalization.value);
     let analyzed: SanitizedCapturedRequest;
-    if (redacted.response.body.reason === 'redaction-failed') {
-      warn(fixedIssue('redaction-failed'));
-      analyzed = withAnalysis(redacted, UNKNOWN_CLASSIFICATION, UNKNOWN_EXPLANATION);
+    if (!redaction.ok) {
+      warn(redaction.error);
+      if (redaction.fallback === undefined) return;
+      analyzed = withAnalysis(
+        redaction.fallback,
+        UNKNOWN_CLASSIFICATION,
+        UNKNOWN_EXPLANATION,
+      );
     } else {
-      let classification: Classification;
-      try {
-        const result = classify(redacted);
-        if (!classificationValid(result)) {
-          throw new TypeError('invalid classification');
-        }
-        classification = result;
-      } catch {
-        classification = UNKNOWN_CLASSIFICATION;
-        warn(fixedIssue('classification-failed', redacted.id));
+      const redacted = redaction.value;
+      const classificationResult = stages.classify(redacted);
+      const classification = classificationResult.ok
+        ? classificationResult.value
+        : UNKNOWN_CLASSIFICATION;
+      if (!classificationResult.ok) {
+        warn(classificationResult.error);
       }
 
       const classified = withAnalysis(redacted, classification);
-      let explanation: Explanation;
-      try {
-        const result = explain(classified, accepted);
-        if (!explanationValid(result)) {
-          throw new TypeError('invalid explanation');
-        }
-        explanation = result;
-      } catch {
-        explanation = UNKNOWN_EXPLANATION;
-        warn(fixedIssue('explanation-failed', redacted.id));
+      const explanationResult = stages.explain(classified, accepted);
+      const explanation = explanationResult.ok
+        ? explanationResult.value
+        : UNKNOWN_EXPLANATION;
+      if (!explanationResult.ok) {
+        warn(explanationResult.error);
       }
       analyzed = withAnalysis(classified, classification, explanation);
     }
@@ -269,6 +353,7 @@ export function createRecordingPipeline(
     async start(startedAt, options = {}): Promise<void> {
       if (active) return;
       accepted.length = 0;
+      stages.reset();
       generation += 1;
       let settleStartup!: (ready: boolean) => void;
       startupGate = new Promise<boolean>((resolve) => {

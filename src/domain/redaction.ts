@@ -23,9 +23,6 @@ const MAX_DEPTH = 32;
 const MAX_KEYS = 10_000;
 const MAX_PATTERN_SCAN_CHARACTERS = 1024 * 1024;
 const MAX_JWT_SEGMENT_CHARACTERS = 64 * 1024;
-const OPAQUE_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/u;
-const SENSITIVE_ID_PATTERN =
-  /(?:authorization|cookie|credential|csrf|password|secret|session|token|xsrf)/iu;
 let opaqueRequestSequence = 0;
 
 const AUTHORIZATION_HEADER_NAMES = new Set(['authorization', 'proxyauthorization']);
@@ -250,14 +247,6 @@ function newOpaqueRequestId(): string {
     opaqueRequestSequence += 1;
     return `req-local-${opaqueRequestSequence.toString(36)}`;
   }
-}
-
-function opaqueRequestId(value: unknown): string {
-  return typeof value === 'string' &&
-    OPAQUE_ID_PATTERN.test(value) &&
-    !SENSITIVE_ID_PATTERN.test(value)
-    ? value
-    : newOpaqueRequestId();
 }
 
 function redactUnknownWithContext(
@@ -539,9 +528,9 @@ function redactNestedRequestData(
   }
 }
 
-function redactionFailedRequest(): SanitizedCapturedRequest {
+function redactionFailedRequest(id = newOpaqueRequestId()): SanitizedCapturedRequest {
   return {
-    id: newOpaqueRequestId(),
+    id,
     url: REDACTED,
     method: 'UNKNOWN',
     startedAt: 0,
@@ -562,17 +551,57 @@ function redactionFailedRequest(): SanitizedCapturedRequest {
  * The outer catch protects contract violations, but cannot undo Proxy traps
  * already executed by JavaScript reflection.
  */
-export function redactRequest(
+function remapRedirectParent(
+  output: object,
+  request: CapturedRequest,
+  idMap: ReadonlyMap<string, string> | undefined,
+): void {
+  const redactedEvidence = readDataProperty(output, 'evidence');
+  const safeEvidence: Record<string, unknown> = {};
+  if (
+    redactedEvidence !== null &&
+    typeof redactedEvidence === 'object' &&
+    dataContainerKind(redactedEvidence) === 'record'
+  ) {
+    const descriptors = ownPropertyDescriptors(redactedEvidence);
+    if (descriptors !== undefined) {
+      for (const [key, descriptor] of Object.entries(descriptors)) {
+        if (
+          key !== 'redirectParentId' &&
+          descriptor.enumerable &&
+          'value' in descriptor
+        ) {
+          defineDataProperty(safeEvidence, key, descriptor.value);
+        }
+      }
+    }
+  }
+
+  const rawEvidence = readDataProperty(request, 'evidence');
+  const rawParent =
+    rawEvidence !== null && typeof rawEvidence === 'object'
+      ? readDataProperty(rawEvidence, 'redirectParentId')
+      : undefined;
+  const safeParent = typeof rawParent === 'string' ? idMap?.get(rawParent) : undefined;
+  if (safeParent !== undefined) {
+    defineDataProperty(safeEvidence, 'redirectParentId', safeParent);
+  }
+  defineDataProperty(output, 'evidence', safeEvidence);
+}
+
+function redactRequestWithIdentity(
   request: CapturedRequest,
   config: RedactionConfig,
+  id: string,
+  idMap?: ReadonlyMap<string, string>,
 ): SanitizedCapturedRequest {
   try {
     const output = redactTrustedDto(request, config);
     if (output === null || typeof output !== 'object') {
-      return redactionFailedRequest();
+      return redactionFailedRequest(id);
     }
 
-    defineDataProperty(output, 'id', opaqueRequestId(readDataProperty(request, 'id')));
+    defineDataProperty(output, 'id', id);
 
     const url = readDataProperty(request, 'url');
     if (typeof url === 'string') {
@@ -586,11 +615,42 @@ export function redactRequest(
     const responseSource = readDataProperty(request, 'response');
     const responseTarget = readDataProperty(output, 'response');
     redactNestedRequestData(responseSource, responseTarget, config);
+    remapRedirectParent(output, request, idMap);
 
     return output as SanitizedCapturedRequest;
   } catch {
-    return redactionFailedRequest();
+    return redactionFailedRequest(id);
   }
+}
+
+export function redactRequest(
+  request: CapturedRequest,
+  config: RedactionConfig,
+): SanitizedCapturedRequest {
+  return redactRequestWithIdentity(request, config, newOpaqueRequestId());
+}
+
+export type RequestRedactor = Readonly<{
+  redact(request: CapturedRequest): SanitizedCapturedRequest;
+  reset(): void;
+}>;
+
+/** Recording-scoped trusted boundary that remaps raw redirect references. */
+export function createRequestRedactor(config: RedactionConfig): RequestRedactor {
+  let idMap = new Map<string, string>();
+  return {
+    redact(request): SanitizedCapturedRequest {
+      const id = newOpaqueRequestId();
+      const rawId = readDataProperty(request, 'id');
+      if (typeof rawId === 'string') {
+        idMap.set(rawId, id);
+      }
+      return redactRequestWithIdentity(request, config, id, idMap);
+    },
+    reset(): void {
+      idMap = new Map<string, string>();
+    },
+  };
 }
 
 const SAFE_WARNING_MESSAGES: Readonly<Record<SessionWarning['code'], string>> = {
@@ -627,7 +687,15 @@ export function redactSession(
   session: RecordingSession,
   config: RedactionConfig,
 ): SanitizedRecordingSession {
-  const requests = session.requests.map((request) => redactRequest(request, config));
+  const idMap = new Map<string, string>();
+  const ids = session.requests.map((request) => {
+    const id = newOpaqueRequestId();
+    idMap.set(request.id, id);
+    return id;
+  });
+  const requests = session.requests.map((request, index) =>
+    redactRequestWithIdentity(request, config, ids[index]!, idMap),
+  );
   const warnings = session.warnings.map((warning) => ({
     code: warning.code,
     message: SAFE_WARNING_MESSAGES[warning.code],
@@ -661,10 +729,8 @@ export function redactRecoveredSession(
     return id;
   });
   const requests = session.requests.map((request, index) => {
-    const redacted = redactRequest(request, config);
-    const redirectParentId = redacted.evidence.redirectParentId;
-    const mappedParent =
-      redirectParentId === undefined ? undefined : idMap.get(redirectParentId);
+    const redacted = redactRequestWithIdentity(request, config, ids[index]!, idMap);
+    const mappedParent = redacted.evidence.redirectParentId;
     const evidence = {
       ...(redacted.evidence.fromCache === undefined
         ? {}
