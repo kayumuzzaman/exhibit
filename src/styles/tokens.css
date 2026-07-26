@@ -1,0 +1,95 @@
+@font-face {
+  font-family: 'Inter Variable';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url('@fontsource-variable/inter/files/inter-latin-wght-normal.woff2')
+    format('woff2-variations');
+}
+
+@font-face {
+  font-family: 'JetBrains Mono Variable';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 800;
+  src: url('@fontsource-variable/jetbrains-mono/files/jetbrains-mono-latin-wght-normal.woff2')
+    format('woff2-variations');
+}
+
+:root {
+  color-scheme: dark light;
+  --graphite: #15191f;
+  --slate: #232a33;
+  --slate-high: #2c3540;
+  --porcelain: #f4f6f5;
+  --cyan: #00b8d9;
+  --mint: #30b989;
+  --amber: #d99524;
+  --coral: #e75d63;
+  --surface: var(--graphite);
+  --surface-raised: var(--slate);
+  --surface-high: var(--slate-high);
+  --text: var(--porcelain);
+  --text-muted: #b4bec9;
+  --divider: #3d4651;
+  --divider-strong: #56616e;
+  --live: var(--cyan);
+  --success: var(--mint);
+  --caution: #f0b74d;
+  --failure: #ff7d82;
+  --focus: #72dbef;
+  --overlay: rgb(7 9 12 / 78%);
+  --font-interface:
+    'Inter Variable', Inter, ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-evidence:
+    'JetBrains Mono Variable', 'SFMono-Regular', Consolas, ui-monospace, monospace;
+  --radius-control: 10px;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --divider-width: 1px;
+  --focus-ring: 0 0 0 2px var(--surface), 0 0 0 4px var(--focus);
+}
+
+[data-theme='light'] {
+  color-scheme: light;
+  --surface: #f4f6f5;
+  --surface-raised: #ffffff;
+  --surface-high: #e9eeed;
+  --text: #15191f;
+  --text-muted: #526170;
+  --divider: #c8d0d0;
+  --divider-strong: #9daaaa;
+  --live: #007f99;
+  --success: #087958;
+  --caution: #825106;
+  --failure: #b62934;
+  --focus: #006d85;
+  --overlay: rgb(21 25 31 / 54%);
+}
+
+[data-theme='dark'],
+[data-theme='devtools'] {
+  color-scheme: dark;
+}
+
+@media (prefers-color-scheme: light) {
+  [data-theme='system'] {
+    color-scheme: light;
+    --surface: #f4f6f5;
+    --surface-raised: #ffffff;
+    --surface-high: #e9eeed;
+    --text: #15191f;
+    --text-muted: #526170;
+    --divider: #c8d0d0;
+    --divider-strong: #9daaaa;
+    --live: #007f99;
+    --success: #087958;
+    --caution: #825106;
+    --failure: #b62934;
+    --focus: #006d85;
+    --overlay: rgb(21 25 31 / 54%);
+  }
+}

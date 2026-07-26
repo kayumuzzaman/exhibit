@@ -14,11 +14,7 @@ describe('bootDevtools', () => {
     bootDevtools(panels);
 
     expect(calls).toHaveLength(1);
-    expect(calls[0]?.slice(0, 3)).toEqual([
-      'Payloadra',
-      'icons/payloadra.svg',
-      'panel.html',
-    ]);
+    expect(calls[0]?.slice(0, 3)).toEqual(['Payloadra', 'icon/16.png', 'panel.html']);
     expect(() => calls[0]?.[3]({})).not.toThrow();
   });
 });

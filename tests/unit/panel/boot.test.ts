@@ -1,6 +1,8 @@
 import type { ReactNode } from 'react';
 import { describe, expect, it } from 'vitest';
 
+import { PayloadraApp } from '../../../src/app/app';
+import type { SessionController } from '../../../src/features/session/session-controller';
 import { bootPanel, type PanelDocument, type PanelRoot } from '../../../src/panel/boot';
 
 describe('bootPanel', () => {
@@ -19,13 +21,14 @@ describe('bootPanel', () => {
         rendered = content;
       },
     };
+    const controller = {} as SessionController;
 
-    bootPanel(documentRoot, () => root);
+    bootPanel(controller, documentRoot, () => root);
 
     expect(selector).toBe('#root');
     expect(rendered).toMatchObject({
-      type: 'main',
-      props: { children: 'Payloadra is ready.' },
+      type: PayloadraApp,
+      props: { controller },
     });
   });
 
@@ -33,9 +36,10 @@ describe('bootPanel', () => {
     const documentRoot = {
       querySelector: () => null,
     } as PanelDocument;
+    const controller = {} as SessionController;
 
-    expect(() => bootPanel(documentRoot, () => ({ render: () => undefined }))).toThrow(
-      'Payloadra panel root is unavailable.',
-    );
+    expect(() =>
+      bootPanel(controller, documentRoot, () => ({ render: () => undefined })),
+    ).toThrow('Payloadra panel root is unavailable.');
   });
 });

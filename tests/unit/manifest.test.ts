@@ -10,6 +10,12 @@ describe('buildManifest', () => {
     expect(manifest.minimum_chrome_version).toBe('120');
     expect(manifest.permissions).toEqual(['storage', 'scripting']);
     expect(manifest.optional_host_permissions).toEqual(['http://*/*', 'https://*/*']);
+    expect(manifest.icons).toEqual({
+      16: 'icon/16.png',
+      32: 'icon/32.png',
+      48: 'icon/48.png',
+      128: 'icon/128.png',
+    });
     expect(JSON.stringify(manifest)).not.toContain('debugger');
   });
 });

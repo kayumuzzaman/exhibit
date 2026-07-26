@@ -8,5 +8,5 @@ export interface DevtoolsPanels {
 }
 
 export function bootDevtools(panels: DevtoolsPanels = chrome.devtools.panels): void {
-  panels.create('Payloadra', 'icons/payloadra.svg', 'panel.html', () => undefined);
+  panels.create('Payloadra', 'icon/16.png', 'panel.html', () => undefined);
 }
