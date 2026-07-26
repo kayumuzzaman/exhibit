@@ -413,3 +413,22 @@ describe('dialog composition', () => {
     expect(screen.getByRole('button', { name: 'First' })).toHaveFocus();
   });
 });
+
+describe('tab panel references', () => {
+  const tabs = [
+    { id: 'one' as const, label: 'One', content: <p>First panel</p> },
+    { id: 'two' as const, label: 'Two', content: <p>Second panel</p> },
+  ];
+
+  it('references only the panel that is actually mounted', () => {
+    render(<Tabs defaultActiveId="one" label="Evidence" tabs={tabs} />);
+
+    const selected = screen.getByRole('tab', { name: 'One' });
+    const unselected = screen.getByRole('tab', { name: 'Two' });
+    const controlled = selected.getAttribute('aria-controls');
+
+    expect(controlled).not.toBeNull();
+    expect(document.getElementById(controlled!)).toBeInTheDocument();
+    expect(unselected).not.toHaveAttribute('aria-controls');
+  });
+});

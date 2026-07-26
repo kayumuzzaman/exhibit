@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { withRecoveredAnalysis } from '../../../src/domain/analysis';
+import { explainRequest } from '../../../src/domain/explanation';
 import { sortedSafeHeaders, toSafeCurl } from '../../../src/domain/curl';
 import { toSanitizedHar } from '../../../src/domain/har-export';
 import { DEFAULT_REDACTION_CONFIG, redactSession } from '../../../src/domain/redaction';
@@ -557,5 +558,39 @@ describe('QA report grouping ties', () => {
     } as SanitizedCapturedRequest;
 
     expect(toQaReport(sessionWith([unavailable]))).toContain('HTTP 204');
+  });
+});
+
+describe('duration reporting resolution', () => {
+  it('states a sub-microsecond HAR float at whole-millisecond resolution', () => {
+    const request = {
+      ...sanitizedRequestWith({
+        url: 'https://app.test/api/items',
+        responseMime: 'application/json',
+        responseText: '{"ok":true}',
+      }),
+      timing: { totalMs: 123.45600000000002 },
+    } as SanitizedCapturedRequest;
+
+    const explanation = explainRequest(request, []);
+
+    expect(explanation.summary).toContain('123 ms');
+    expect(explanation.summary).not.toContain('123.456');
+    expect(explanation.evidence).toContain('Duration: 123 ms.');
+    expect(JSON.stringify(explanation)).not.toContain('00000000');
+  });
+
+  it('states a failed request duration at the same resolution', () => {
+    const failed = {
+      ...sanitizedRequestWith(),
+      response: {
+        status: 0,
+        headers: [],
+        body: { state: 'unavailable' as const, size: 0, capturedSize: 0 },
+      },
+      timing: { totalMs: 40.99999999 },
+    } as SanitizedCapturedRequest;
+
+    expect(explainRequest(failed, []).summary).toContain('41 ms');
   });
 });

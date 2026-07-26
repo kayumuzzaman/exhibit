@@ -51,9 +51,19 @@ function outcome(status: number): Outcome {
   return 'http-response';
 }
 
+/**
+ * HAR reports sub-microsecond floats such as 123.45600000000002. Durations are
+ * evidence shown to a person, so they are stated at whole-millisecond
+ * resolution rather than at the precision of the source float.
+ */
+function durationLabel(totalMs: number): string {
+  return Number.isFinite(totalMs) ? String(Math.round(totalMs)) : '0';
+}
+
 function outcomeSentence(status: number, durationMs: number, result: Outcome): string {
+  const duration = durationLabel(durationMs);
   if (result === 'no-http-response') {
-    return `It failed before an HTTP response was captured after ${durationMs} ms.`;
+    return `It failed before an HTTP response was captured after ${duration} ms.`;
   }
   const statusLabel: Readonly<Partial<Record<Outcome, string>>> = {
     success: 'success',
@@ -62,7 +72,7 @@ function outcomeSentence(status: number, durationMs: number, result: Outcome): s
     'server-error': 'server error',
   };
   const label = statusLabel[result];
-  return `It completed with HTTP ${status}${label === undefined ? '' : ` (${label})`} in ${durationMs} ms.`;
+  return `It completed with HTTP ${status}${label === undefined ? '' : ` (${label})`} in ${duration} ms.`;
 }
 
 function normalizedUrl(value: string): string | undefined {
@@ -127,7 +137,7 @@ export function explainRequest(
     request.response.status === 0
       ? 'HTTP status: no response captured.'
       : `HTTP status: ${request.response.status}.`,
-    `Duration: ${request.timing.totalMs} ms.`,
+    `Duration: ${durationLabel(request.timing.totalMs)} ms.`,
   ];
 
   if (request.evidence.redirectUrl !== undefined) {

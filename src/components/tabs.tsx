@@ -64,7 +64,9 @@ export function Tabs<Id extends string>({
           const isSelected = tab.id === selected.id;
           return (
             <button
-              aria-controls={`${instanceId}-${tab.id}-panel`}
+              // Only the selected panel is mounted, so pointing at an id that
+              // is not in the document would be a dangling reference.
+              {...(isSelected ? { 'aria-controls': panelId } : {})}
               aria-selected={isSelected}
               className="tabs__tab"
               id={`${instanceId}-${tab.id}-tab`}

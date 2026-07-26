@@ -109,7 +109,7 @@ export class PayloadraDriver {
 
   requestRows(): Locator {
     return this.page
-      .getByRole('table', { name: 'Captured requests' })
+      .getByRole('grid', { name: 'Captured requests' })
       .locator('tbody tr');
   }
 

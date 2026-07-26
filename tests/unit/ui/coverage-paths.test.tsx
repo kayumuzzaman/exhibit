@@ -669,3 +669,40 @@ describe('inspect copy outcome scoping', () => {
     );
   });
 });
+
+describe('comparison duration resolution', () => {
+  it('reports no change for two timings that differ only in float noise', () => {
+    render(
+      <RequestDiffView
+        diff={{
+          leftId: 'left',
+          rightId: 'right',
+          method: { left: 'GET', right: 'GET', changed: false },
+          url: {
+            left: 'https://app.test/api/x',
+            right: 'https://app.test/api/x',
+            changed: false,
+          },
+          status: { left: 200, right: 200, changed: false },
+          durationMs: { left: 40.1, right: 40.10000000000002, changed: true },
+          requestHeaders: [],
+          responseHeaders: [],
+          requestBody: {
+            format: 'json',
+            leftState: 'available',
+            rightState: 'available',
+            changes: [],
+          },
+          responseBody: {
+            format: 'json',
+            leftState: 'available',
+            rightState: 'available',
+            changes: [],
+          },
+        }}
+      />,
+    );
+
+    expect(screen.getByText('No change')).toBeVisible();
+  });
+});

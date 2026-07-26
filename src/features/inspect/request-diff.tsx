@@ -17,7 +17,9 @@ function bodyRows(label: string, body: BodyDiff): ValueDiff[] {
 }
 
 export function RequestDiffView({ diff }: Readonly<{ diff: RequestDiff }>) {
-  const delta = diff.durationMs.right - diff.durationMs.left;
+  // Comparing raw HAR floats reports a change for two identical timings, so the
+  // delta is taken at the millisecond resolution the panel displays.
+  const delta = Math.round(diff.durationMs.right) - Math.round(diff.durationMs.left);
   const bodyChanges = [
     ...bodyRows('request', diff.requestBody),
     ...bodyRows('', diff.responseBody),

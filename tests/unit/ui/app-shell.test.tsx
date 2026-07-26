@@ -182,7 +182,7 @@ describe('PayloadraApp', () => {
     expect(
       screen.queryByRole('columnheader', { name: 'Evidence' }),
     ).not.toBeInTheDocument();
-    expect(screen.getByRole('table', { name: 'Captured requests' })).toHaveClass(
+    expect(screen.getByRole('grid', { name: 'Captured requests' })).toHaveClass(
       'request-table--phone',
     );
     const phoneRow = screen.getByRole('row', { name: /orders/i });

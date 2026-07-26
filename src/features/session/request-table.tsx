@@ -135,9 +135,13 @@ export function RequestTable({
       }}
       ref={scrollerRef}
     >
+      {/* Rows carry a roving tabindex, aria-selected, and arrow-key navigation,
+          which is the grid pattern. A static table would leave assistive
+          technology in browse mode, where those keys never reach the rows. */}
       <table
         aria-label="Captured requests"
         className={`request-table${phone ? ' request-table--phone' : ''}`}
+        role="grid"
       >
         <thead>
           <tr>

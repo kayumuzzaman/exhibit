@@ -94,7 +94,7 @@ describe('RequestTable', () => {
       />,
     );
 
-    expect(screen.getByRole('table', { name: 'Captured requests' })).toBeVisible();
+    expect(screen.getByRole('grid', { name: 'Captured requests' })).toBeVisible();
     for (const heading of [
       'Time',
       'Method',
