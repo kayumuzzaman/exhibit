@@ -2,6 +2,7 @@
   "name": "payloadra",
   "version": "0.1.0",
   "private": true,
+  "license": "UNLICENSED",
   "type": "module",
   "scripts": {
     "build": "wxt build",
@@ -13,7 +14,10 @@
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "test:e2e": "playwright test",
-    "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test:coverage && pnpm build"
+    "audit:package": "node scripts/audit-package.mjs .output/chrome-mv3",
+    "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test:coverage && pnpm build",
+    "verify": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test:coverage && pnpm build && pnpm audit:package && pnpm test:e2e",
+    "release:artifact": "pnpm verify && pnpm zip"
   },
   "engines": {
     "node": ">=22",

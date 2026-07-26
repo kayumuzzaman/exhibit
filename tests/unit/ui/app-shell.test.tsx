@@ -789,3 +789,112 @@ describe('PayloadraApp', () => {
     consoleError.mockRestore();
   });
 });
+
+describe('PayloadraApp dialog failures', () => {
+  it('shows a clear failure inside the open dialog', async () => {
+    const user = userEvent.setup();
+    const controller = controllerFake();
+    controller.clear = () => Promise.reject(new Error('storage locked'));
+    render(<PayloadraApp controller={controller} />);
+
+    await user.click(screen.getByRole('button', { name: 'Clear evidence' }));
+    await user.click(screen.getByRole('button', { name: 'Clear evidence now' }));
+
+    const dialog = await screen.findByRole('dialog', {
+      name: 'Clear captured evidence',
+    });
+    expect(dialog).toHaveTextContent('Clear failed.');
+    expect(screen.getByRole('status')).toHaveTextContent('Clear failed.');
+  });
+
+  it('shows an export failure inside the open dialog', async () => {
+    const user = userEvent.setup();
+    const controller = controllerFake();
+    render(
+      <PayloadraApp
+        controller={controller}
+        exportEvidence={() => Promise.reject(new Error('download blocked'))}
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Export evidence' }));
+    await user.click(screen.getByRole('button', { name: 'Export sanitized file' }));
+
+    const dialog = await screen.findByRole('dialog', {
+      name: 'Export sanitized evidence',
+    });
+    expect(dialog).toHaveTextContent('Export failed.');
+  });
+
+  it('reports a recording failure outside any dialog', async () => {
+    const user = userEvent.setup();
+    const controller = controllerFake();
+    controller.start = () => Promise.reject(new Error('capture unavailable'));
+    render(<PayloadraApp controller={controller} />);
+
+    await user.click(screen.getByRole('button', { name: 'Start recording' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Capture stopped unexpectedly.',
+    );
+  });
+});
+
+describe('PayloadraApp presentation boundaries', () => {
+  it('announces the transitional recording phases', () => {
+    const { unmount } = render(
+      <PayloadraApp controller={controllerFake(sessionWith('starting'))} />,
+    );
+    expect(screen.getByRole('status')).toHaveTextContent('Starting recording');
+    unmount();
+
+    render(<PayloadraApp controller={controllerFake(sessionWith('stopping'))} />);
+    expect(screen.getByRole('status')).toHaveTextContent('Stopping recording');
+  });
+
+  it('renders an opaque request URL verbatim and still offers comparison', async () => {
+    setViewport(1_440);
+    const user = userEvent.setup();
+    const opaque = [
+      sanitizedRequestWith({
+        id: 'first',
+        classification: { kind: 'api', confidence: 'confirmed', evidence: [] },
+      }),
+      sanitizedRequestWith({
+        id: 'second',
+        classification: { kind: 'api', confidence: 'confirmed', evidence: [] },
+      }),
+    ].map((request) => ({ ...request, url: 'payloadra-opaque-route' }));
+
+    render(
+      <PayloadraApp controller={controllerFake(sessionWith('recording', opaque))} />,
+    );
+
+    const rows = screen.getAllByRole('row').slice(1);
+    await user.click(rows[1]!);
+
+    const detail = screen.getByRole('region', { name: 'Request detail' });
+    expect(detail).toHaveTextContent('payloadra-opaque-route');
+
+    await user.click(within(detail).getByRole('tab', { name: 'Inspect' }));
+    expect(
+      within(detail).getByRole('button', { name: 'Show request comparison' }),
+    ).toBeVisible();
+  });
+
+  it('treats a browser without matchMedia as motion-allowed', () => {
+    const original = window.matchMedia;
+    Reflect.deleteProperty(window as unknown as Record<string, unknown>, 'matchMedia');
+
+    const { container } = render(<PayloadraApp controller={controllerFake()} />);
+
+    expect(
+      container.querySelector('[data-reduced-motion="false"]'),
+    ).toBeInTheDocument();
+
+    Object.defineProperty(window, 'matchMedia', {
+      configurable: true,
+      value: original,
+    });
+  });
+});

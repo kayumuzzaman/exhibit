@@ -36,6 +36,12 @@ export default tseslint.config(
     rules: { 'no-empty-pattern': 'off' },
   },
   {
+    files: ['scripts/**/*.mjs'],
+    languageOptions: {
+      globals: { ...globals.node, chrome: 'readonly' },
+    },
+  },
+  {
     files: ['tests/fixtures/**/public/*.js'],
     languageOptions: {
       globals: { ...globals.browser, ...globals.serviceworker },

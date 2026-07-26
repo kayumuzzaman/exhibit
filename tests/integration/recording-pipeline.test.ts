@@ -758,3 +758,124 @@ describe('interaction evidence', () => {
     expect(sink.accepted).toHaveLength(1);
   });
 });
+
+describe('pipeline lifecycle boundaries', () => {
+  it('tears down interaction capture when capture startup fails', async () => {
+    const capture = new ManualCapture();
+    const sink = new MemorySink();
+    const stops: string[] = [];
+    capture.begin = async () => {
+      throw new Error('capture unavailable');
+    };
+    capture.stop = async () => {
+      stops.push('capture');
+    };
+    const interactions: InteractionSource = {
+      async start(context) {
+        return {
+          status: 'active',
+          tabId: context.tabId,
+          origin: 'https://app.test',
+          documentId: 'document-1',
+          leaseId: 'lease-1',
+        };
+      },
+      async stop() {
+        stops.push('interactions');
+      },
+      subscribe() {
+        return () => undefined;
+      },
+    };
+    const pipeline = createRecordingPipeline({
+      capture,
+      controller: sink,
+      interactions,
+    });
+
+    await expect(
+      pipeline.start(1_000, {
+        interaction: { tabId: 7, url: 'https://app.test/page' },
+      }),
+    ).rejects.toThrow('capture unavailable');
+    expect(stops).toEqual(['interactions', 'capture']);
+  });
+
+  it('keeps the original startup failure when teardown also fails', async () => {
+    const capture = new ManualCapture();
+    const sink = new MemorySink();
+    capture.begin = async () => {
+      throw new Error('capture unavailable');
+    };
+    capture.stop = async () => {
+      throw new Error('stop also failed');
+    };
+    const interactions: InteractionSource = {
+      async start() {
+        return {
+          status: 'active',
+          tabId: 7,
+          origin: 'https://app.test',
+          documentId: 'document-1',
+          leaseId: 'lease-1',
+        };
+      },
+      async stop() {
+        throw new Error('interaction stop failed');
+      },
+      subscribe() {
+        return () => undefined;
+      },
+    };
+    const pipeline = createRecordingPipeline({
+      capture,
+      controller: sink,
+      interactions,
+    });
+
+    await expect(
+      pipeline.start(1_000, {
+        interaction: { tabId: 7, url: 'https://app.test/page' },
+      }),
+    ).rejects.toThrow('capture unavailable');
+  });
+
+  it('disposes an idle pipeline without stopping sources twice', async () => {
+    const capture = new ManualCapture();
+    const sink = new MemorySink();
+    let disposed = 0;
+    capture.dispose = async () => {
+      disposed += 1;
+    };
+    const pipeline = createRecordingPipeline({ capture, controller: sink });
+
+    await pipeline.dispose(3_000);
+    await pipeline.dispose();
+
+    expect(capture.stopCalls).toEqual([]);
+    expect(disposed).toBe(2);
+  });
+
+  it('drains an active recording during dispose and clears related history', async () => {
+    const capture = new ManualCapture();
+    const sink = new MemorySink();
+    const pipeline = createRecordingPipeline({ capture, controller: sink });
+
+    await pipeline.start(1_000);
+    capture.emit({ type: 'observation', observation: observation() });
+    await pipeline.dispose(2_000);
+
+    expect(capture.stopCalls).toEqual([2_000]);
+    expect(sink.accepted).toHaveLength(1);
+  });
+
+  it('ignores a stop request when no recording is active', async () => {
+    const capture = new ManualCapture();
+    const sink = new MemorySink();
+    const pipeline = createRecordingPipeline({ capture, controller: sink });
+
+    await pipeline.stop(2_000);
+
+    expect(capture.stopCalls).toEqual([]);
+  });
+});

@@ -471,3 +471,247 @@ describe('Chrome DevTools capture source', () => {
     expect(seen).toEqual(['https://app.test/first']);
   });
 });
+
+describe('Chrome DevTools capture source boundaries', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('includes non-idempotent, API, RSC, and GraphQL traffic while dropping static assets', async () => {
+    const network = new FakeNetwork();
+    network.entries = [
+      entry('posted', 1_000, { request: { method: 'POST' } }),
+      entry('xhr', 1_001, { _resourceType: 'xhr' }),
+      entry('flight', 1_002, {
+        response: {
+          status: 200,
+          headers: [{ name: 'content-type', value: 'text/x-component' }],
+          content: { mimeType: 'text/x-component', size: 2 },
+        },
+      }),
+      entry('router', 1_003, {
+        request: {
+          method: 'GET',
+          url: 'https://app.test/router',
+          headers: [{ name: 'next-router-state-tree', value: '%5B%5D' }],
+        },
+      }),
+      entry('rsc', 1_004, {
+        request: {
+          method: 'GET',
+          url: 'https://app.test/page?_rsc=abc',
+          headers: [],
+        },
+      }),
+      entry('graphql', 1_005, {
+        request: { method: 'GET', url: 'https://app.test/graphql', headers: [] },
+      }),
+      entry('opaque', 1_006, {
+        request: { method: 'GET', url: 'payloadra-opaque', headers: [] },
+        _resourceType: 'image',
+      }),
+      entry('style', 1_007, { _resourceType: 'stylesheet' }),
+    ];
+    const events: CaptureEvent[] = [];
+    const source = chromeCaptureSource({ network });
+    source.subscribe((event) => events.push(event));
+
+    await source.begin(1_000);
+    await source.stop(2_000);
+
+    const seen = observations(events).map(
+      (item) => (item.entry as { _requestId: string })._requestId,
+    );
+    expect(seen).toEqual(['posted', 'xhr', 'flight', 'router', 'rsc', 'graphql']);
+  });
+
+  it('keeps static assets when the caller opts in', async () => {
+    const network = new FakeNetwork();
+    network.entries = [entry('style', 1_000, { _resourceType: 'stylesheet' })];
+    const events: CaptureEvent[] = [];
+    const source = chromeCaptureSource({ network });
+    source.subscribe((event) => events.push(event));
+
+    await source.begin(1_000, { includeStatic: true });
+    await source.stop(2_000);
+
+    expect(observations(events)).toHaveLength(1);
+  });
+
+  it('reports an unavailable content API without dropping the observation', async () => {
+    const network = new FakeNetwork();
+    const withoutContent = { ...entry('no-content', 1_000) };
+    Reflect.deleteProperty(withoutContent as Record<string, unknown>, 'getContent');
+    network.entries = [withoutContent];
+    const events: CaptureEvent[] = [];
+    const source = chromeCaptureSource({ network });
+    source.subscribe((event) => events.push(event));
+
+    await source.begin(1_000);
+    await source.stop(2_000);
+
+    expect(observations(events)[0]?.content).toMatchObject({
+      state: 'unavailable',
+      unavailableReason: 'content-api-unavailable',
+    });
+    expect(events.some((event) => event.type === 'issue')).toBe(true);
+  });
+
+  it('reports a runtime error from the HAR callback as an unavailable API', async () => {
+    const network = new FakeNetwork();
+    const events: CaptureEvent[] = [];
+    const source = chromeCaptureSource({
+      network,
+      runtime: { lastError: { message: 'devtools detached' } },
+    });
+    source.subscribe((event) => events.push(event));
+
+    await source.begin(1_000);
+    await source.stop(2_000);
+
+    expect(
+      events.flatMap((event) => (event.type === 'issue' ? [event.issue.code] : [])),
+    ).toContain('har-api-unavailable');
+  });
+
+  it('treats a throwing runtime accessor as an unavailable API', async () => {
+    const network = new FakeNetwork();
+    const events: CaptureEvent[] = [];
+    const source = chromeCaptureSource({
+      network,
+      runtime: {
+        get lastError(): never {
+          throw new Error('context invalidated');
+        },
+      },
+    });
+    source.subscribe((event) => events.push(event));
+
+    await source.begin(1_000);
+    await source.stop(2_000);
+
+    expect(
+      events.flatMap((event) => (event.type === 'issue' ? [event.issue.code] : [])),
+    ).toContain('har-api-unavailable');
+  });
+
+  it('reports a malformed HAR payload', async () => {
+    const network = new FakeNetwork();
+    network.getHarImplementation = (callback) => {
+      (callback as unknown as (value: unknown) => void)({ entries: 'not-an-array' });
+    };
+    const events: CaptureEvent[] = [];
+    const source = chromeCaptureSource({ network });
+    source.subscribe((event) => events.push(event));
+
+    await source.begin(1_000);
+    await source.stop(2_000);
+
+    expect(
+      events.flatMap((event) => (event.type === 'issue' ? [event.issue.code] : [])),
+    ).toContain('invalid-har');
+  });
+
+  it('reports a throwing HAR API without breaking the session', async () => {
+    const network = new FakeNetwork();
+    network.getHarImplementation = () => {
+      throw new Error('getHAR unavailable');
+    };
+    const events: CaptureEvent[] = [];
+    const source = chromeCaptureSource({ network });
+    source.subscribe((event) => events.push(event));
+
+    await source.begin(1_000);
+    await source.stop(2_000);
+
+    expect(
+      events.flatMap((event) => (event.type === 'issue' ? [event.issue.code] : [])),
+    ).toContain('har-api-unavailable');
+  });
+
+  it('emits live listener traffic and reconciles it only once', async () => {
+    const network = new FakeNetwork();
+    const live = entry('live', 1_500);
+    const events: CaptureEvent[] = [];
+    const source = chromeCaptureSource({ network });
+    source.subscribe((event) => events.push(event));
+
+    await source.begin(1_000);
+    network.emit(live);
+    network.entries = [live];
+    await source.reconcile();
+    await source.stop(2_000);
+
+    expect(observations(events)).toHaveLength(1);
+  });
+
+  it('ignores listener traffic once recording stops', async () => {
+    const network = new FakeNetwork();
+    const events: CaptureEvent[] = [];
+    const source = chromeCaptureSource({ network });
+    source.subscribe((event) => events.push(event));
+
+    await source.begin(1_000);
+    await source.stop(2_000);
+    network.emit(entry('late', 1_500));
+
+    expect(observations(events)).toHaveLength(0);
+  });
+
+  it('polls while visible and stops polling when hidden', async () => {
+    vi.useFakeTimers();
+    const network = new FakeNetwork();
+    const source = chromeCaptureSource({ network }, { pollIntervalMs: 50 });
+
+    await source.begin(1_000);
+    const afterBegin = network.getHarCalls;
+
+    await vi.advanceTimersByTimeAsync(120);
+    expect(network.getHarCalls).toBeGreaterThan(afterBegin);
+
+    source.visibility(false);
+    const afterHide = network.getHarCalls;
+    await vi.advanceTimersByTimeAsync(200);
+    expect(network.getHarCalls).toBe(afterHide);
+
+    source.visibility(true);
+    await vi.advanceTimersByTimeAsync(120);
+    expect(network.getHarCalls).toBeGreaterThan(afterHide);
+
+    await source.stop(2_000);
+  });
+
+  it('ignores a second begin and refuses to begin after disposal', async () => {
+    const network = new FakeNetwork();
+    const source = chromeCaptureSource({ network });
+
+    await source.begin(1_000);
+    const calls = network.getHarCalls;
+    await source.begin(1_000);
+    expect(network.getHarCalls).toBe(calls);
+
+    await source.dispose();
+    await expect(source.begin(1_000)).rejects.toThrow('Capture source was disposed.');
+  });
+
+  it('detaches the listener when stopping an inactive source', async () => {
+    const network = new FakeNetwork();
+    const source = chromeCaptureSource({ network });
+
+    await source.stop(2_000);
+    await source.reconcile();
+
+    expect(network.added).toHaveLength(0);
+    expect(network.getHarCalls).toBe(0);
+  });
+
+  it('disposes an idle source without stopping twice', async () => {
+    const network = new FakeNetwork();
+    const source = chromeCaptureSource({ network });
+
+    await source.dispose();
+    await source.dispose();
+
+    expect(network.removed).toHaveLength(0);
+  });
+});
