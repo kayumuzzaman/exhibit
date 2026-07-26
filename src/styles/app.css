@@ -13,6 +13,16 @@
   display: contents;
 }
 
+/**
+ * Notices are variable in number and the status region is out of flow, so they
+ * are grouped into one row. Without it the workspace lands in an `auto` track
+ * and stops at its content height instead of filling the panel.
+ */
+.app-notices {
+  display: flex;
+  flex-direction: column;
+}
+
 .app-background[inert] {
   pointer-events: none;
 }

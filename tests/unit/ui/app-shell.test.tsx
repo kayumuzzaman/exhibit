@@ -898,3 +898,18 @@ describe('PayloadraApp presentation boundaries', () => {
     });
   });
 });
+
+describe('PayloadraApp shell layout contract', () => {
+  it('groups the status region and notices into one shell row', () => {
+    const session = sessionWith('recording', [sanitizedRequestWith({ id: 'orders' })]);
+    const { container } = render(
+      <PayloadraApp controller={controllerFake({ ...session, evictedCount: 3 })} />,
+    );
+
+    const notices = container.querySelector('.app-notices');
+    expect(notices).toBeInTheDocument();
+    expect(notices?.querySelector('[role="status"]')).toBeInTheDocument();
+    expect(notices?.querySelector('.session-notice')).toBeInTheDocument();
+    expect(container.querySelectorAll('.app-background > *')).toHaveLength(3);
+  });
+});

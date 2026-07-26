@@ -7,6 +7,15 @@ import {
 } from '../../src/infrastructure/chrome/interaction-bridge';
 import type { InteractionSource } from '../../src/ports/interaction-source';
 
+export type LoopbackInteractionSource = InteractionSource &
+  Readonly<{
+    /**
+     * Installs the collector in an additional same-origin document, such as a
+     * fixture page loaded in a frame, and returns a detach function.
+     */
+    attach(frame: Window & typeof globalThis): () => void;
+  }>;
+
 function readInteraction(message: unknown): InteractionEvent | null {
   if (message === null || typeof message !== 'object') return null;
   const envelope = message as { type?: unknown; event?: unknown };
@@ -30,8 +39,9 @@ function readInteraction(message: unknown): InteractionEvent | null {
  * routes its port messages straight back to the recording pipeline, replacing
  * only the extension messaging hop that end-to-end pages cannot provide.
  */
-export function createLoopbackInteractionSource(): InteractionSource {
+export function createLoopbackInteractionSource(): LoopbackInteractionSource {
   const listeners = new Set<(event: InteractionEvent) => void>();
+  const frames = new Map<Window & typeof globalThis, CollectorInstallation>();
   let installation: CollectorInstallation | null = null;
   let boundTabId: string | null = null;
 
@@ -53,19 +63,34 @@ export function createLoopbackInteractionSource(): InteractionSource {
     disconnect() {},
   };
 
+  function install(view: Window & typeof globalThis): CollectorInstallation {
+    return installInteractionCollector({
+      global: view as unknown as Record<string, unknown>,
+      document: view.document as unknown as CollectorEventHub,
+      window: view as unknown as CollectorEventHub,
+      connect: () => port,
+      currentUrl: () => view.location.href,
+      now: Date.now,
+      nextId: () => crypto.randomUUID(),
+      createSignal: (type, detail) => new view.CustomEvent(type, { detail }),
+    });
+  }
+
+  function releaseFrames(): void {
+    for (const [, frameInstallation] of frames) {
+      try {
+        frameInstallation.stop();
+      } catch {
+        // A navigated or closed frame no longer needs teardown.
+      }
+    }
+    frames.clear();
+  }
+
   return {
     async start(context) {
       installation?.stop();
-      installation = installInteractionCollector({
-        global: globalThis as unknown as Record<string, unknown>,
-        document: document as unknown as CollectorEventHub,
-        window: window as unknown as CollectorEventHub,
-        connect: () => port,
-        currentUrl: () => location.href,
-        now: Date.now,
-        nextId: () => crypto.randomUUID(),
-        createSignal: (type, detail) => new CustomEvent(type, { detail }),
-      });
+      installation = install(globalThis as unknown as Window & typeof globalThis);
       if (installation.status === 'unavailable') {
         return { status: 'network-only', reason: 'injection-failed' };
       }
@@ -87,10 +112,19 @@ export function createLoopbackInteractionSource(): InteractionSource {
     async stop() {
       installation?.stop();
       installation = null;
+      releaseFrames();
     },
     subscribe(listener) {
       listeners.add(listener);
       return () => listeners.delete(listener);
+    },
+    attach(frame) {
+      frames.get(frame)?.stop();
+      frames.set(frame, install(frame));
+      return () => {
+        frames.get(frame)?.stop();
+        frames.delete(frame);
+      };
     },
   };
 }

@@ -28,6 +28,17 @@ test.describe('recording workflow', () => {
     expect(report).toContain('Payloadra');
   });
 
+  test('fills the panel height with the workspace when no notice is shown', async ({
+    payloadra,
+  }) => {
+    const shell = await payloadra.page.locator('.app-shell').boundingBox();
+    const workspace = await payloadra.page.locator('.workspace').boundingBox();
+
+    expect(shell).not.toBeNull();
+    expect(workspace).not.toBeNull();
+    expect(workspace!.y + workspace!.height).toBeCloseTo(shell!.y + shell!.height, 0);
+  });
+
   test('keeps the ledger empty until recording starts', async ({ payloadra }) => {
     await payloadra.trigger('load-profile');
 

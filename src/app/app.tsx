@@ -586,33 +586,36 @@ function PanelShell({
           phase={session.phase}
           theme={theme}
         />
-        <div aria-atomic="true" className="sr-only" role="status">
-          {announcement || phaseLabel(session.phase)}
-        </div>
+        <div className="app-notices">
+          <div aria-atomic="true" className="sr-only" role="status">
+            {announcement || phaseLabel(session.phase)}
+          </div>
 
-        {session.evictedCount > 0 ? (
-          <div className="session-notice" role="note">
-            <Icon name="archive" />
-            {session.evictedCount} oldest requests were removed to keep this session
-            within its storage limit.
-          </div>
-        ) : null}
-        {warningCodes.has('interaction-start-failed') && session.requests.length > 0 ? (
-          <div className="session-notice session-notice--warning" role="note">
-            Network requests are still recording. Interaction grouping is unavailable.
-          </div>
-        ) : null}
-        {warningCodes.has('capture-failed') && session.requests.length > 0 ? (
-          <div className="session-notice session-notice--failure" role="alert">
-            Capture stopped unexpectedly. Start recording again. Existing sanitized
-            evidence remains available.
-          </div>
-        ) : null}
-        {actionError === '' || dialog !== null ? null : (
-          <div className="session-notice session-notice--failure" role="alert">
-            {actionError}
-          </div>
-        )}
+          {session.evictedCount > 0 ? (
+            <div className="session-notice" role="note">
+              <Icon name="archive" />
+              {session.evictedCount} oldest requests were removed to keep this session
+              within its storage limit.
+            </div>
+          ) : null}
+          {warningCodes.has('interaction-start-failed') &&
+          session.requests.length > 0 ? (
+            <div className="session-notice session-notice--warning" role="note">
+              Network requests are still recording. Interaction grouping is unavailable.
+            </div>
+          ) : null}
+          {warningCodes.has('capture-failed') && session.requests.length > 0 ? (
+            <div className="session-notice session-notice--failure" role="alert">
+              Capture stopped unexpectedly. Start recording again. Existing sanitized
+              evidence remains available.
+            </div>
+          ) : null}
+          {actionError === '' || dialog !== null ? null : (
+            <div className="session-notice session-notice--failure" role="alert">
+              {actionError}
+            </div>
+          )}
+        </div>
 
         {workspace}
       </div>

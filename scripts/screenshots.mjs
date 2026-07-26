@@ -1,0 +1,125 @@
+import { mkdir, rm } from 'node:fs/promises';
+import { fileURLToPath } from 'node:url';
+import { chromium } from 'playwright';
+import { build } from 'vite';
+
+import { startGenericFixture } from '../tests/fixtures/generic/server.ts';
+import {
+  startNextFixture,
+  buildNextFixture,
+} from '../tests/fixtures/next-app-server.ts';
+import { PayloadraDriver } from '../tests/e2e/devtools-driver.ts';
+
+/**
+ * Captures the Chrome Web Store screenshot set from the real panel driven
+ * against the real fixtures. Output is exactly 1280 x 800, dark theme, with the
+ * harness controls hidden so only the product surface is visible.
+ */
+
+const HARNESS_CONFIG = fileURLToPath(
+  new URL('../tests/e2e/harness/vite.config.ts', import.meta.url),
+);
+const HARNESS_DIR = fileURLToPath(new URL('../.output/e2e-harness', import.meta.url));
+const OUTPUT_DIR = fileURLToPath(new URL('../docs/screenshots', import.meta.url));
+
+async function main() {
+  await build({ configFile: HARNESS_CONFIG });
+  await buildNextFixture();
+  await rm(OUTPUT_DIR, { force: true, recursive: true });
+  await mkdir(OUTPUT_DIR, { recursive: true });
+
+  const next = await startNextFixture();
+  const fixture = await startGenericFixture({
+    harnessDir: HARNESS_DIR,
+    nextOrigin: next.origin,
+  });
+  const browser = await chromium.launch();
+  const context = await browser.newContext({
+    viewport: { width: 1_280, height: 800 },
+    colorScheme: 'dark',
+    deviceScaleFactor: 1,
+  });
+  const page = await context.newPage();
+  const captured = [];
+
+  // The controls must stay a grid item so the panel keeps the `1fr` row and
+  // fills the full 800 px frame; collapsing them to zero height hides them
+  // without changing the layout the product actually renders into.
+  const COLLAPSED = 'height:0;padding:0;border:0;overflow:hidden;visibility:hidden';
+
+  async function shot(name) {
+    await page.locator('#fixture-panel').evaluate((node, style) => {
+      node.setAttribute('style', style);
+    }, COLLAPSED);
+    await page.waitForTimeout(200);
+    const path = `${OUTPUT_DIR}/${name}.png`;
+    await page.screenshot({ path });
+    await page.locator('#fixture-panel').evaluate((node) => {
+      node.removeAttribute('style');
+    });
+    captured.push(name);
+  }
+
+  try {
+    await page.goto(`${fixture.origin}/panel/`);
+    const payloadra = new PayloadraDriver(page);
+    await payloadra.ready();
+
+    // 1. Recording ledger with representative traffic.
+    await payloadra.startRecording();
+    await payloadra.trigger('save-profile');
+    await payloadra.trigger('load-profile');
+    await payloadra.trigger('graphql');
+    await payloadra.trigger('submit-form');
+    await payloadra.trigger('failing');
+    await payloadra.trigger('slow');
+    await shot('01-recording-ledger');
+
+    // 2. Explain a real Next.js Server Action with its evidence disclosure.
+    await payloadra.openNextFixture();
+    await payloadra.triggerInNextFixture('#next-save-action');
+    await payloadra
+      .requestRows()
+      .filter({ hasText: 'next-server-action' })
+      .first()
+      .click();
+    await payloadra.openExplain();
+    await page.locator('.explain-evidence').evaluate((node) => {
+      node.open = true;
+    });
+    await shot('02-explain-server-action');
+
+    // 3. Inspect timing for the slow call.
+    await payloadra.openRequest('/api/slow');
+    await payloadra.openInspect();
+    await payloadra.openEvidenceTab('Timing');
+    await shot('03-inspect-timing');
+
+    // 4. Partial React Flight decode beside its raw protocol fallback.
+    await payloadra.setApiOnly(false);
+    await payloadra.trigger('flight-partial');
+    await payloadra.openRequest('/api/flight-partial');
+    await payloadra.openInspect();
+    await payloadra.openEvidenceTab('Response');
+    await page.locator('.body-viewer').scrollIntoViewIfNeeded();
+    await shot('04-flight-raw-fallback');
+
+    // 5. Redaction in place across header, query, and body.
+    await payloadra.trigger('secret');
+    await payloadra.openRequest('/api/secret');
+    await payloadra.openInspect();
+    await payloadra.openEvidenceTab('Request');
+    await shot('05-redaction');
+  } finally {
+    await context.close();
+    await browser.close();
+    await fixture.close();
+    await next.close();
+  }
+
+  for (const name of captured) {
+    process.stdout.write(`- docs/screenshots/${name}.png\n`);
+  }
+}
+
+await main();

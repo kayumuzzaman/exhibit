@@ -168,6 +168,7 @@ export async function mountPanelHarness(
           view.document.readyState === 'complete'
         ) {
           port.attach(view);
+          interactions.attach(view);
           return;
         }
         if (Date.now() > deadline) throw new Error('Fixture frame did not load.');

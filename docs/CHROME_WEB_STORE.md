@@ -63,24 +63,23 @@ private; publishing requires the owner to choose a licence first.
 - Is data used for purposes unrelated to the item's core functionality? **No.**
 - Is data used to determine creditworthiness or for lending? **No.**
 
-## Screenshot requirements
+## Screenshots
 
-Provide five 1280 × 800 PNG screenshots, captured on the wide layout in dark
-theme unless noted:
+Regenerate the set with `npx tsx scripts/screenshots.mjs`. It drives the real
+panel against the real fixtures, hides the harness controls, and writes exactly
+1280 x 800 dark-theme PNGs to `docs/screenshots/`:
 
-1. **Recording ledger** — command bar recording, session rail, populated ledger.
-2. **Explain workspace** — outcome sentence, action identifier, submitted
-   shape, and the "Why Payloadra says this" disclosure expanded.
-3. **Inspect overview and timing** — evidence tabs with the timing waterfall
-   showing text labels and patterns.
-4. **Raw protocol fallback** — a partially decoded React Flight body beside its
-   raw protocol tab.
-5. **Privacy** — a request whose authorization header, query token, and body
-   field all display `[REDACTED]`.
+| File                           | Shows                                                                                                       |
+| ------------------------------ | ----------------------------------------------------------------------------------------------------------- |
+| `01-recording-ledger.png`      | Command bar recording, session rail, populated ledger with a failure and a slow call.                       |
+| `02-explain-server-action.png` | Explain for a real Next.js Server Action: outcome sentence, confirmed confidence, opaque action identifier. |
+| `03-inspect-timing.png`        | Inspect timing waterfall with text labels and patterns beside the bars.                                     |
+| `04-flight-raw-fallback.png`   | Partially decoded React Flight body, its decode reason, and the Raw protocol tab.                           |
+| `05-redaction.png`             | Redacted URL query token, authorization and API-key headers, and body fields.                               |
 
-Also supply a 128 × 128 store icon (`public/icon/128.png`) and, optionally, a
-1400 × 560 marquee tile. Screenshots must contain no real credentials, no real
-customer data, and no third-party branding.
+Also supply a 128 x 128 store icon (`public/icon/128.png`) and, optionally, a
+1400 x 560 marquee tile. The generated screenshots contain only fixture data:
+no real credentials, no customer data, and no third-party branding.
 
 ## Release checklist
 
