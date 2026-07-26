@@ -165,3 +165,61 @@ describe('recovery dialog dismissal', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 });
+
+describe('recovery failure reporting', () => {
+  it('reports a failed clear instead of leaving the dialog silent', async () => {
+    const user = userEvent.setup();
+    const clear = vi.fn(() => Promise.reject(new Error('storage locked')));
+    render(
+      <AppErrorBoundary controller={controllerFake(clear)}>
+        <Exploding />
+      </AppErrorBoundary>,
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Clear evidence' }));
+    await user.click(screen.getByRole('button', { name: 'Clear evidence now' }));
+
+    expect(
+      await screen.findByText(/Clear failed\. Close DevTools/u),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('dialog', { name: 'Clear captured evidence' }),
+    ).toBeVisible();
+  });
+
+  it('reports a failed export and clears it when the dialog is abandoned', async () => {
+    const user = userEvent.setup();
+    render(
+      <AppErrorBoundary
+        controller={controllerFake(async () => {})}
+        exportEvidence={() => Promise.reject(new Error('download blocked'))}
+      >
+        <Exploding />
+      </AppErrorBoundary>,
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Export evidence' }));
+    await user.click(screen.getByRole('button', { name: 'Export sanitized file' }));
+    expect(
+      await screen.findByText(/Export failed\. Evidence remains sanitized/u),
+    ).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Cancel export' }));
+    await user.click(screen.getByRole('button', { name: 'Export evidence' }));
+
+    expect(document.querySelector('.dialog__error')).toBeNull();
+  });
+
+  it('announces only the failure notice, not the whole recovery screen', () => {
+    render(
+      <AppErrorBoundary controller={controllerFake(async () => {})}>
+        <Exploding />
+      </AppErrorBoundary>,
+    );
+
+    const alert = screen.getByRole('alert');
+    expect(alert).toHaveTextContent('Workspace could not render');
+    expect(alert.querySelector('button')).toBeNull();
+    expect(screen.getByRole('main')).toBeInTheDocument();
+  });
+});

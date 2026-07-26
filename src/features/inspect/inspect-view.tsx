@@ -50,8 +50,14 @@ export function InspectView({
   relatedRequests?: readonly SanitizedCapturedRequest[];
   request: SanitizedCapturedRequest;
 }>) {
-  const [copyResult, setCopyResult] = useState<CopyResult | null>(null);
+  const [copyResult, setCopyResult] = useState<Readonly<{
+    requestId: string;
+    result: CopyResult;
+  }> | null>(null);
   const [visibleComparisonKey, setVisibleComparisonKey] = useState<string | null>(null);
+  // A copy outcome describes one request, so it must not survive a new selection.
+  const visibleCopyResult =
+    copyResult?.requestId === request.id ? copyResult.result : null;
   const comparisonKey =
     comparison === undefined
       ? compareWith === undefined
@@ -67,7 +73,7 @@ export function InspectView({
       : null);
 
   function onCopyResult(result: CopyResult): void {
-    setCopyResult(result);
+    setCopyResult({ requestId: request.id, result });
   }
 
   function toggleComparison(): void {
@@ -216,12 +222,12 @@ export function InspectView({
           value={toSafeCurl(request)}
         />
       </div>
-      {copyResult === null ? null : (
+      {visibleCopyResult === null ? null : (
         <p
-          className={`copy-result copy-result--${copyResult.tone}`}
-          role={copyResult.tone === 'error' ? 'alert' : 'status'}
+          className={`copy-result copy-result--${visibleCopyResult.tone}`}
+          role={visibleCopyResult.tone === 'error' ? 'alert' : 'status'}
         >
-          {copyResult.message}
+          {visibleCopyResult.message}
         </p>
       )}
       <Tabs

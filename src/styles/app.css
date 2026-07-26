@@ -267,6 +267,15 @@
   color: transparent;
 }
 
+/**
+ * The collapsed control hides its own text, but the native popup inherits that
+ * colour, so options are restated explicitly or the menu renders unreadable.
+ */
+.theme-control select option {
+  background: var(--surface-high);
+  color: var(--text);
+}
+
 .session-notice {
   display: flex;
   min-height: 32px;
@@ -466,6 +475,9 @@
   position: relative;
   z-index: 2;
   width: 7px;
+  /* A drag must resize the columns, not select the adjacent ledger text. */
+  touch-action: none;
+  user-select: none;
   cursor: col-resize;
   background: var(--surface);
 }

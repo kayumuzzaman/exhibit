@@ -44,6 +44,8 @@ import {
 import { AppErrorBoundary } from './error-boundary';
 
 type ViewportMode = 'medium' | 'narrow' | 'phone' | 'wide';
+/** The ledger opens API-first; Reset clears every filter, including this one. */
+const API_ONLY_DEFAULT = true;
 const NO_QUICK_FILTERS: QuickFilterState = {
   cacheHits: false,
   failures: false,
@@ -76,22 +78,30 @@ function wideColumns(
   return { list, listMax, rail, railMax };
 }
 
-function viewportMode(): ViewportMode {
-  if (typeof window === 'undefined') return 'wide';
-  if (window.innerWidth < 480) return 'phone';
-  if (window.innerWidth < 720) return 'narrow';
-  if (window.innerWidth < 1_100) return 'medium';
+const DEFAULT_VIEWPORT_WIDTH = 1_440;
+
+function viewportModeFor(width: number): ViewportMode {
+  if (width < 480) return 'phone';
+  if (width < 720) return 'narrow';
+  if (width < 1_100) return 'medium';
   return 'wide';
 }
 
-function useViewportMode(): ViewportMode {
-  const [mode, setMode] = useState(viewportMode);
+/**
+ * The wide layout sizes its columns in pixels against the viewport, so the
+ * width itself is state. Tracking only the breakpoint band would let React bail
+ * out of a same-value update and leave the column maths stale after a resize.
+ */
+function useViewportWidth(): number {
+  const [width, setWidth] = useState(() =>
+    typeof window === 'undefined' ? DEFAULT_VIEWPORT_WIDTH : window.innerWidth,
+  );
   useEffect(() => {
-    const update = () => setMode(viewportMode());
+    const update = () => setWidth(window.innerWidth);
     window.addEventListener('resize', update);
     return () => window.removeEventListener('resize', update);
   }, []);
-  return mode;
+  return width;
 }
 
 function useReducedMotion(): boolean {
@@ -263,8 +273,10 @@ function emptyKind(
   warningCodes: ReadonlySet<string>,
 ): EmptyStateKind {
   if (origin === RESTRICTED_PAGE_ORIGIN) return 'restricted';
-  if (warningCodes.has('interaction-start-failed')) return 'network-only';
+  // A stopped capture outranks degraded interaction access: claiming recording
+  // continues would be false once capture itself has failed.
   if (warningCodes.has('capture-failed')) return 'capture-failure';
+  if (warningCodes.has('interaction-start-failed')) return 'network-only';
   return phase === 'recording' ? 'recording-empty' : 'not-recording';
 }
 
@@ -343,7 +355,8 @@ function PanelShell({
   const session = useSession();
   const controller = useSessionController();
   const exportEvidence = useExportEvidence();
-  const mode = useViewportMode();
+  const viewportWidth = useViewportWidth();
+  const mode = viewportModeFor(viewportWidth);
   const reducedMotion = useReducedMotion();
   const resolvedDevtoolsTheme = useSyncExternalStore(
     devtoolsThemeSource.subscribe,
@@ -351,7 +364,7 @@ function PanelShell({
     devtoolsThemeSource.getSnapshot,
   );
   const [theme, setTheme] = useState<ThemeMode>('system');
-  const [apiOnly, setApiOnly] = useState(true);
+  const [apiOnly, setApiOnly] = useState(API_ONLY_DEFAULT);
   const [quickFilters, setQuickFilters] = useState<QuickFilterState>(NO_QUICK_FILTERS);
   const [search, setSearch] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -378,12 +391,19 @@ function PanelShell({
       }),
     [apiOnly, quickFilters, session.requests],
   );
-  const visibleRequests = useMemo(() => {
-    if (search.trim() === '') return filtered;
+  const searching = search.trim() !== '';
+  // Rebuilding the index re-reads every captured body, so it is rebuilt when the
+  // request set changes, not on every keystroke.
+  const searchIndex = useMemo(() => {
+    if (!searching) return null;
     const index = new SearchIndex();
     filtered.forEach((request) => index.add(request));
-    return index.query(search);
-  }, [filtered, search]);
+    return index;
+  }, [filtered, searching]);
+  const visibleRequests = useMemo(
+    () => (searchIndex === null ? filtered : searchIndex.query(search)),
+    [filtered, search, searchIndex],
+  );
   const selected = session.requests.find(({ id }) => id === selectedId) ?? null;
   const groups = useMemo(
     () => correlate({ interactions: session.interactions, requests: session.requests }),
@@ -406,7 +426,7 @@ function PanelShell({
       : session.requests.filter((request) =>
           selectedGroup.requestIds.includes(request.id),
         );
-  const columns = wideColumns(window.innerWidth, railWidth, listWidth);
+  const columns = wideColumns(viewportWidth, railWidth, listWidth);
   const warningCodes = useMemo(
     () => new Set(session.warnings.map(({ code }) => code)),
     [session.warnings],
@@ -465,6 +485,12 @@ function PanelShell({
     } finally {
       setBusy(false);
     }
+  }
+
+  /** Abandoning a dialog also abandons the failure it was reporting. */
+  function dismissDialog(): void {
+    setActionError('');
+    setDialog(null);
   }
 
   function select(request: SanitizedCapturedRequest): void {
@@ -643,7 +669,7 @@ function PanelShell({
       {dialog === 'clear' ? (
         <Dialog
           description="This removes the current local evidence session. Recording stops first. This action cannot be undone."
-          onClose={() => setDialog(null)}
+          onClose={dismissDialog}
           title="Clear captured evidence"
         >
           {actionError === '' ? null : (
@@ -652,7 +678,7 @@ function PanelShell({
             </p>
           )}
           <div className="dialog__actions">
-            <Button data-initial-focus="" onClick={() => setDialog(null)}>
+            <Button data-initial-focus="" onClick={dismissDialog}>
               Keep evidence
             </Button>
             <Button disabled={busy} onClick={() => void clearEvidence()} tone="danger">
@@ -665,7 +691,7 @@ function PanelShell({
       {dialog === 'export' ? (
         <Dialog
           description="Only this sanitized session is exported. Authorization and cookies are always removed."
-          onClose={() => setDialog(null)}
+          onClose={dismissDialog}
           title="Export sanitized evidence"
         >
           {actionError === '' ? null : (
@@ -674,7 +700,7 @@ function PanelShell({
             </p>
           )}
           <div className="dialog__actions">
-            <Button data-initial-focus="" onClick={() => setDialog(null)}>
+            <Button data-initial-focus="" onClick={dismissDialog}>
               Cancel export
             </Button>
             <Button

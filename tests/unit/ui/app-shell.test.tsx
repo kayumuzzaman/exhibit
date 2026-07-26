@@ -913,3 +913,60 @@ describe('PayloadraApp shell layout contract', () => {
     expect(container.querySelectorAll('.app-background > *')).toHaveLength(3);
   });
 });
+
+describe('PayloadraApp failure reporting', () => {
+  it('reports a stopped capture rather than claiming recording continues', () => {
+    const degraded = redactSession(
+      {
+        ...createSession('tab-9', 'https://checkout.example', 1_000),
+        phase: 'stopped',
+        warnings: [
+          {
+            code: 'interaction-start-failed',
+            message: 'Interaction capture was unavailable; network capture continued.',
+          },
+          { code: 'capture-failed', message: 'Capture lifecycle failed.' },
+        ],
+      },
+      DEFAULT_REDACTION_CONFIG,
+    );
+
+    render(<PayloadraApp controller={controllerFake(degraded)} />);
+
+    expect(
+      screen.getByText('Capture stopped unexpectedly', { selector: 'h2' }),
+    ).toBeVisible();
+    expect(screen.queryByText('Network-only recording')).not.toBeInTheDocument();
+  });
+
+  it('drops an action failure when its dialog is abandoned', async () => {
+    const user = userEvent.setup();
+    const controller = controllerFake();
+    controller.clear = () => Promise.reject(new Error('storage locked'));
+    render(<PayloadraApp controller={controller} />);
+
+    await user.click(screen.getByRole('button', { name: 'Clear evidence' }));
+    await user.click(screen.getByRole('button', { name: 'Clear evidence now' }));
+    expect(await screen.findByText('Clear failed.')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Keep evidence' }));
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(document.querySelector('.session-notice--failure')).toBeNull();
+  });
+
+  it('recomputes wide column widths when the viewport changes inside the wide band', () => {
+    setViewport(1_600);
+    const { container } = render(<PayloadraApp controller={controllerFake()} />);
+    const workspace = container.querySelector<HTMLElement>('.workspace--wide');
+    const used = () =>
+      Number.parseFloat(workspace?.style.getPropertyValue('--rail-width') ?? '0') +
+      Number.parseFloat(workspace?.style.getPropertyValue('--list-width') ?? '0');
+
+    const wide = used();
+    act(() => setViewport(1_150));
+
+    expect(used()).toBeLessThan(wide);
+    expect(used()).toBeLessThanOrEqual(1_150 - 300 - 14);
+  });
+});

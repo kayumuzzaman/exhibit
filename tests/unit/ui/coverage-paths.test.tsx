@@ -10,6 +10,7 @@ import type { SanitizedCapturedRequest } from '../../../src/domain/sanitized';
 import { createSession } from '../../../src/domain/session';
 import { ExplainView } from '../../../src/features/explain/explain-view';
 import { EvidenceList } from '../../../src/features/inspect/evidence-list';
+import { InspectView } from '../../../src/features/inspect/inspect-view';
 import { HeaderList } from '../../../src/features/inspect/header-list';
 import { RequestDiffView } from '../../../src/features/inspect/request-diff';
 import { RequestTable } from '../../../src/features/session/request-table';
@@ -629,5 +630,42 @@ describe('explain narration boundaries', () => {
     render(<ExplainView relatedRequests={[selected, failed]} request={selected} />);
 
     expect(screen.getByText('No response')).toBeVisible();
+  });
+});
+
+describe('inspect copy outcome scoping', () => {
+  it('drops a copy announcement when a different request is selected', async () => {
+    const user = userEvent.setup();
+    const first = request('first');
+    const second = request('second');
+    const { rerender } = render(
+      <InspectView copy={async () => undefined} request={first} />,
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Copy safe cURL' }));
+    expect(await screen.findByText('Safe cURL copied.')).toBeVisible();
+
+    rerender(<InspectView copy={async () => undefined} request={second} />);
+
+    expect(screen.queryByText('Safe cURL copied.')).not.toBeInTheDocument();
+  });
+
+  it('keeps a copy failure visible for the request it belongs to', async () => {
+    const user = userEvent.setup();
+    const only = request('only');
+    render(
+      <InspectView
+        copy={async () => {
+          throw new Error('clipboard unavailable');
+        }}
+        request={only}
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Copy safe cURL' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Safe cURL could not be copied.',
+    );
   });
 });
