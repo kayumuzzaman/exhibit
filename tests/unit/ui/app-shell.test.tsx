@@ -388,6 +388,49 @@ describe('PayloadraApp', () => {
     expect(opener).toHaveFocus();
   });
 
+  it('blocks medium-drawer background actions with native inert behavior', async () => {
+    setViewport(900);
+    const user = userEvent.setup();
+    const controller = controllerFake(sessionWith('recording'));
+    const stop = vi.spyOn(controller, 'stop');
+    const { container } = render(
+      <>
+        <style>{'[inert], [inert] * { pointer-events: none; }'}</style>
+        <PayloadraApp controller={controller} />
+      </>,
+    );
+    const opener = screen.getByRole('button', { name: 'Open session rail' });
+    const clear = screen.getByRole('button', { name: 'Clear evidence' });
+    const exportButton = screen.getByRole('button', { name: 'Export evidence' });
+    const stopButton = screen.getByRole('button', { name: 'Stop recording' });
+    const theme = screen.getByRole('combobox', { name: 'Theme' });
+
+    await user.click(opener);
+    const drawer = screen.getByRole('dialog', { name: 'Session filters' });
+    const background = container.querySelector<HTMLElement>('.app-background');
+    expect(background).toHaveAttribute('inert');
+    expect(background).not.toContainElement(drawer);
+    expect(getComputedStyle(clear).pointerEvents).toBe('none');
+
+    for (const action of [
+      () => user.click(clear),
+      () => user.click(exportButton),
+      () => user.click(stopButton),
+      () => user.click(theme),
+    ]) {
+      await expect(action()).rejects.toThrow(/pointer-events/i);
+    }
+
+    expect(stop).not.toHaveBeenCalled();
+    expect(theme).toHaveValue('system');
+    expect(screen.getAllByRole('dialog')).toEqual([drawer]);
+    expect(drawer).toHaveAttribute('aria-modal', 'true');
+
+    await user.keyboard('{Escape}');
+    expect(background).not.toHaveAttribute('inert');
+    expect(opener).toHaveFocus();
+  });
+
   it('intersects real quick filters, reports no matches, resets, and preserves filter state', async () => {
     setViewport(1_440);
     const user = userEvent.setup();
