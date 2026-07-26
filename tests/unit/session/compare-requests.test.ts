@@ -152,6 +152,45 @@ describe('compareRequests', () => {
     ]);
   });
 
+  it('preserves nested JSON prototype-shaped keys without prototype mutation', () => {
+    const hostileText =
+      '[{"prototype":"visible","nested":{"__proto__":{"polluted":"nested"}},"constructor":{"prototype":"constructor-value"},"__proto__":{"polluted":"root"}}]';
+    const diff = compareRequests(
+      safeRequest('left', { responseBody: jsonBody([]) }),
+      safeRequest('right', {
+        responseBody: {
+          state: 'available',
+          size: hostileText.length,
+          capturedSize: hostileText.length,
+          text: hostileText,
+          mimeType: 'application/json',
+        },
+      }),
+    );
+    const added = diff.responseBody.changes[0]?.right as
+      Record<string, unknown> | undefined;
+    const nested = added?.nested as Record<string, unknown> | undefined;
+
+    expect(diff.responseBody.changes[0]?.path).toBe('/0');
+    expect(Object.getPrototypeOf(added)).toBeNull();
+    expect(Object.keys(added ?? {})).toEqual([
+      '__proto__',
+      'constructor',
+      'nested',
+      'prototype',
+    ]);
+    expect(Object.hasOwn(added ?? {}, '__proto__')).toBe(true);
+    expect(added?.['__proto__']).toEqual({ polluted: 'root' });
+    expect(added?.constructor).toEqual({
+      prototype: 'constructor-value',
+    });
+    expect(added?.prototype).toBe('visible');
+    expect(Object.getPrototypeOf(nested)).toBeNull();
+    expect(Object.hasOwn(nested ?? {}, '__proto__')).toBe(true);
+    expect(nested?.['__proto__']).toEqual({ polluted: 'nested' });
+    expect(({} as { polluted?: string }).polluted).toBeUndefined();
+  });
+
   it('degrades invalid and non-JSON bodies to safe text comparison', () => {
     const malformed: BodyContent = {
       state: 'available',

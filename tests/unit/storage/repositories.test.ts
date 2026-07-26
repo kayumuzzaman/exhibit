@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { RecordingSession } from '../../../src/domain/model';
 import {
+  redactInteractionEvent,
   redactRequest,
   redactSession,
   DEFAULT_REDACTION_CONFIG,
@@ -133,15 +134,18 @@ function validStoredSession(): unknown {
     freezeSession({
       ...recordedSession('schema-1'),
       interactions: [
-        {
-          id: 'interaction-1',
-          tabId: 'tab-5',
-          kind: 'click',
-          occurredAt: 1_000,
-          trust: 'trusted',
-          target: { tag: 'button', text: 'Save' },
-          url: 'https://app.test',
-        },
+        redactInteractionEvent(
+          {
+            id: 'interaction-1',
+            tabId: 'tab-5',
+            kind: 'click',
+            occurredAt: 1_000,
+            trust: 'trusted',
+            target: { tag: 'button', text: 'Save' },
+            url: 'https://app.test',
+          },
+          DEFAULT_REDACTION_CONFIG,
+        ),
       ],
       warnings: [
         {

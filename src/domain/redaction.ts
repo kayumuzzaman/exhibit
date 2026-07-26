@@ -2,10 +2,15 @@ import type {
   BodyContent,
   CapturedRequest,
   Header,
+  InteractionEvent,
   RecordingSession,
   SessionWarning,
 } from './model';
-import type { SanitizedCapturedRequest, SanitizedRecordingSession } from './sanitized';
+import type {
+  SanitizedCapturedRequest,
+  SanitizedInteractionEvent,
+  SanitizedRecordingSession,
+} from './sanitized';
 import { parseMultipartBody } from './multipart';
 import {
   DEFAULT_REDACTION_CONFIG,
@@ -249,6 +254,15 @@ function newOpaqueRequestId(): string {
   }
 }
 
+function newOpaqueInteractionId(): string {
+  try {
+    return `interaction-${crypto.randomUUID()}`;
+  } catch {
+    opaqueRequestSequence += 1;
+    return `interaction-local-${opaqueRequestSequence.toString(36)}`;
+  }
+}
+
 function redactUnknownWithContext(
   value: unknown,
   context: TraversalContext,
@@ -334,14 +348,42 @@ function exposeRedactedMarkers(value: string): string {
   return value.replaceAll('%5BREDACTED%5D', REDACTED);
 }
 
+function fragmentContainsCredential(hash: string, context: TraversalContext): boolean {
+  if (hash.length === 0) return false;
+  let decoded: string;
+  try {
+    decoded = decodeURIComponent(hash.slice(1));
+  } catch {
+    return true;
+  }
+  if (redactValuePatterns(decoded, context) === REDACTED) return true;
+
+  const queryIndex = decoded.indexOf('?');
+  const parameters = queryIndex < 0 ? decoded : decoded.slice(queryIndex + 1);
+  if (!parameters.includes('=')) return false;
+  for (const [name, value] of new URLSearchParams(parameters)) {
+    if (
+      isSensitiveField(name, context) ||
+      redactValuePatterns(value, context) === REDACTED
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
 export function redactUrl(input: string, config: RedactionConfig): string {
   try {
     const context = traversalContext(config);
     const url = new URL(input, 'https://payloadra.invalid');
     const absolute = /^[A-Za-z][A-Za-z0-9+.-]*:/u.test(input) || input.startsWith('//');
+    if (absolute && url.origin === 'null') return REDACTED;
     if (url.username !== '') url.username = REDACTED;
     if (url.password !== '') url.password = REDACTED;
     url.search = redactQueryParameters(url.searchParams, context).toString();
+    if (fragmentContainsCredential(url.hash, context)) {
+      url.hash = REDACTED;
+    }
     const formatted = absolute
       ? url.toString()
       : `${url.pathname}${url.search}${url.hash}`;
@@ -643,6 +685,47 @@ export type RequestRedactor = Readonly<{
   reset(): void;
 }>;
 
+function redactionFailedInteraction(
+  id = newOpaqueInteractionId(),
+): SanitizedInteractionEvent {
+  return {
+    id,
+    tabId: REDACTED,
+    kind: 'navigation',
+    occurredAt: 0,
+    trust: 'untrusted-hint',
+  } as SanitizedInteractionEvent;
+}
+
+function redactInteractionWithIdentity(
+  interaction: InteractionEvent,
+  config: RedactionConfig,
+  id: string,
+): SanitizedInteractionEvent {
+  try {
+    const output = redactTrustedDto(interaction, config);
+    if (output === null || typeof output !== 'object') {
+      return redactionFailedInteraction(id);
+    }
+    defineDataProperty(output, 'id', id);
+    const url = readDataProperty(interaction, 'url');
+    if (typeof url === 'string') {
+      defineDataProperty(output, 'url', redactUrl(url, config));
+    }
+    return output as SanitizedInteractionEvent;
+  } catch {
+    return redactionFailedInteraction(id);
+  }
+}
+
+/** Trusted boundary for interaction metadata before persistence or display. */
+export function redactInteractionEvent(
+  interaction: InteractionEvent,
+  config: RedactionConfig,
+): SanitizedInteractionEvent {
+  return redactInteractionWithIdentity(interaction, config, newOpaqueInteractionId());
+}
+
 /** Recording-scoped trusted boundary that remaps raw redirect references. */
 export function createRequestRedactor(config: RedactionConfig): RequestRedactor {
   let idMap = new Map<string, string>();
@@ -704,6 +787,9 @@ export function redactSession(
   const requests = session.requests.map((request, index) =>
     redactRequestWithIdentity(request, config, ids[index]!, idMap),
   );
+  const interactions = session.interactions.map((interaction) =>
+    redactInteractionEvent(interaction, config),
+  );
   const warnings = session.warnings.map((warning) => ({
     code: warning.code,
     message: SAFE_WARNING_MESSAGES[warning.code],
@@ -711,6 +797,7 @@ export function redactSession(
   return {
     ...session,
     requests,
+    interactions,
     requestBytes: [],
     byteCount: 0,
     warnings,
@@ -765,6 +852,9 @@ export function redactRecoveredSession(
       evidence,
     } as SanitizedCapturedRequest;
   });
+  const interactions = session.interactions.map((interaction) =>
+    redactInteractionEvent(interaction, config),
+  );
   const warnings = session.warnings.map((warning) => ({
     code: warning.code,
     message: SAFE_WARNING_MESSAGES[warning.code],
@@ -772,6 +862,7 @@ export function redactRecoveredSession(
   return {
     ...session,
     requests,
+    interactions,
     requestBytes: [],
     byteCount: 0,
     warnings,

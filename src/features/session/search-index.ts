@@ -1,4 +1,7 @@
-import type { SanitizedCapturedRequest } from '../../domain/sanitized';
+import type {
+  SanitizedCapturedRequest,
+  SanitizedInteractionEvent,
+} from '../../domain/sanitized';
 
 type SearchEntry = Readonly<{
   request: SanitizedCapturedRequest;
@@ -50,8 +53,15 @@ function evidenceText(request: SanitizedCapturedRequest): readonly string[] {
 
 function searchableText(
   request: SanitizedCapturedRequest,
-  interactionLabel: string | undefined,
+  interaction: SanitizedInteractionEvent | undefined,
 ): string {
+  const interactionLabel =
+    interaction?.target?.name ??
+    interaction?.target?.text ??
+    interaction?.target?.role ??
+    interaction?.target?.tag ??
+    interaction?.kind ??
+    '';
   return normalized(
     [
       request.method,
@@ -61,7 +71,7 @@ function searchableText(
       request.response.statusText ?? '',
       request.classification?.kind ?? '',
       request.classification?.confidence ?? '',
-      interactionLabel ?? '',
+      interactionLabel,
       ...evidenceText(request),
     ].join('\n'),
   );
@@ -91,10 +101,13 @@ export class SearchIndex {
     return this.#entries.size;
   }
 
-  add(request: SanitizedCapturedRequest, interactionLabel?: string): void {
+  add(
+    request: SanitizedCapturedRequest,
+    interaction?: SanitizedInteractionEvent,
+  ): void {
     this.#entries.set(request.id, {
       request,
-      text: searchableText(request, interactionLabel),
+      text: searchableText(request, interaction),
     });
   }
 

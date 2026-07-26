@@ -102,9 +102,14 @@ function parseJsonBody(body: BodyContent | undefined): unknown | undefined {
 function canonicalValue(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(canonicalValue);
   if (value !== null && typeof value === 'object') {
-    const output: Record<string, unknown> = {};
+    const output = Object.create(null) as Record<string, unknown>;
     for (const key of Object.keys(value).sort()) {
-      output[key] = canonicalValue((value as Record<string, unknown>)[key]);
+      Object.defineProperty(output, key, {
+        value: canonicalValue((value as Record<string, unknown>)[key]),
+        enumerable: true,
+        configurable: true,
+        writable: true,
+      });
     }
     return output;
   }

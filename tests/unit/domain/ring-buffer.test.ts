@@ -244,14 +244,15 @@ describe('bounded recording sessions', () => {
   });
 
   it('rejects malformed collection shapes and over-count external sessions', () => {
-    const malformed = redactSession(
-      {
-        ...createSession('tab-5', 'https://app.test', 2_400),
-        interactions: {} as RecordingSession['interactions'],
-      },
-      DEFAULT_REDACTION_CONFIG,
-    );
-    expect(() => freezeSession(malformed)).toThrow(TypeError);
+    expect(() =>
+      redactSession(
+        {
+          ...createSession('tab-5', 'https://app.test', 2_400),
+          interactions: {} as RecordingSession['interactions'],
+        },
+        DEFAULT_REDACTION_CONFIG,
+      ),
+    ).toThrow(TypeError);
 
     const overCount = redactSession(
       {

@@ -666,6 +666,39 @@ describe('redaction helpers', () => {
     expect(result).not.toMatch(/one|two/);
   });
 
+  it.each([
+    ['access token', '#access_token=secret-original'],
+    ['password', '#password=secret-original'],
+    ['session', '#session_id=secret-original'],
+    ['bearer', '#Bearer%20secret-original'],
+    ['encoded parameter', '#access_token%3Dsecret-original'],
+    ['fragment route', '#/callback?token=secret-original'],
+  ])('redacts %s credentials from URL fragments', (_name, fragment) => {
+    const result = redactUrl(
+      `https://app.test/callback${fragment}`,
+      DEFAULT_REDACTION_CONFIG,
+    );
+
+    expect(result).not.toContain('secret-original');
+    expect(new URL(result).hash).toContain(REDACTED);
+  });
+
+  it('preserves a safe URL anchor without changing its spelling', () => {
+    expect(
+      redactUrl(
+        'https://app.test/docs?page=2#installation-guide',
+        DEFAULT_REDACTION_CONFIG,
+      ),
+    ).toBe('https://app.test/docs?page=2#installation-guide');
+  });
+
+  it.each([
+    'data:text/plain,visible#access_token=secret-original',
+    'mailto:user@example.test#password=secret-original',
+  ])('fails closed for opaque URL form %s', (value) => {
+    expect(redactUrl(value, DEFAULT_REDACTION_CONFIG)).toBe(REDACTED);
+  });
+
   it('redacts URL credentials and supports relative URLs', () => {
     const credentialed = redactUrl(
       'https://user:password@api.test/items?page=2',

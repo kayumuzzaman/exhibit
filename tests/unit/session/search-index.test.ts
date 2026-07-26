@@ -1,7 +1,15 @@
 import { describe, expect, it } from 'vitest';
 
-import type { CapturedRequest } from '../../../src/domain/model';
-import { DEFAULT_REDACTION_CONFIG, redactRequest } from '../../../src/domain/redaction';
+import type {
+  CapturedRequest,
+  InteractionEvent,
+  RecordingSession,
+} from '../../../src/domain/model';
+import {
+  DEFAULT_REDACTION_CONFIG,
+  redactRequest,
+  redactSession,
+} from '../../../src/domain/redaction';
 import type { SanitizedCapturedRequest } from '../../../src/domain/sanitized';
 import { SearchIndex } from '../../../src/features/session/search-index';
 import { requestWith } from '../../helpers/request-factory';
@@ -35,6 +43,30 @@ function safeRequest(id: string, overrides: SafeOverrides): SanitizedCapturedReq
   };
 }
 
+function safeInteraction(interaction: InteractionEvent) {
+  const session: RecordingSession = {
+    id: 'search-session',
+    tabId: 'tab-1',
+    origin: 'https://app.test',
+    phase: 'stopped',
+    retention: 'ephemeral',
+    limits: {
+      maxRequests: 10,
+      maxBytes: 1024 * 1024,
+      maxBodyBytes: 512 * 1024,
+    },
+    startedAt: 1,
+    stoppedAt: 2,
+    requests: [],
+    requestBytes: [],
+    byteCount: 0,
+    interactions: [interaction],
+    evictedCount: 0,
+    warnings: [],
+  };
+  return redactSession(session, DEFAULT_REDACTION_CONFIG).interactions[0]!;
+}
+
 describe('SearchIndex', () => {
   it('indexes every sanitized discovery surface and requires all query terms', () => {
     const request = safeRequest('alpha', {
@@ -57,7 +89,17 @@ describe('SearchIndex', () => {
     });
     const index = new SearchIndex();
 
-    index.add(request, 'Save profile');
+    index.add(
+      request,
+      safeInteraction({
+        id: 'save',
+        tabId: 'tab-1',
+        kind: 'submit',
+        occurredAt: 1,
+        trust: 'trusted',
+        target: { tag: 'button', name: 'Save profile' },
+      }),
+    );
 
     for (const query of [
       'post',
@@ -82,6 +124,33 @@ describe('SearchIndex', () => {
     expect(index.query('graphql 422 save').map(({ id }) => id)).toEqual(['alpha']);
     expect(index.query('secret-original')).toEqual([]);
     expect(index.query('[redacted]').map(({ id }) => id)).toEqual(['alpha']);
+  });
+
+  it('never indexes raw interaction target, identity, or URL evidence', () => {
+    const index = new SearchIndex();
+    const request = safeRequest('interaction', {
+      url: 'https://api.test/safe',
+    });
+    const interaction = safeInteraction({
+      id: 'password=secret-original-event',
+      tabId: 'token=secret-original-tab',
+      kind: 'click',
+      occurredAt: 1,
+      trust: 'trusted',
+      target: {
+        tag: 'password=secret-original-tag',
+        role: 'token=secret-original-role',
+        name: 'session=secret-original-name',
+        id: 'credential=secret-original-id',
+        text: 'Bearer secret-original-text',
+      },
+      url: 'https://app.test/callback#access_token=secret-original-url',
+    });
+
+    index.add(request, interaction);
+
+    expect(index.query('secret-original')).toEqual([]);
+    expect(index.query('[redacted]').map(({ id }) => id)).toEqual(['interaction']);
   });
 
   it('uses locale-independent Unicode lowercase normalization', () => {
@@ -150,6 +219,18 @@ describe('SearchIndex', () => {
     function compileBoundary(index: SearchIndex, rawRequest: CapturedRequest): void {
       // @ts-expect-error Search must never index pre-redaction data.
       index.add(rawRequest);
+    }
+    void compileBoundary;
+    expect(true).toBe(true);
+  });
+
+  it('rejects arbitrary interaction labels during typecheck', () => {
+    function compileBoundary(
+      index: SearchIndex,
+      request: SanitizedCapturedRequest,
+    ): void {
+      // @ts-expect-error Search labels must come from sanitized interaction evidence.
+      index.add(request, 'password=secret-original');
     }
     void compileBoundary;
     expect(true).toBe(true);

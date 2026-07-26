@@ -310,6 +310,29 @@ describe('toSanitizedHar', () => {
 });
 
 describe('toQaReport', () => {
+  it('never emits raw interaction evidence from any target or URL field', () => {
+    const interaction: InteractionEvent = {
+      id: 'password=secret-original-event',
+      tabId: 'token=secret-original-tab',
+      kind: 'submit',
+      occurredAt: 1_700_000_000_900,
+      trust: 'trusted',
+      target: {
+        tag: 'password=secret-original-tag',
+        role: 'token=secret-original-role',
+        name: 'session=secret-original-name',
+        id: 'credential=secret-original-id',
+        text: 'Bearer secret-original-text',
+      },
+      url: 'https://app.test/save#access_token=secret-original-url',
+    };
+    const session = safeSession([rawRequest('interaction')], [interaction]);
+
+    expect(JSON.stringify(session.interactions)).not.toContain('secret-original');
+    expect(toQaReport(session)).not.toContain('secret-original');
+    expect(toSanitizedHar(session)).not.toContain('secret-original');
+  });
+
   it('sorts timeline calls and covers failures, slow calls, repeats, evidence, and truncation', () => {
     const first = rawRequest('first', {
       url: 'https://api.test/repeated?b=2&a=1',
