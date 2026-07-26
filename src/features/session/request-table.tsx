@@ -197,6 +197,11 @@ export function RequestTable({
               ref={(node) => {
                 rowRefs.current[index] = node;
               }}
+              style={
+                phone && request.id === selectedId
+                  ? { boxShadow: 'inset 3px 0 0 var(--live)' }
+                  : undefined
+              }
               tabIndex={index === focusIndex ? 0 : -1}
             >
               {phone ? null : (

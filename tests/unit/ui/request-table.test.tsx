@@ -7,6 +7,9 @@ import { describe, expect, it, vi } from 'vitest';
 import { RequestTable } from '../../../src/features/session/request-table';
 import type { SanitizedCapturedRequest } from '../../../src/domain/sanitized';
 import { sanitizedRequestWith } from '../../helpers/request-factory';
+import '../../../src/styles/tokens.css';
+import '../../../src/styles/reset.css';
+import '../../../src/styles/app.css';
 
 function records(): readonly SanitizedCapturedRequest[] {
   return [
@@ -124,5 +127,21 @@ describe('RequestTable', () => {
     );
     expect(screen.getByText(/no requests match these filters/i)).toBeVisible();
     expect(screen.getByText(/clear search or filters/i)).toBeVisible();
+  });
+
+  it('gives the selected phone row a persistent inset rule beyond background color', () => {
+    const dataset = records();
+    render(
+      <RequestTable
+        onSelect={() => undefined}
+        phone
+        requests={dataset}
+        selectedId={dataset[1]!.id}
+      />,
+    );
+
+    const selected = screen.getByRole('row', { name: /profile/i });
+    expect(selected).toHaveAttribute('aria-selected', 'true');
+    expect(getComputedStyle(selected).boxShadow).toContain('inset');
   });
 });

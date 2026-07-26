@@ -33,7 +33,13 @@
 .button--primary {
   border-color: var(--live);
   background: var(--live);
-  color: #10151a;
+  color: var(--on-live);
+}
+
+.button--primary:hover:not(:disabled) {
+  border-color: var(--live);
+  background: var(--live);
+  color: var(--on-live);
 }
 
 .button--danger {
@@ -273,7 +279,7 @@
   display: grid;
   grid-template-columns:
     var(--rail-width) 7px var(--list-width) 7px
-    minmax(320px, 1fr);
+    minmax(var(--detail-min), 1fr);
 }
 
 .workspace--medium {
@@ -413,14 +419,29 @@
   margin-top: var(--space-2);
 }
 
-.quick-filter-list span,
+.quick-filter-chip,
 .evidence-badge {
   padding: 2px 6px;
   border: 1px solid var(--divider);
   border-radius: 999px;
+  background: transparent;
   color: var(--text-muted);
   font-size: 9px;
   white-space: nowrap;
+}
+
+.quick-filter-chip:hover,
+.quick-filter-chip[aria-pressed='true'] {
+  border-color: var(--live);
+  color: var(--text);
+}
+
+.quick-filter-chip[aria-pressed='true'] {
+  background: color-mix(in srgb, var(--live) 12%, var(--surface));
+}
+
+.rail-reset {
+  margin-top: var(--space-2);
 }
 
 .resize-separator {
@@ -654,13 +675,13 @@
 }
 
 .detail-slot__empty h3,
-.detail-skeleton h3 {
+.detail-handoff h3 {
   margin-top: var(--space-3);
   font-size: 14px;
 }
 
 .detail-slot__empty p,
-.detail-skeleton p {
+.detail-handoff p {
   margin-top: 6px;
   color: var(--text-muted);
   font-size: 11px;
@@ -705,49 +726,9 @@
   font-size: 10px;
 }
 
-.detail-tabs {
-  display: flex;
-  gap: var(--space-1);
-  padding: var(--space-3) var(--space-4) 0;
-}
-
-.detail-tabs span {
-  padding: 5px 9px;
-  border: 1px solid var(--divider);
-  border-radius: 8px;
-  color: var(--text-muted);
-  font-size: 10px;
-}
-
-.detail-tabs [aria-current='page'] {
-  border-color: var(--live);
-  color: var(--text);
-}
-
-.detail-skeleton {
-  margin: var(--space-4);
-  padding: var(--space-4);
-  border: 1px solid var(--divider);
-  background: var(--surface-raised);
-}
-
-.detail-skeleton > div {
-  display: grid;
-  gap: var(--space-2);
-  margin-top: var(--space-5);
-}
-
-.detail-skeleton > div span {
-  height: 7px;
-  background: var(--divider);
-}
-
-.detail-skeleton > div span:nth-child(2) {
-  width: 82%;
-}
-
-.detail-skeleton > div span:nth-child(3) {
-  width: 58%;
+.detail-handoff {
+  max-width: 460px;
+  padding: var(--space-5) var(--space-4);
 }
 
 .notice {
@@ -817,10 +798,15 @@
   background: var(--overlay);
 }
 
-.rail-drawer-backdrop .session-rail {
+.rail-drawer-panel {
   width: min(300px, 86vw);
   height: 100%;
   box-shadow: 12px 0 28px rgb(0 0 0 / 24%);
+}
+
+.rail-drawer-panel .session-rail {
+  width: 100%;
+  height: 100%;
 }
 
 .dialog-backdrop {
@@ -1071,7 +1057,7 @@
   .status-pill__mark,
   .button,
   .evidence-badge,
-  .detail-tabs span {
+  .quick-filter-chip {
     border-color: ButtonText;
     forced-color-adjust: auto;
   }

@@ -3,23 +3,33 @@ import {
   useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
   type CSSProperties,
   type ReactNode,
 } from 'react';
 
 import { Button } from '../components/button';
-import { Dialog } from '../components/dialog';
+import { Dialog, ModalSurface } from '../components/dialog';
 import { Icon } from '../components/icon';
 import { ResizeSeparator } from '../components/resizable';
 import type { RecordingPhase } from '../domain/model';
+import { RESTRICTED_PAGE_ORIGIN } from '../domain/inspected-page';
 import type { SanitizedCapturedRequest } from '../domain/sanitized';
+import {
+  FALLBACK_DEVTOOLS_THEME_SOURCE,
+  type DevtoolsThemeSource,
+} from '../devtools/theme';
 import { filterRequests } from '../features/session/filter-requests';
 import { SearchIndex } from '../features/session/search-index';
 import { CommandBar, type ThemeMode } from '../features/session/command-bar';
 import { EmptyState, type EmptyStateKind } from '../features/session/empty-state';
 import { RequestTable } from '../features/session/request-table';
 import type { RequestTableProps } from '../features/session/request-table';
-import { SessionRail } from '../features/session/session-rail';
+import {
+  SessionRail,
+  type QuickFilter,
+  type QuickFilterState,
+} from '../features/session/session-rail';
 import type { SessionController } from '../features/session/session-controller';
 import {
   AppProvider,
@@ -30,6 +40,37 @@ import {
 import { AppErrorBoundary } from './error-boundary';
 
 type ViewportMode = 'medium' | 'narrow' | 'phone' | 'wide';
+const NO_QUICK_FILTERS: QuickFilterState = {
+  cacheHits: false,
+  failures: false,
+  slowCalls: false,
+};
+const WIDE_DETAIL_MIN = 300;
+const WIDE_GUTTERS = 14;
+const WIDE_LIST_MIN = 420;
+const WIDE_LIST_MAX = 760;
+const WIDE_RAIL_MIN = 200;
+const WIDE_RAIL_MAX = 360;
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, value));
+}
+
+function wideColumns(
+  viewportWidth: number,
+  requestedRail: number,
+  requestedList: number,
+): Readonly<{ list: number; listMax: number; rail: number; railMax: number }> {
+  let rail = clamp(requestedRail, WIDE_RAIL_MIN, WIDE_RAIL_MAX);
+  let list = clamp(requestedList, WIDE_LIST_MIN, WIDE_LIST_MAX);
+  const available = viewportWidth - WIDE_DETAIL_MIN - WIDE_GUTTERS;
+  const overflow = Math.max(0, rail + list - available);
+  list -= Math.min(overflow, list - WIDE_LIST_MIN);
+  rail -= Math.max(0, rail + list - available);
+  const railMax = clamp(available - list, WIDE_RAIL_MIN, WIDE_RAIL_MAX);
+  const listMax = clamp(available - rail, WIDE_LIST_MIN, WIDE_LIST_MAX);
+  return { list, listMax, rail, railMax };
+}
 
 function viewportMode(): ViewportMode {
   if (typeof window === 'undefined') return 'wide';
@@ -136,19 +177,13 @@ function DetailSlot({
               </span>
             </div>
           ) : null}
-          <div className="detail-tabs" aria-label="Detail mode">
-            <span aria-current="page">Explain</span>
-            <span>Inspect</span>
-          </div>
-          <div className="detail-skeleton" aria-label="Detail tools arrive in Task 10">
-            <p className="eyebrow">Evidence-ready slot</p>
-            <h3>Request context is ready</h3>
-            <p>Explain and Inspect tools will use this selected sanitized record.</p>
-            <div aria-hidden="true">
-              <span />
-              <span />
-              <span />
-            </div>
+          <div className="detail-handoff">
+            <p className="eyebrow">Safe evidence handoff</p>
+            <h3>Sanitized request ready</h3>
+            <p>
+              Timing, response status, and available body evidence were sanitized before
+              this local record was stored.
+            </p>
           </div>
         </div>
       )}
@@ -161,7 +196,7 @@ function emptyKind(
   origin: string,
   warningCodes: ReadonlySet<string>,
 ): EmptyStateKind {
-  if (/^(chrome|edge|about):/iu.test(origin)) return 'restricted';
+  if (origin === RESTRICTED_PAGE_ORIGIN) return 'restricted';
   if (warningCodes.has('interaction-start-failed')) return 'network-only';
   if (warningCodes.has('capture-failed')) return 'capture-failure';
   return phase === 'recording' ? 'recording-empty' : 'not-recording';
@@ -172,6 +207,7 @@ function Ledger({
   onOpenRail,
   onSelect,
   phone,
+  rawRequestCount,
   requests,
   search,
   scrollPosition,
@@ -183,6 +219,7 @@ function Ledger({
   onOpenRail(): void;
   onSelect(request: SanitizedCapturedRequest): void;
   phone: boolean;
+  rawRequestCount: number;
   requests: readonly SanitizedCapturedRequest[];
   search: string;
   scrollPosition: NonNullable<RequestTableProps['scrollPosition']>;
@@ -220,7 +257,7 @@ function Ledger({
       </div>
       {empty === null ? (
         <RequestTable
-          emptyReason={search.trim() === '' ? 'recording-empty' : 'no-matches'}
+          emptyReason={rawRequestCount > 0 ? 'no-matches' : 'recording-empty'}
           onSelect={onSelect}
           phone={phone}
           requests={requests}
@@ -234,14 +271,22 @@ function Ledger({
   );
 }
 
-function PanelShell() {
+function PanelShell({
+  devtoolsThemeSource,
+}: Readonly<{ devtoolsThemeSource: DevtoolsThemeSource }>) {
   const session = useSession();
   const controller = useSessionController();
   const exportEvidence = useExportEvidence();
   const mode = useViewportMode();
   const reducedMotion = useReducedMotion();
+  const resolvedDevtoolsTheme = useSyncExternalStore(
+    devtoolsThemeSource.subscribe,
+    devtoolsThemeSource.getSnapshot,
+    devtoolsThemeSource.getSnapshot,
+  );
   const [theme, setTheme] = useState<ThemeMode>('system');
   const [apiOnly, setApiOnly] = useState(true);
+  const [quickFilters, setQuickFilters] = useState<QuickFilterState>(NO_QUICK_FILTERS);
   const [search, setSearch] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [mobileDetail, setMobileDetail] = useState(false);
@@ -250,16 +295,22 @@ function PanelShell() {
   const [busy, setBusy] = useState(false);
   const [announcement, setAnnouncement] = useState('');
   const [actionError, setActionError] = useState('');
-  const [railWidth, setRailWidth] = useState(240);
-  const [listWidth, setListWidth] = useState(680);
+  const [railWidth, setRailWidth] = useState(216);
+  const [listWidth, setListWidth] = useState(640);
   const ledgerScroll = useRef<Readonly<{ left: number; top: number }>>({
     left: 0,
     top: 0,
   });
 
   const filtered = useMemo(
-    () => filterRequests(session.requests, { apiOnly }),
-    [apiOnly, session.requests],
+    () =>
+      filterRequests(session.requests, {
+        apiOnly,
+        ...(quickFilters.failures ? { outcome: 'failure' as const } : {}),
+        ...(quickFilters.slowCalls ? { slowOnly: true } : {}),
+        ...(quickFilters.cacheHits ? { cache: 'hit' as const } : {}),
+      }),
+    [apiOnly, quickFilters, session.requests],
   );
   const visibleRequests = useMemo(() => {
     if (search.trim() === '') return filtered;
@@ -268,6 +319,7 @@ function PanelShell() {
     return index.query(search);
   }, [filtered, search]);
   const selected = session.requests.find(({ id }) => id === selectedId) ?? null;
+  const columns = wideColumns(window.innerWidth, railWidth, listWidth);
   const warningCodes = useMemo(
     () => new Set(session.warnings.map(({ code }) => code)),
     [session.warnings],
@@ -307,6 +359,7 @@ function PanelShell() {
       setAnnouncement('Evidence cleared.');
     } catch {
       setActionError('Clear failed. Keep DevTools open and try again.');
+      setAnnouncement('Clear failed.');
     } finally {
       setBusy(false);
     }
@@ -332,12 +385,34 @@ function PanelShell() {
     setMobileDetail(true);
   }
 
+  function changeQuickFilter(filter: QuickFilter, value: boolean): void {
+    setQuickFilters((current) => ({ ...current, [filter]: value }));
+  }
+
+  function resetFilters(): void {
+    setApiOnly(false);
+    setQuickFilters(NO_QUICK_FILTERS);
+    setSearch('');
+  }
+
+  const rail = (
+    <SessionRail
+      apiOnly={apiOnly}
+      onApiOnlyChange={setApiOnly}
+      onQuickFilterChange={changeQuickFilter}
+      onResetFilters={resetFilters}
+      quickFilters={quickFilters}
+      session={session}
+    />
+  );
+
   const ledger = (
     <Ledger
       empty={empty}
       onOpenRail={() => setRailDrawer(true)}
       onSelect={select}
       phone={mode === 'phone'}
+      rawRequestCount={session.requests.length}
       requests={visibleRequests}
       search={search}
       scrollPosition={ledgerScroll}
@@ -359,29 +434,30 @@ function PanelShell() {
     />
   );
   const style = {
-    '--rail-width': `${railWidth}px`,
-    '--list-width': `${listWidth}px`,
+    '--detail-min': `${WIDE_DETAIL_MIN}px`,
+    '--rail-width': `${columns.rail}px`,
+    '--list-width': `${columns.list}px`,
   } as CSSProperties;
 
   let workspace: ReactNode;
   if (mode === 'wide') {
     workspace = (
       <div className="workspace workspace--wide" style={style}>
-        <SessionRail apiOnly={apiOnly} onApiOnlyChange={setApiOnly} session={session} />
+        {rail}
         <ResizeSeparator
           label="Resize session rail"
-          max={360}
-          min={200}
+          max={columns.railMax}
+          min={WIDE_RAIL_MIN}
           onChange={setRailWidth}
-          value={railWidth}
+          value={columns.rail}
         />
         {ledger}
         <ResizeSeparator
           label="Resize request ledger"
-          max={760}
-          min={420}
+          max={columns.listMax}
+          min={WIDE_LIST_MIN}
           onChange={setListWidth}
-          value={listWidth}
+          value={columns.list}
         />
         {detail}
       </div>
@@ -406,6 +482,7 @@ function PanelShell() {
       className="app-shell"
       data-recording={session.phase === 'recording'}
       data-reduced-motion={reducedMotion}
+      data-devtools-theme={resolvedDevtoolsTheme}
       data-theme={theme}
     >
       <CommandBar
@@ -434,6 +511,12 @@ function PanelShell() {
           Network requests are still recording. Interaction grouping is unavailable.
         </div>
       ) : null}
+      {warningCodes.has('capture-failed') && session.requests.length > 0 ? (
+        <div className="session-notice session-notice--failure" role="alert">
+          Capture stopped unexpectedly. Start recording again. Existing sanitized
+          evidence remains available.
+        </div>
+      ) : null}
       {actionError === '' || dialog !== null ? null : (
         <div className="session-notice session-notice--failure" role="alert">
           {actionError}
@@ -443,19 +526,23 @@ function PanelShell() {
       {workspace}
 
       {railDrawer ? (
-        <div
-          className="rail-drawer-backdrop"
-          onMouseDown={(event) => {
-            if (event.target === event.currentTarget) setRailDrawer(false);
-          }}
+        <ModalSurface
+          backdropClassName="rail-drawer-backdrop"
+          dismissOnBackdrop
+          label="Session filters"
+          onClose={() => setRailDrawer(false)}
+          panelClassName="rail-drawer-panel"
         >
           <SessionRail
             apiOnly={apiOnly}
             onApiOnlyChange={setApiOnly}
             onClose={() => setRailDrawer(false)}
+            onQuickFilterChange={changeQuickFilter}
+            onResetFilters={resetFilters}
+            quickFilters={quickFilters}
             session={session}
           />
-        </div>
+        </ModalSurface>
       ) : null}
 
       {dialog === 'clear' ? (
@@ -464,6 +551,11 @@ function PanelShell() {
           onClose={() => setDialog(null)}
           title="Clear captured evidence"
         >
+          {actionError === '' ? null : (
+            <p className="dialog__error" role="alert">
+              {actionError}
+            </p>
+          )}
           <div className="dialog__actions">
             <Button data-initial-focus="" onClick={() => setDialog(null)}>
               Keep evidence
@@ -506,9 +598,11 @@ function PanelShell() {
 
 export function PayloadraApp({
   controller,
+  devtoolsTheme = FALLBACK_DEVTOOLS_THEME_SOURCE,
   exportEvidence,
 }: Readonly<{
   controller: SessionController;
+  devtoolsTheme?: DevtoolsThemeSource;
   exportEvidence?: () => Promise<void>;
 }>) {
   return (
@@ -520,7 +614,7 @@ export function PayloadraApp({
         controller={controller}
         {...(exportEvidence === undefined ? {} : { exportEvidence })}
       >
-        <PanelShell />
+        <PanelShell devtoolsThemeSource={devtoolsTheme} />
       </AppProvider>
     </AppErrorBoundary>
   );

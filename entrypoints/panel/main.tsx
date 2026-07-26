@@ -1,6 +1,8 @@
 import { DEFAULT_REDACTION_CONFIG, redactSession } from '../../src/domain/redaction';
 import { toSanitizedHar } from '../../src/domain/har-export';
+import { safeInspectedOrigin } from '../../src/domain/inspected-page';
 import { createSession } from '../../src/domain/session';
+import { createDevtoolsThemeSource } from '../../src/devtools/theme';
 import { createRecordingPipeline } from '../../src/features/capture/recording-pipeline';
 import { createSessionController } from '../../src/features/session/session-controller';
 import { chromeCaptureSource } from '../../src/infrastructure/chrome/devtools-capture-source';
@@ -13,14 +15,23 @@ import '../../src/styles/app.css';
 
 function inspectedOrigin(): Promise<string> {
   return new Promise((resolve) => {
-    chrome.devtools.inspectedWindow.eval('location.origin', (result) => {
-      resolve(
-        typeof result === 'string' && /^(?:https?|file):/iu.test(result)
-          ? result
-          : 'Inspected page',
-      );
-    });
+    chrome.devtools.inspectedWindow.eval(
+      '({ href: location.href, origin: location.origin })',
+      (result) => {
+        resolve(safeInspectedOrigin(result));
+      },
+    );
   });
+}
+
+function systemThemeFallback(): 'dark' | 'light' {
+  return window.matchMedia?.('(prefers-color-scheme: dark)').matches === true
+    ? 'dark'
+    : 'light';
+}
+
+function devtoolsTheme() {
+  return createDevtoolsThemeSource(chrome.devtools.panels, systemThemeFallback());
 }
 
 async function startPanel(): Promise<void> {
@@ -65,13 +76,19 @@ async function startPanel(): Promise<void> {
     capture.visibility(document.visibilityState === 'visible');
   });
 
-  bootPanel(controller, document, undefined, async () => {
-    downloadText(
-      `payloadra-${controller.getSnapshot().id.replace(/[^a-z0-9-]/giu, '-')}.har`,
-      'application/json',
-      toSanitizedHar(controller.getSnapshot()),
-    );
-  });
+  bootPanel(
+    controller,
+    document,
+    undefined,
+    async () => {
+      downloadText(
+        `payloadra-${controller.getSnapshot().id.replace(/[^a-z0-9-]/giu, '-')}.har`,
+        'application/json',
+        toSanitizedHar(controller.getSnapshot()),
+      );
+    },
+    devtoolsTheme(),
+  );
 }
 
 void startPanel();

@@ -2,15 +2,24 @@ import type { SanitizedRecordingSession } from '../../domain/sanitized';
 import { Button } from '../../components/button';
 import { Icon } from '../../components/icon';
 
+export type QuickFilter = 'cacheHits' | 'failures' | 'slowCalls';
+export type QuickFilterState = Readonly<Record<QuickFilter, boolean>>;
+
 export function SessionRail({
   apiOnly,
   onApiOnlyChange,
   onClose,
+  onQuickFilterChange,
+  onResetFilters,
+  quickFilters,
   session,
 }: Readonly<{
   apiOnly: boolean;
   onApiOnlyChange(value: boolean): void;
   onClose?: () => void;
+  onQuickFilterChange(filter: QuickFilter, value: boolean): void;
+  onResetFilters(): void;
+  quickFilters: QuickFilterState;
   session: SanitizedRecordingSession;
 }>) {
   const percent = Math.min(
@@ -66,10 +75,27 @@ export function SessionRail({
       <div className="rail-section">
         <p className="eyebrow">Quick filters</p>
         <div className="quick-filter-list">
-          <span>Failures</span>
-          <span>Slow calls</span>
-          <span>Cache hits</span>
+          {(
+            [
+              ['failures', 'Failures'],
+              ['slowCalls', 'Slow calls'],
+              ['cacheHits', 'Cache hits'],
+            ] as const
+          ).map(([filter, label]) => (
+            <button
+              aria-pressed={quickFilters[filter]}
+              className="quick-filter-chip"
+              key={filter}
+              onClick={() => onQuickFilterChange(filter, !quickFilters[filter])}
+              type="button"
+            >
+              {label}
+            </button>
+          ))}
         </div>
+        <Button className="rail-reset" onClick={onResetFilters} tone="quiet">
+          Reset filters
+        </Button>
       </div>
 
       <div className="rail-section rail-section--end">

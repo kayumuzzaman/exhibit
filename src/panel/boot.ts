@@ -2,6 +2,7 @@ import { createElement, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 
 import { PayloadraApp } from '../app/app';
+import type { DevtoolsThemeSource } from '../devtools/theme';
 import type { SessionController } from '../features/session/session-controller';
 
 export interface PanelDocument {
@@ -19,6 +20,7 @@ export function bootPanel(
   documentRoot: PanelDocument = document,
   makeRoot: RootFactory = createRoot,
   exportEvidence?: () => Promise<void>,
+  devtoolsTheme?: DevtoolsThemeSource,
 ): void {
   const container = documentRoot.querySelector('#root');
 
@@ -30,6 +32,7 @@ export function bootPanel(
     createElement(PayloadraApp, {
       controller,
       ...(exportEvidence === undefined ? {} : { exportEvidence }),
+      ...(devtoolsTheme === undefined ? {} : { devtoolsTheme }),
     }),
   );
 }

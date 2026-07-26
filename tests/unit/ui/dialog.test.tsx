@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -114,5 +114,26 @@ describe('command dialogs', () => {
     await user.click(screen.getByRole('button', { name: 'Clear evidence now' }));
     expect(await screen.findByRole('status')).toHaveTextContent('Evidence cleared.');
     expect(trigger).toHaveFocus();
+  });
+
+  it('keeps clear failure inside the open dialog with safe retry and cancel controls', async () => {
+    const user = userEvent.setup();
+    const controller = controllerFake();
+    controller.clear = vi.fn().mockRejectedValue(new Error('raw clear failure'));
+    render(<PayloadraApp controller={controller} />);
+
+    await user.click(screen.getByRole('button', { name: 'Clear evidence' }));
+    await user.click(screen.getByRole('button', { name: 'Clear evidence now' }));
+
+    const dialog = screen.getByRole('dialog', { name: 'Clear captured evidence' });
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent(
+      /clear failed.*try again/i,
+    );
+    expect(screen.getByRole('status')).toHaveTextContent('Clear failed.');
+    expect(within(dialog).getByRole('button', { name: 'Keep evidence' })).toBeEnabled();
+    expect(
+      within(dialog).getByRole('button', { name: 'Clear evidence now' }),
+    ).toBeEnabled();
+    expect(screen.queryByText(/raw clear failure/i)).not.toBeInTheDocument();
   });
 });
