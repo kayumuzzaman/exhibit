@@ -100,6 +100,9 @@ export function createSessionController(
   let startInFlight: Promise<void> | null = null;
   let stopInFlight: Promise<void> | null = null;
   let clearInFlight: Promise<void> | null = null;
+  let startTicket = 0;
+  let stopTicket = 0;
+  let clearTicket = 0;
   let operationTail = Promise.resolve();
   let operationBusy = false;
   let operationSequence = 0;
@@ -141,22 +144,35 @@ export function createSessionController(
     }
   }
 
-  function queueOperation(task: () => Promise<void>): Promise<void> {
+  function queueOperation<T = void>(task: () => Promise<T>): Promise<T> {
     const ticket = ++operationSequence;
-    let result: Promise<void>;
+    let result: Promise<T>;
     if (operationBusy) {
       result = operationTail.then(task);
     } else {
       operationBusy = true;
       result = task();
     }
-    operationTail = result.catch(() => undefined);
+    operationTail = result.then(
+      () => undefined,
+      () => undefined,
+    );
     void operationTail.then(() => {
       if (ticket === operationSequence) {
         operationBusy = false;
       }
     });
     return result;
+  }
+
+  /**
+   * A repeated start, stop, or clear may reuse the in-flight promise only while
+   * that operation is still the newest queued intent. Once an opposing
+   * operation has been queued behind it, reusing the promise would drop the
+   * newer request and resolve the caller against a phase it never asked for.
+   */
+  function isNewestIntent(ticket: number): boolean {
+    return ticket === operationSequence;
   }
 
   async function performStart(): Promise<void> {
@@ -222,13 +238,16 @@ export function createSessionController(
       if (snapshot.phase === 'recording' && !operationBusy) {
         return Promise.resolve();
       }
-      if (startInFlight !== null) {
+      if (startInFlight !== null && isNewestIntent(startTicket)) {
         return startInFlight;
       }
 
       const operation = queueOperation(performStart);
-      const tracked = operation.finally(() => {
-        startInFlight = null;
+      startTicket = operationSequence;
+      const tracked: Promise<void> = operation.finally(() => {
+        if (startInFlight === tracked) {
+          startInFlight = null;
+        }
       });
       startInFlight = tracked;
       return startInFlight;
@@ -238,20 +257,23 @@ export function createSessionController(
       if (snapshot.phase === 'stopped' && !operationBusy) {
         return Promise.resolve();
       }
-      if (stopInFlight !== null) {
+      if (stopInFlight !== null && isNewestIntent(stopTicket)) {
         return stopInFlight;
       }
 
       const operation = queueOperation(performStop);
-      const tracked = operation.finally(() => {
-        stopInFlight = null;
+      stopTicket = operationSequence;
+      const tracked: Promise<void> = operation.finally(() => {
+        if (stopInFlight === tracked) {
+          stopInFlight = null;
+        }
       });
       stopInFlight = tracked;
       return stopInFlight;
     },
 
     clear(): Promise<void> {
-      if (clearInFlight !== null) {
+      if (clearInFlight !== null && isNewestIntent(clearTicket)) {
         return clearInFlight;
       }
       const operation = queueOperation(async () => {
@@ -276,8 +298,11 @@ export function createSessionController(
           warn(persistenceWarning());
         }
       });
-      const tracked = operation.finally(() => {
-        clearInFlight = null;
+      clearTicket = operationSequence;
+      const tracked: Promise<void> = operation.finally(() => {
+        if (clearInFlight === tracked) {
+          clearInFlight = null;
+        }
       });
       clearInFlight = tracked;
       return clearInFlight;
@@ -292,6 +317,14 @@ export function createSessionController(
         const previous = dependencies.repositories[previousRetention];
         const target = dependencies.repositories[retention];
         const migrated = reduceSession(snapshot, { type: 'retention', retention });
+        // `commit` re-reduces from the live snapshot rather than replaying the
+        // copy that was written. Interactions arrive outside the operation
+        // queue, so anything appended while the migration write was in flight
+        // would be discarded by replacing with the pre-write copy.
+        const commit = (): void => {
+          persistenceEnabled = true;
+          replace(reduceSession(snapshot, { type: 'retention', retention }));
+        };
         if (target === previous) {
           try {
             await target.save(migrated);
@@ -299,8 +332,7 @@ export function createSessionController(
             warn(migrationWarning());
             return;
           }
-          persistenceEnabled = true;
-          replace(migrated);
+          commit();
           return;
         }
         try {
@@ -316,36 +348,45 @@ export function createSessionController(
           warn(migrationWarning());
           return;
         }
-        persistenceEnabled = true;
-        replace(migrated);
+        commit();
       });
     },
 
     async accept(request): Promise<void> {
-      let repository: SessionRepository | null = null;
-      let retention: RetentionMode | null = null;
-      let persistence: Promise<void> | null = null;
-      await queueOperation(async () => {
+      type ScheduledWrite = Readonly<{
+        repository: SessionRepository;
+        retention: RetentionMode;
+        persistence: Promise<void>;
+      }>;
+      const scheduled = await queueOperation<ScheduledWrite | null>(async () => {
         replace(addBounded(snapshot, request));
-        if (persistenceEnabled) {
-          repository = activeRepository();
-          retention = snapshot.retention;
-          persistence = repository.save(snapshot);
+        if (!persistenceEnabled) {
+          return null;
         }
+        const repository = activeRepository();
+        return {
+          repository,
+          retention: snapshot.retention,
+          persistence: repository.save(snapshot),
+        };
       });
-      if (persistence === null) {
+      if (scheduled === null) {
         return;
       }
-      try {
-        await persistence;
-      } catch {
-        await queueOperation(async () => {
+      const { repository, retention, persistence } = scheduled;
+      // Repository writes are debounced, so awaiting one here would stall the
+      // serial capture queue for a whole debounce window on every request and
+      // cap capture throughput at the debounce rate. The write is still
+      // tracked: a failure disables persistence and raises the same warning,
+      // just a turn later than the request that carried it.
+      void persistence.catch(() => {
+        void queueOperation(async () => {
           if (retention === snapshot.retention && repository === activeRepository()) {
             persistenceEnabled = false;
             warn(persistenceWarning());
           }
         });
-      }
+      });
     },
 
     acceptInteraction(interaction): void {

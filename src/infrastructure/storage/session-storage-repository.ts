@@ -19,7 +19,7 @@ type Waiter = Readonly<{
 }>;
 
 type PendingWrite = {
-  value: unknown;
+  session: SanitizedRecordingSession;
   sessionId: string;
   tabId: string;
   sequence: number;
@@ -102,12 +102,30 @@ export function createSessionStorageRepository(
     pending.clear();
     const items: Record<string, unknown> = {};
     const current = new Map<string, PendingWrite>();
+    const writes: PendingWrite[] = [];
     for (const [key, write] of captured) {
-      items[key] = write.value;
+      // Encoding is deferred to the flush so a burst of saves for one session
+      // encodes once instead of once per call. Encoding walks and clones the
+      // whole ring buffer, so per-call encoding is quadratic against a session
+      // that grows toward the byte ceiling.
+      let stored: unknown;
+      try {
+        stored = encodeStoredSession(write.session);
+      } catch (error) {
+        for (const waiter of write.waiters) {
+          waiter.reject(error);
+        }
+        continue;
+      }
+      items[key] = stored;
+      writes.push(write);
       const latest = current.get(write.tabId);
       if (latest === undefined || write.sequence > latest.sequence) {
         current.set(write.tabId, write);
       }
+    }
+    if (writes.length === 0) {
+      return operation;
     }
     for (const write of current.values()) {
       items[currentKeyFor(write.tabId)] = encodeSessionLocator({
@@ -115,7 +133,6 @@ export function createSessionStorageRepository(
         tabId: write.tabId,
       });
     }
-    const writes = captured.map(([, write]) => write);
     return settle(
       writes,
       queueOperation(async () => {
@@ -164,26 +181,20 @@ export function createSessionStorageRepository(
     },
 
     save(session): Promise<void> {
-      let stored: unknown;
-      try {
-        stored = encodeStoredSession(session);
-      } catch (error) {
-        return Promise.reject(error);
-      }
       const key = keyFor(session.id);
       knownTabs.set(session.id, session.tabId);
       return new Promise<void>((resolve, reject) => {
         const current = pending.get(key);
         if (current === undefined) {
           pending.set(key, {
-            value: stored,
+            session,
             sessionId: session.id,
             tabId: session.tabId,
             sequence: ++saveSequence,
             waiters: [{ resolve, reject }],
           });
         } else {
-          current.value = stored;
+          current.session = session;
           current.tabId = session.tabId;
           current.sequence = ++saveSequence;
           current.waiters.push({ resolve, reject });

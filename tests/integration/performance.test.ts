@@ -14,11 +14,23 @@ import type {
   CaptureObservation,
   CaptureSource,
 } from '../../src/ports/capture-source';
+import { createSessionController } from '../../src/features/session/session-controller';
+import {
+  createSessionStorageRepository,
+  type StorageArea,
+} from '../../src/infrastructure/storage/session-storage-repository';
 import { observation } from '../helpers/har-factory';
 
 const REQUEST_COUNT = 500;
 const PIPELINE_BUDGET_MS = 500;
 const INDEX_BUDGET_MS = 250;
+/**
+ * The persisted budget is deliberately close to the in-memory pipeline budget.
+ * Storage writes are debounced, so a controller that waits for each write would
+ * cap capture at the debounce rate and blow past this by two orders of
+ * magnitude rather than by a few percent.
+ */
+const PERSISTED_BUDGET_MS = 2_000;
 const ATTEMPTS = 3;
 
 /**
@@ -101,6 +113,24 @@ function makeObservations(count: number): CaptureObservation[] {
   );
 }
 
+class MemoryStorageArea implements StorageArea {
+  readonly values = new Map<string, unknown>();
+  writes = 0;
+
+  async get(key: string): Promise<Record<string, unknown>> {
+    return this.values.has(key) ? { [key]: this.values.get(key) } : {};
+  }
+
+  async set(items: Record<string, unknown>): Promise<void> {
+    this.writes += 1;
+    for (const [key, value] of Object.entries(items)) {
+      this.values.set(key, value);
+    }
+  }
+
+  async remove(): Promise<void> {}
+}
+
 describe('capture pipeline performance', () => {
   it('normalizes, redacts, classifies, and explains 500 capped requests within budget', async () => {
     let lastSink = new CountingSink();
@@ -161,5 +191,45 @@ describe('capture pipeline performance', () => {
 
     expect(session.requests.length).toBeLessThanOrEqual(DEFAULT_LIMITS.maxRequests);
     expect(session.byteCount).toBeLessThanOrEqual(DEFAULT_LIMITS.maxBytes);
+  });
+});
+
+describe('persisted capture performance', () => {
+  it('captures 500 requests into a real repository-backed session within budget', async () => {
+    let area = new MemoryStorageArea();
+    let captured = 0;
+    const elapsed = await fastest(async () => {
+      area = new MemoryStorageArea();
+      const capture = new ReplayCapture();
+      const controller = createSessionController({
+        initialSession: freezeSession(
+          redactSession(
+            {
+              ...createSession('tab-perf', 'https://app.test', 1_000),
+              phase: 'stopped',
+            },
+            DEFAULT_REDACTION_CONFIG,
+          ),
+        ),
+        repositories: {
+          ephemeral: createSessionStorageRepository(area),
+          persistent: createSessionStorageRepository(area),
+        },
+      });
+      const pipeline = createRecordingPipeline({ capture, controller });
+      const batch = makeObservations(REQUEST_COUNT);
+      await pipeline.start(1_000);
+
+      const start = performance.now();
+      for (const item of batch) capture.emit(item);
+      await pipeline.stop(2_000);
+      captured = controller.getSnapshot().requests.length;
+      return performance.now() - start;
+    });
+
+    expect(captured).toBe(REQUEST_COUNT);
+    // Coalescing is the point: a write per request would mean 500 here.
+    expect(area.writes).toBeLessThan(REQUEST_COUNT / 4);
+    expect(elapsed).toBeLessThan(PERSISTED_BUDGET_MS);
   });
 });

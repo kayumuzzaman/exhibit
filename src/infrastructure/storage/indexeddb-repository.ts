@@ -72,18 +72,98 @@ function execute<T>(
   });
 }
 
+type Waiter = Readonly<{
+  resolve: () => void;
+  reject: (reason: unknown) => void;
+}>;
+
+type PendingWrite = {
+  sessionId: string;
+  session: SanitizedRecordingSession;
+  waiters: Waiter[];
+};
+
+export type IndexedDbSessionRepositoryOptions = Readonly<{
+  databaseName?: string;
+  debounceMs?: number;
+}>;
+
 export function createIndexedDbSessionRepository(
   factory: IDBFactory,
-  databaseName = PAYLOADRA_DATABASE,
+  options: IndexedDbSessionRepositoryOptions = {},
 ): SessionRepository {
+  const databaseName = options.databaseName ?? PAYLOADRA_DATABASE;
+  const debounceMs = options.debounceMs ?? 100;
+  if (!Number.isFinite(debounceMs) || debounceMs < 0) {
+    throw new RangeError('debounceMs must be a finite non-negative number.');
+  }
   const database = openPayloadraDatabase(factory, databaseName);
   const knownTabs = new Map<string, string>();
+  /**
+   * Every accepted request asks the controller to persist the whole session, so
+   * writing straight through would re-encode and re-store the entire ring
+   * buffer once per request — quadratic work against a session that grows to
+   * the byte ceiling. Writes are coalesced per session id; the newest snapshot
+   * wins and every caller waiting on that session settles on its result.
+   */
+  const pending = new Map<string, PendingWrite>();
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  let operation: Promise<unknown> = Promise.resolve();
 
   function currentKey(tabId: string): string {
     return `current:${tabId}`;
   }
 
-  async function saveAtomic(session: SanitizedRecordingSession): Promise<void> {
+  function queueOperation<T>(task: () => Promise<T>): Promise<T> {
+    const result = operation.then(task, task);
+    operation = result.then(
+      () => undefined,
+      () => undefined,
+    );
+    return result;
+  }
+
+  function settle(write: PendingWrite, result: Promise<void>): void {
+    void result.then(
+      () => {
+        for (const waiter of write.waiters) {
+          waiter.resolve();
+        }
+      },
+      (reason: unknown) => {
+        for (const waiter of write.waiters) {
+          waiter.reject(reason);
+        }
+      },
+    );
+  }
+
+  function flush(): Promise<unknown> {
+    if (timer !== null) {
+      clearTimeout(timer);
+      timer = null;
+    }
+    if (pending.size === 0) {
+      return operation;
+    }
+    const captured = [...pending.values()];
+    pending.clear();
+    let last: Promise<unknown> = operation;
+    for (const write of captured) {
+      const result = queueOperation(() => saveAtomic(write));
+      settle(write, result);
+      last = result.then(
+        () => undefined,
+        () => undefined,
+      );
+    }
+    return last;
+  }
+
+  async function saveAtomic(write: PendingWrite): Promise<void> {
+    // Encoding happens here, not in `save`, so a burst of saves for one session
+    // encodes once instead of once per call.
+    const session = write.session;
     const stored = encodeStoredSession(session);
     const locator = encodeSessionLocator(session);
     const opened = await database;
@@ -104,99 +184,135 @@ export function createIndexedDbSessionRepository(
 
   return {
     async load(sessionId): Promise<SanitizedRecordingSession | null> {
-      const value = await execute(
-        await database,
-        'readonly',
-        (store) => store.get(sessionId) as IDBRequest<unknown>,
-      );
-      if (value === undefined) {
-        return null;
-      }
-      const session = decodeStoredSession(value, sessionId);
-      if (session.tabId !== '') {
-        knownTabs.set(session.id, session.tabId);
-      }
-      return session;
+      await flush().catch(() => undefined);
+      return queueOperation(async () => {
+        const value = await execute(
+          await database,
+          'readonly',
+          (store) => store.get(sessionId) as IDBRequest<unknown>,
+        );
+        if (value === undefined) {
+          return null;
+        }
+        const session = decodeStoredSession(value, sessionId);
+        if (session.tabId !== '') {
+          knownTabs.set(session.id, session.tabId);
+        }
+        return session;
+      });
     },
 
     async loadCurrent(tabId): Promise<SanitizedRecordingSession | null> {
-      const opened = await database;
-      return new Promise<SanitizedRecordingSession | null>((resolve, reject) => {
-        const transaction = opened.transaction(
-          [SESSION_STORE, SETTINGS_STORE],
-          'readonly',
-        );
-        let result: SanitizedRecordingSession | null = null;
-        const locatorRequest = transaction
-          .objectStore(SETTINGS_STORE)
-          .get(currentKey(tabId));
-        locatorRequest.onsuccess = () => {
-          const locator = decodeSessionLocator(locatorRequest.result, tabId);
-          if (locator === null) {
-            return;
-          }
-          const sessionRequest = transaction
-            .objectStore(SESSION_STORE)
-            .get(locator.sessionId);
-          sessionRequest.onsuccess = () => {
-            if (sessionRequest.result !== undefined) {
-              knownTabs.set(locator.sessionId, tabId);
-              result = decodeStoredSession(
-                sessionRequest.result,
-                locator.sessionId,
-                tabId,
-              );
+      await flush().catch(() => undefined);
+      return queueOperation(async () => {
+        const opened = await database;
+        return new Promise<SanitizedRecordingSession | null>((resolve, reject) => {
+          const transaction = opened.transaction(
+            [SESSION_STORE, SETTINGS_STORE],
+            'readonly',
+          );
+          let result: SanitizedRecordingSession | null = null;
+          const locatorRequest = transaction
+            .objectStore(SETTINGS_STORE)
+            .get(currentKey(tabId));
+          locatorRequest.onsuccess = () => {
+            const locator = decodeSessionLocator(locatorRequest.result, tabId);
+            if (locator === null) {
+              return;
             }
+            const sessionRequest = transaction
+              .objectStore(SESSION_STORE)
+              .get(locator.sessionId);
+            sessionRequest.onsuccess = () => {
+              if (sessionRequest.result !== undefined) {
+                knownTabs.set(locator.sessionId, tabId);
+                result = decodeStoredSession(
+                  sessionRequest.result,
+                  locator.sessionId,
+                  tabId,
+                );
+              }
+            };
           };
-        };
-        transaction.oncomplete = () => resolve(result);
-        transaction.onerror = () => reject(transaction.error);
-        transaction.onabort = () =>
-          reject(transaction.error ?? new Error('IndexedDB transaction aborted.'));
+          transaction.oncomplete = () => resolve(result);
+          transaction.onerror = () => reject(transaction.error);
+          transaction.onabort = () =>
+            reject(transaction.error ?? new Error('IndexedDB transaction aborted.'));
+        });
       });
     },
 
-    async save(session): Promise<void> {
-      await saveAtomic(session);
+    save(session): Promise<void> {
+      knownTabs.set(session.id, session.tabId);
+      return new Promise<void>((resolve, reject) => {
+        const current = pending.get(session.id);
+        if (current === undefined) {
+          pending.set(session.id, {
+            sessionId: session.id,
+            session,
+            waiters: [{ resolve, reject }],
+          });
+        } else {
+          current.session = session;
+          current.waiters.push({ resolve, reject });
+        }
+        if (timer === null) {
+          timer = setTimeout(() => {
+            void flush();
+          }, debounceMs);
+        }
+      });
     },
 
     async clear(sessionId): Promise<void> {
-      const opened = await database;
-      await new Promise<void>((resolve, reject) => {
-        const transaction = opened.transaction(
-          [SESSION_STORE, SETTINGS_STORE],
-          'readwrite',
-        );
-        const sessions = transaction.objectStore(SESSION_STORE);
-        const settings = transaction.objectStore(SETTINGS_STORE);
-        const knownTab = knownTabs.get(sessionId);
-        const sessionRequest = sessions.get(sessionId);
-        sessionRequest.onsuccess = () => {
-          const stored = sessionRequest.result;
-          const decoded =
-            stored === undefined ? null : decodeStoredSession(stored, sessionId);
-          const tabId =
-            knownTab ?? (decoded?.tabId === '' ? undefined : decoded?.tabId);
-          sessions.delete(sessionId);
-          if (tabId === undefined) {
-            return;
-          }
-          const locatorRequest = settings.get(currentKey(tabId));
-          locatorRequest.onsuccess = () => {
-            const locator = decodeSessionLocator(locatorRequest.result, tabId);
-            if (locator?.sessionId === sessionId) {
-              settings.delete(currentKey(tabId));
+      const canceled = pending.get(sessionId);
+      pending.delete(sessionId);
+      if (pending.size === 0 && timer !== null) {
+        clearTimeout(timer);
+        timer = null;
+      }
+      const result = queueOperation(async () => {
+        const opened = await database;
+        await new Promise<void>((resolve, reject) => {
+          const transaction = opened.transaction(
+            [SESSION_STORE, SETTINGS_STORE],
+            'readwrite',
+          );
+          const sessions = transaction.objectStore(SESSION_STORE);
+          const settings = transaction.objectStore(SETTINGS_STORE);
+          const knownTab = knownTabs.get(sessionId);
+          const sessionRequest = sessions.get(sessionId);
+          sessionRequest.onsuccess = () => {
+            const stored = sessionRequest.result;
+            const decoded =
+              stored === undefined ? null : decodeStoredSession(stored, sessionId);
+            const tabId =
+              knownTab ?? (decoded?.tabId === '' ? undefined : decoded?.tabId);
+            sessions.delete(sessionId);
+            if (tabId === undefined) {
+              return;
             }
+            const locatorRequest = settings.get(currentKey(tabId));
+            locatorRequest.onsuccess = () => {
+              const locator = decodeSessionLocator(locatorRequest.result, tabId);
+              if (locator?.sessionId === sessionId) {
+                settings.delete(currentKey(tabId));
+              }
+            };
           };
-        };
-        transaction.oncomplete = () => {
-          knownTabs.delete(sessionId);
-          resolve();
-        };
-        transaction.onerror = () => reject(transaction.error);
-        transaction.onabort = () =>
-          reject(transaction.error ?? new Error('IndexedDB transaction aborted.'));
+          transaction.oncomplete = () => {
+            knownTabs.delete(sessionId);
+            resolve();
+          };
+          transaction.onerror = () => reject(transaction.error);
+          transaction.onabort = () =>
+            reject(transaction.error ?? new Error('IndexedDB transaction aborted.'));
+        });
       });
+      if (canceled !== undefined) {
+        settle(canceled, result);
+      }
+      await result;
     },
   };
 }

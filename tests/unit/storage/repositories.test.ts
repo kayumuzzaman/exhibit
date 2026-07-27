@@ -381,7 +381,7 @@ describe('chrome.storage.session repository', () => {
     await tabFailure;
   });
 
-  it('rejects invalid snapshots before scheduling a storage write', async () => {
+  it('rejects invalid snapshots at the flush without writing to storage', async () => {
     const area = new FakeStorageArea();
     const repository = createSessionStorageRepository(area);
     const oversized = {
@@ -389,8 +389,34 @@ describe('chrome.storage.session repository', () => {
       origin: 'x'.repeat(MAX_STORAGE_BYTES + 1),
     };
 
-    await expect(repository.save(oversized)).rejects.toThrow(RangeError);
+    const rejection = expect(repository.save(oversized)).rejects.toThrow(RangeError);
+    await vi.advanceTimersByTimeAsync(100);
+    await rejection;
     expect(area.setCalls).toEqual([]);
+  });
+
+  it('writes the healthy sessions in a flush that also holds an invalid one', async () => {
+    const area = new FakeStorageArea();
+    const repository = createSessionStorageRepository(area);
+    const healthy = recordedSession('healthy-storage');
+    const oversized = {
+      ...recordedSession('oversized-storage'),
+      origin: 'x'.repeat(MAX_STORAGE_BYTES + 1),
+    };
+
+    const rejection = expect(repository.save(oversized)).rejects.toThrow(RangeError);
+    const accepted = repository.save(healthy);
+    await vi.advanceTimersByTimeAsync(100);
+    await rejection;
+    await accepted;
+
+    expect(area.setCalls).toHaveLength(1);
+    expect(Object.keys(area.setCalls[0] ?? {})).toContain(
+      'payloadra:session:healthy-storage',
+    );
+    expect(Object.keys(area.setCalls[0] ?? {})).not.toContain(
+      'payloadra:session:oversized-storage',
+    );
   });
 
   it('clears only an unknown exact session key without a global operation', async () => {
@@ -1241,5 +1267,52 @@ describe('stored session schema validation', () => {
 
     expect(recovered.requests).toEqual([]);
     expect(recovered.warnings[0]?.code).toBe('corrupt-session');
+  });
+});
+
+describe('IndexedDB repository write coalescing', () => {
+  it('collapses a burst of saves for one session into a single stored snapshot', async () => {
+    const factory = new IDBFactory();
+    const repository = createIndexedDbSessionRepository(factory);
+    const session = recordedSession('burst', 'persistent');
+
+    const writes = Array.from({ length: 20 }, (_unused, index) =>
+      repository.save(
+        freezeSession({ ...session, startedAt: 1_000 + index }) as ReturnType<
+          typeof recordedSession
+        >,
+      ),
+    );
+    await Promise.all(writes);
+
+    const database = await openPayloadraDatabase(factory);
+    const stored = await new Promise<unknown>((resolve, reject) => {
+      const transaction = database.transaction('sessions', 'readonly');
+      const request = transaction.objectStore('sessions').get('burst');
+      transaction.oncomplete = () => resolve(request.result);
+      transaction.onerror = () => reject(transaction.error);
+    });
+    database.close();
+
+    expect(decodeStoredSession(stored, 'burst').startedAt).toBe(1_019);
+    expect((await repository.load('burst'))?.startedAt).toBe(1_019);
+  });
+
+  it('rejects an unsafe debounce value', () => {
+    expect(() =>
+      createIndexedDbSessionRepository(new IDBFactory(), { debounceMs: -1 }),
+    ).toThrow(RangeError);
+  });
+
+  it('cancels a pending write for a session that is cleared before it flushes', async () => {
+    const factory = new IDBFactory();
+    const repository = createIndexedDbSessionRepository(factory);
+    const session = recordedSession('cancelled', 'persistent');
+
+    const pending = repository.save(session);
+    await repository.clear(session.id);
+    await pending;
+
+    expect(await repository.load(session.id)).toBeNull();
   });
 });

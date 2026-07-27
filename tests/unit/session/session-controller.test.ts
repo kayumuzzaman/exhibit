@@ -947,3 +947,133 @@ describe('session controller interaction evidence', () => {
     expect(controller.getSnapshot().interactions).toEqual([]);
   });
 });
+
+describe('session controller concurrency', () => {
+  it('runs a start that was queued behind a stop instead of reusing the first start', async () => {
+    const order: string[] = [];
+    const { controller } = controllerFixture({
+      lifecycle: {
+        async start() {
+          order.push('start');
+        },
+        async stop() {
+          order.push('stop');
+        },
+      },
+    });
+
+    const first = controller.start();
+    const second = controller.stop();
+    const third = controller.start();
+    await Promise.all([first, second, third]);
+
+    expect(order).toEqual(['start', 'stop', 'start']);
+    expect(controller.getSnapshot().phase).toBe('recording');
+  });
+
+  it('reuses the in-flight start while it is still the newest queued intent', async () => {
+    const order: string[] = [];
+    const { controller } = controllerFixture({
+      lifecycle: {
+        async start() {
+          order.push('start');
+        },
+        async stop() {
+          order.push('stop');
+        },
+      },
+    });
+
+    await Promise.all([controller.start(), controller.start(), controller.start()]);
+
+    expect(order).toEqual(['start']);
+  });
+
+  it('runs a stop that was queued behind a start instead of reusing the first stop', async () => {
+    const order: string[] = [];
+    const { controller } = controllerFixture({
+      phase: 'recording',
+      lifecycle: {
+        async start() {
+          order.push('start');
+        },
+        async stop() {
+          order.push('stop');
+        },
+      },
+    });
+
+    const first = controller.stop();
+    const second = controller.start();
+    const third = controller.stop();
+    await Promise.all([first, second, third]);
+
+    expect(order).toEqual(['stop', 'start', 'stop']);
+    expect(controller.getSnapshot().phase).toBe('stopped');
+  });
+
+  it('keeps interaction evidence that arrives while a retention migration is writing', async () => {
+    const persistent = new MemoryRepository('persistent');
+    const gate = deferred();
+    persistent.saveGate = gate.promise;
+    const { controller } = controllerFixture({ persistent });
+
+    const migration = controller.setRetention('persistent');
+    await Promise.resolve();
+    controller.acceptInteraction(
+      redactInteractionEvent(
+        {
+          id: 'interaction-mid-migration',
+          tabId: 'tab-5',
+          kind: 'click',
+          occurredAt: 1_500,
+          trust: 'trusted',
+        },
+        DEFAULT_REDACTION_CONFIG,
+      ),
+    );
+    expect(controller.getSnapshot().interactions).toHaveLength(1);
+
+    gate.resolve();
+    await migration;
+
+    expect(controller.getSnapshot().retention).toBe('persistent');
+    expect(controller.getSnapshot().interactions).toHaveLength(1);
+  });
+
+  it('accepts a request without waiting for the debounced repository write', async () => {
+    const ephemeral = new MemoryRepository('ephemeral');
+    const gate = deferred();
+    ephemeral.saveGate = gate.promise;
+    const { controller } = controllerFixture({ ephemeral });
+
+    const request = requestWith({ id: 'not-blocked-by-storage' });
+    await controller.accept(request);
+
+    expect(controller.getSnapshot().requests.map(({ id }) => id)).toEqual([request.id]);
+    expect(ephemeral.calls).toEqual(['ephemeral:save:ephemeral']);
+    gate.resolve();
+  });
+
+  it('still disables persistence when a write that outlived its accept fails', async () => {
+    const ephemeral = new MemoryRepository('ephemeral');
+    const gate = deferred();
+    ephemeral.saveGate = gate.promise;
+    ephemeral.saveError = new Error('quota');
+    const { controller } = controllerFixture({ ephemeral });
+
+    await controller.accept(requestWith({ id: 'deferred-failure' }));
+    expect(controller.getSnapshot().warnings).toEqual([]);
+
+    // The write outlived the accept that scheduled it, so the warning lands a
+    // turn later rather than being charged to the request that carried it.
+    gate.resolve();
+    await new Promise((resolve) => {
+      setTimeout(resolve, 0);
+    });
+
+    expect(controller.getSnapshot().warnings).toContainEqual(
+      expect.objectContaining({ code: 'persistence-disabled' }),
+    );
+  });
+});
