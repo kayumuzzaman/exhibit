@@ -102,3 +102,62 @@ describe('panel production entrypoint', () => {
     expect(shell).toHaveAttribute('data-devtools-theme', 'dark');
   });
 });
+
+describe('panel boot failures', () => {
+  it('falls back to the unknown-origin state when the page eval never calls back', async () => {
+    vi.stubGlobal('chrome', {
+      devtools: {
+        inspectedWindow: { tabId: 9, eval: () => undefined },
+        network: {
+          onRequestFinished: { addListener: vi.fn(), removeListener: vi.fn() },
+          getHAR: vi.fn(),
+        },
+        panels: { themeName: 'default', setThemeChangeHandler: vi.fn() },
+      },
+      runtime: {},
+      storage: {
+        session: {
+          get: async () => ({}),
+          set: async () => undefined,
+          remove: async () => undefined,
+        },
+      },
+    });
+
+    await bootEntrypoint();
+
+    expect(
+      await screen.findByText('Inspected page', {}, { timeout: 4_000 }),
+    ).toBeVisible();
+  }, 10_000);
+
+  it('explains a failed boot instead of leaving the panel blank', async () => {
+    vi.stubGlobal('chrome', {
+      devtools: {
+        inspectedWindow: {
+          tabId: 9,
+          eval: () => {
+            throw new Error('devtools eval unavailable for https://app.test/secret');
+          },
+        },
+        panels: { themeName: 'default', setThemeChangeHandler: vi.fn() },
+      },
+      runtime: {},
+      storage: {
+        session: {
+          get: async () => ({}),
+          set: async () => undefined,
+          remove: async () => undefined,
+        },
+      },
+    });
+
+    await bootEntrypoint();
+
+    const notice = await screen.findByRole('alert');
+    expect(notice).toHaveTextContent(
+      'Payloadra could not start in this DevTools window.',
+    );
+    expect(document.body.textContent).not.toContain('secret');
+  });
+});

@@ -22,11 +22,20 @@ import '../../src/styles/tokens.css';
 import '../../src/styles/reset.css';
 import '../../src/styles/app.css';
 
+/** A DevTools eval that never calls back would otherwise hang boot forever. */
+const INSPECTED_PAGE_TIMEOUT_MS = 2_000;
+
 function inspectedPage(): Promise<Readonly<{ href: string; origin: string }>> {
   return new Promise((resolve) => {
+    // An unresolved page identity degrades to the unknown-origin state, which
+    // the panel already renders honestly. A hung promise renders nothing at all.
+    const timer = setTimeout(() => {
+      resolve({ href: '', origin: safeInspectedOrigin(null) });
+    }, INSPECTED_PAGE_TIMEOUT_MS);
     chrome.devtools.inspectedWindow.eval(
       '({ href: location.href, origin: location.origin })',
       (result) => {
+        clearTimeout(timer);
         const origin = safeInspectedOrigin(result);
         const href =
           result !== null &&
@@ -121,4 +130,22 @@ async function startPanel(): Promise<void> {
   );
 }
 
-void startPanel();
+/**
+ * A rejected boot would leave `#root` empty, so the panel would look broken
+ * with nothing to explain it. The message is fixed text: a thrown value can
+ * carry inspected-page detail, and nothing reaches the panel unredacted.
+ */
+function reportBootFailure(): void {
+  const container = document.querySelector('#root');
+  if (container === null) return;
+  const notice = document.createElement('p');
+  notice.className = 'boot-failure';
+  notice.setAttribute('role', 'alert');
+  notice.textContent =
+    'Payloadra could not start in this DevTools window. Close DevTools and reopen it to try again.';
+  container.replaceChildren(notice);
+}
+
+void startPanel().catch(() => {
+  reportBootFailure();
+});

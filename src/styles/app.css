@@ -1808,3 +1808,13 @@
     color: ButtonText;
   }
 }
+
+/* Rendered by the entrypoint, not by React, when the panel fails to boot. */
+.boot-failure {
+  margin: var(--space-5);
+  padding: var(--space-4);
+  border: 1px solid var(--failure);
+  border-radius: var(--radius-control);
+  background: color-mix(in srgb, var(--failure) 12%, var(--surface-raised));
+  color: var(--text);
+}
