@@ -320,3 +320,37 @@ describe('decodeFlight', () => {
     ).toBe(true);
   });
 });
+
+describe('decodeFlight warning bounds', () => {
+  it('reports one warning for a chunk that repeats the same unresolved reference', () => {
+    const references = Array.from({ length: 5_000 }, () => '"$2"').join(',');
+    const result = decodeFlight(`0:[${references}]`, { maxBytes: 512 * 1_024 });
+
+    expect(result.warnings).toEqual(['Chunk 0 contains an unresolved reference to 2.']);
+    expect(result.rawChunks).toHaveLength(1);
+  });
+
+  it('caps warnings when a body carries more distinct defects than the limit', () => {
+    const rows = Array.from({ length: 400 }, (_unused, index) => {
+      const id = (index + 1).toString(16);
+      return `${id}:["$f${id}"]`;
+    }).join('\n');
+    const result = decodeFlight(rows, { maxBytes: 512 * 1_024 });
+
+    expect(result.warnings).toHaveLength(101);
+    expect(result.warnings.at(-1)).toBe(
+      'Decode warnings were capped at 100; further warnings were omitted.',
+    );
+    expect(new Set(result.warnings).size).toBe(result.warnings.length);
+  });
+
+  it('collapses the identical malformed-row warning across many bad rows', () => {
+    const rows = Array.from({ length: 50 }, () => 'not-a-chunk').join('\n');
+    const result = decodeFlight(rows, { maxBytes: 512 * 1_024 });
+
+    expect(result.warnings).toEqual([
+      'Malformed Flight row preserved as raw protocol.',
+    ]);
+    expect(result.rawChunks).toHaveLength(50);
+  });
+});

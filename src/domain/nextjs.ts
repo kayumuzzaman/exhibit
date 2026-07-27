@@ -4,6 +4,8 @@ const INTERNAL_WARNING =
   'Next.js RSC headers and query markers are internal and version-sensitive.';
 const ACTION_INTERNAL_WARNING =
   'Next.js action and Flight headers are internal and version-sensitive.';
+const ACTION_REQUEST_ONLY_LIMIT =
+  'The response is not a Flight payload, so only the request side names an action.';
 
 function headerValue(
   headers: readonly Header[],
@@ -97,11 +99,22 @@ export function detectServerAction(
     'Request method is POST.',
     'Request header Next-Action is present.',
   ];
-  if (mimeType(request.response.body.mimeType) === 'text/x-component') {
+  // `Next-Action` is a request header, so any script on the page can send it.
+  // Only a Flight response corroborates it from the server side, which is the
+  // same bar `detectRsc` applies before it will say confirmed.
+  const hasFlightMime = mimeType(request.response.body.mimeType) === 'text/x-component';
+  if (hasFlightMime) {
     evidence.push('Response MIME type is text/x-component.');
+  } else {
+    evidence.push(ACTION_REQUEST_ONLY_LIMIT);
   }
   evidence.push(ACTION_INTERNAL_WARNING);
-  return classification('next-server-action', 'confirmed', evidence, actionId);
+  return classification(
+    'next-server-action',
+    hasFlightMime ? 'confirmed' : 'likely',
+    evidence,
+    actionId,
+  );
 }
 
 export function detectRsc(request: CapturedRequest): Classification | undefined {

@@ -3,6 +3,7 @@ import { DEFAULT_LIMITS } from './session';
 const ABSOLUTE_MAX_BYTES = DEFAULT_LIMITS.maxBodyBytes;
 const ABSOLUTE_MAX_ROWS = 10_000;
 const ABSOLUTE_MAX_DEPTH = 32;
+const ABSOLUTE_MAX_WARNINGS = 100;
 
 export type FlightDecodeLimits = Readonly<{
   maxBytes: number;
@@ -57,6 +58,41 @@ type MutableChunk = {
 
 type DisplayConversion =
   Readonly<{ ok: true; value: FlightDisplayValue }> | Readonly<{ ok: false }>;
+
+type WarningSink = Readonly<{
+  add(message: string): void;
+  list(): readonly string[];
+}>;
+
+/**
+ * Warnings are derived from body content, so their count is bounded only by the
+ * body without a cap here. One chunk holding thousands of unresolved references
+ * would otherwise emit one warning per reference, and the panel renders every
+ * warning as a list item. Repeats collapse because the same defect reported a
+ * thousand times tells a reader nothing the first one did not.
+ */
+function createWarningSink(limit: number): WarningSink {
+  const messages = new Set<string>();
+  let truncated = false;
+  return {
+    add(message) {
+      if (messages.has(message)) return;
+      if (messages.size >= limit) {
+        truncated = true;
+        return;
+      }
+      messages.add(message);
+    },
+    list() {
+      return truncated
+        ? [
+            ...messages,
+            `Decode warnings were capped at ${limit}; further warnings were omitted.`,
+          ]
+        : [...messages];
+    },
+  };
+}
 
 function deepFreeze<T>(value: T): T {
   if (value !== null && typeof value === 'object' && !Object.isFrozen(value)) {
@@ -200,14 +236,14 @@ function jsonChunk(
   raw: string,
   maxDepth: number,
   rawChunks: string[],
-  warnings: string[],
+  warnings: WarningSink,
 ): MutableChunk | undefined {
   let parsed: unknown;
   try {
     parsed = JSON.parse(payload);
   } catch {
     rawChunks.push(raw);
-    warnings.push(`Invalid JSON payload in chunk ${id}.`);
+    warnings.add(`Invalid JSON payload in chunk ${id}.`);
     return undefined;
   }
 
@@ -215,7 +251,7 @@ function jsonChunk(
   const converted = displayValue(parsed, 0, maxDepth, references);
   if (!converted.ok) {
     rawChunks.push(raw);
-    warnings.push(
+    warnings.add(
       `JSON payload in chunk ${id} exceeds the ${maxDepth}-level display limit.`,
     );
     return undefined;
@@ -235,12 +271,12 @@ function decodeRow(
   maxDepth: number,
   seenIds: Set<string>,
   rawChunks: string[],
-  warnings: string[],
+  warnings: WarningSink,
 ): MutableChunk | undefined {
   const match = /^([0-9a-f]+):(.*)$/i.exec(raw);
   if (match === null) {
     rawChunks.push(raw);
-    warnings.push('Malformed Flight row preserved as raw protocol.');
+    warnings.add('Malformed Flight row preserved as raw protocol.');
     return undefined;
   }
 
@@ -248,7 +284,7 @@ function decodeRow(
   const payload = match[2]!;
   if (seenIds.has(id)) {
     rawChunks.push(raw);
-    warnings.push(
+    warnings.add(
       `Duplicate Flight chunk identifier ${id} was preserved as raw protocol.`,
     );
     return undefined;
@@ -275,7 +311,7 @@ function decodeRow(
   }
 
   rawChunks.push(raw);
-  warnings.push(`Unknown Flight tag ${tag || '(empty)'} in chunk ${id}.`);
+  warnings.add(`Unknown Flight tag ${tag || '(empty)'} in chunk ${id}.`);
   return undefined;
 }
 
@@ -284,17 +320,17 @@ function preserveMalformedText(
   raw: string,
   seenIds: Set<string>,
   rawChunks: string[],
-  warnings: string[],
+  warnings: WarningSink,
 ): void {
   rawChunks.push(raw);
   if (seenIds.has(id)) {
-    warnings.push(
+    warnings.add(
       `Duplicate Flight chunk identifier ${id} was preserved as raw protocol.`,
     );
     return;
   }
   seenIds.add(id);
-  warnings.push(
+  warnings.add(
     `Malformed length-framed text chunk ${id} was preserved as raw protocol.`,
   );
 }
@@ -306,11 +342,11 @@ function appendTextChunk(
   seenIds: Set<string>,
   chunks: MutableChunk[],
   rawChunks: string[],
-  warnings: string[],
+  warnings: WarningSink,
 ): void {
   if (seenIds.has(id)) {
     rawChunks.push(raw);
-    warnings.push(
+    warnings.add(
       `Duplicate Flight chunk identifier ${id} was preserved as raw protocol.`,
     );
     return;
@@ -326,7 +362,7 @@ function decodeRecords(
   seenIds: Set<string>,
   chunks: MutableChunk[],
   rawChunks: string[],
-  warnings: string[],
+  warnings: WarningSink,
 ): boolean {
   let cursor = 0;
   let rowCount = 0;
@@ -347,7 +383,7 @@ function decodeRecords(
     if (cursor === start || text.charAt(cursor) !== ':') {
       const bounds = lineBounds(text, start);
       rawChunks.push(text.slice(start, bounds.end));
-      warnings.push('Malformed Flight row preserved as raw protocol.');
+      warnings.add('Malformed Flight row preserved as raw protocol.');
       cursor = bounds.next;
       continue;
     }
@@ -463,7 +499,7 @@ export function decodeFlight(
     ),
   );
   const rawChunks: string[] = [];
-  const warnings: string[] = [];
+  const warnings = createWarningSink(ABSOLUTE_MAX_WARNINGS);
   const chunks: MutableChunk[] = [];
   const seenIds = new Set<string>();
   const limited = decodeRecords(
@@ -486,7 +522,7 @@ export function decodeFlight(
           rawChunks.push(chunk.raw);
           rawPreserved = true;
         }
-        warnings.push(
+        warnings.add(
           `Chunk ${chunk.id} contains an unresolved reference to ${reference.targetId}.`,
         );
       }
@@ -494,8 +530,9 @@ export function decodeFlight(
   }
 
   if (limited) {
-    warnings.push('Flight row limit reached; remaining rows were not inspected.');
+    warnings.add('Flight row limit reached; remaining rows were not inspected.');
   }
+  const reported = warnings.list();
 
   const publicChunks: FlightChunk[] = chunks.map(({ id, kind, value, references }) => ({
     id,
@@ -506,8 +543,8 @@ export function decodeFlight(
   const status =
     publicChunks.length === 0
       ? 'unsupported'
-      : rawChunks.length > 0 || warnings.length > 0
+      : rawChunks.length > 0 || reported.length > 0
         ? 'partial'
         : 'decoded';
-  return result(status, publicChunks, rawChunks, warnings);
+  return result(status, publicChunks, rawChunks, reported);
 }

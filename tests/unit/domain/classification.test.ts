@@ -690,3 +690,43 @@ describe('classifyRequest', () => {
     expect(Object.isFrozen(result.evidence)).toBe(true);
   });
 });
+
+describe('classification confidence honesty', () => {
+  it('will not confirm a Server Action from the request header alone', () => {
+    const result = classifyRequest(
+      requestWith({
+        method: 'POST',
+        url: 'https://app.test/checkout',
+        requestHeaders: [{ name: 'Next-Action', value: '40f3a8b1' }],
+        responseMime: 'application/json',
+      }),
+    );
+
+    expect(result).toEqual({
+      kind: 'next-server-action',
+      confidence: 'likely',
+      evidence: [
+        'Request method is POST.',
+        'Request header Next-Action is present.',
+        'The response is not a Flight payload, so only the request side names an action.',
+        'Next.js action and Flight headers are internal and version-sensitive.',
+      ],
+      actionId: '40f3a8b1',
+    });
+  });
+
+  it('confirms an RSC response only when a Flight body backs the request headers', () => {
+    const withoutBody = classifyRequest(
+      requestWith({ requestHeaders: [{ name: 'RSC', value: '1' }] }),
+    );
+    const withBody = classifyRequest(
+      requestWith({
+        requestHeaders: [{ name: 'RSC', value: '1' }],
+        responseMime: 'text/x-component',
+      }),
+    );
+
+    expect(withoutBody.confidence).toBe('likely');
+    expect(withBody.confidence).toBe('confirmed');
+  });
+});
