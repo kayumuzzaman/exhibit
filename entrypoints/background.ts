@@ -3,8 +3,16 @@ import {
   type RuntimePortLike,
   type RuntimeSenderLike,
 } from '../src/infrastructure/chrome/interaction-bridge';
+import {
+  createPanelFocusCoordinator,
+  PANEL_FOCUS_REQUEST_MESSAGE,
+  PANEL_FOCUS_STATUS_MESSAGE,
+  type PanelFocusOutcome,
+  type PanelFocusStatus,
+} from '../src/infrastructure/chrome/panel-focus';
 
 export default defineBackground(() => {
+  const panelFocus = createPanelFocusCoordinator({ extensionId: chrome.runtime.id });
   const coordinator = createBackgroundInteractionCoordinator({
     extensionId: chrome.runtime.id,
     permissions: chrome.permissions,
@@ -48,6 +56,14 @@ export default defineBackground(() => {
     } catch {
       return undefined;
     }
+    if (type === PANEL_FOCUS_STATUS_MESSAGE || type === PANEL_FOCUS_REQUEST_MESSAGE) {
+      const answer: PanelFocusStatus | PanelFocusOutcome | null =
+        panelFocus.handleMessage(message, sender as RuntimeSenderLike);
+      if (answer !== null) {
+        sendResponse(answer);
+      }
+      return undefined;
+    }
     if (
       type !== 'payloadra:start-interactions' &&
       type !== 'payloadra:release-interactions'
@@ -65,6 +81,10 @@ export default defineBackground(() => {
   });
 
   chrome.runtime.onConnect.addListener((port) => {
-    coordinator.acceptPort(port as unknown as RuntimePortLike);
+    const candidate = port as unknown as RuntimePortLike;
+    // The interaction coordinator disconnects any port it does not recognise,
+    // so the focus channel has to claim its own ports before delegating.
+    if (panelFocus.acceptPort(candidate)) return;
+    coordinator.acceptPort(candidate);
   });
 });

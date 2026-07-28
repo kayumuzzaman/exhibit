@@ -46,6 +46,25 @@ test.describe('packaged extension', () => {
     });
   });
 
+  test('ships a toolbar popup that explains where the panel lives', async () => {
+    await withExtension(async ({ context, extensionId }) => {
+      const worker = context.serviceWorkers()[0]!;
+      const action = await worker.evaluate(
+        () => chrome.runtime.getManifest().action ?? null,
+      );
+      expect(action?.default_popup).toBe('popup.html');
+      expect(action?.default_title).toContain('DevTools');
+
+      const page = await context.newPage();
+      const response = await page.goto(`chrome-extension://${extensionId}/popup.html`);
+      expect(response?.status()).toBe(200);
+      // DevTools is not open here, so the popup must stay on the instructions.
+      await expect(page.getByRole('heading')).toContainText('DevTools');
+      await expect(page.locator('#focus')).toBeHidden();
+      await page.close();
+    });
+  });
+
   test('fails closed when interaction capture is requested for another tab', async () => {
     await withExtension(async ({ context, extensionId }) => {
       const page = await context.newPage();

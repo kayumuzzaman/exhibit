@@ -8,6 +8,14 @@ All notable changes to Payloadra are recorded here. This project follows
 Findings from a full review of the 0.1.0 build. Nothing here changes the shape
 of the product; every entry closes a defect found by auditing shipped behaviour.
 
+### Added
+
+- A toolbar popup. Chrome offers no API for opening DevTools from an extension,
+  so clicking the icon previously did nothing at all; the popup now explains
+  where the panel lives, and when DevTools is already open on the tab it offers
+  a button that switches straight to the Payloadra panel (Chrome 140+, which is
+  where `ExtensionPanel.show` arrived).
+
 ### Fixed
 
 - Capture no longer waits on the debounced storage write. `accept` awaited each

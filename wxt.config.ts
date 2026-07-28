@@ -13,6 +13,9 @@ export function buildManifest() {
       128: 'icon/128.png',
     },
     devtools_page: 'devtools.html',
+    // The toolbar entry is declared by `entrypoints/popup.html`, which WXT maps
+    // onto `action`. Chrome exposes no way to open DevTools from an extension,
+    // so that popup explains where the panel lives instead of doing nothing.
     minimum_chrome_version: '120',
     permissions: ['storage', 'scripting'],
     optional_host_permissions: ['http://*/*', 'https://*/*'],
