@@ -32,7 +32,7 @@ Environment: macOS 26.5.2 (arm64), Node v26.5.0, pnpm 10.33.2, WXT 0.21.2,
 Playwright 1.62.0, Chromium 151.0.7922.34, Google Chrome 150.0.7871.187
 installed.
 
-Candidate commit: `9414d52`, the committed tree carrying the fixes and audit
+Candidate commit: `7d1ff2d`, the committed tree carrying the fixes and audit
 documents described in the unreleased changelog. The gate ran against that
 exact tree with no uncommitted changes, so this is reproducible pre-release
 evidence; it is still not a signed release record, because the manual installed
