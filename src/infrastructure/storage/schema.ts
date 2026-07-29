@@ -29,9 +29,9 @@ import {
 import { DEFAULT_LIMITS } from '../../domain/session';
 import { DEFAULT_REDACTION_CONFIG } from '../../features/settings/redaction-settings';
 
-export const STORAGE_SCHEMA_VERSION = 1;
+const STORAGE_SCHEMA_VERSION = 1;
 export const MAX_STORAGE_BYTES = 10 * 1024 * 1024;
-export const MAX_STORED_REQUESTS = 10_000;
+const MAX_STORED_REQUESTS = 10_000;
 const MAX_INTERACTIONS = 10_000;
 const MAX_VALIDATION_DEPTH = 32;
 // Dense, valid 500-request sessions exceed the old 100k-node guard. Keep enough

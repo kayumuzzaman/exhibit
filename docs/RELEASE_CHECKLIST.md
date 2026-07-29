@@ -35,21 +35,10 @@ ever run in a real Chrome: Playwright cannot attach to the DevTools window, and
 Chrome 150 refuses `--load-extension`, so the Chrome capture adapter has unit
 coverage only.
 
-```bash
-pnpm build
-```
-
-Then in Google Chrome: `chrome://extensions` → enable **Developer mode** →
-**Load unpacked** → select `.output/chrome-mv3`.
-
-Optionally start the deterministic fixtures for repeatable traffic:
-
-```bash
-pnpm exec playwright test tests/e2e/recording.spec.ts --headed   # or use any authorized site
-```
-
-Walk the checklist in [VERIFICATION.md](./VERIFICATION.md) and write the result
-into its table. What each step should show:
+Run `pnpm build`, then follow the load and walkthrough steps in
+[VERIFICATION.md](./VERIFICATION.md) — that document owns the procedure — and
+write the outcome into its table. Use this as the pass/fail reference for what
+each step should show:
 
 | #   | Step                 | Expected                                                                    |
 | --- | -------------------- | --------------------------------------------------------------------------- |

@@ -9,10 +9,10 @@ import {
   recoverSessionIdFromLocator,
 } from './schema';
 
-export const PAYLOADRA_DATABASE = 'payloadra';
-export const PAYLOADRA_DATABASE_VERSION = 1;
-export const SESSION_STORE = 'sessions';
-export const SETTINGS_STORE = 'settings';
+const PAYLOADRA_DATABASE = 'payloadra';
+const PAYLOADRA_DATABASE_VERSION = 1;
+const SESSION_STORE = 'sessions';
+const SETTINGS_STORE = 'settings';
 
 export function openPayloadraDatabase(
   factory: IDBFactory,
