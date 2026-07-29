@@ -1,9 +1,8 @@
 # Verification
 
 Payloadra has one release gate. The commands below are intended to run from a
-clean checkout. The latest recorded run used a dirty development worktree, so
-its exact source state is not reconstructable until the candidate is committed
-or tagged.
+clean checkout. The latest recorded run is reconstructable: it was produced from
+the committed candidate identified below.
 
 ## Commands
 
@@ -33,9 +32,11 @@ Environment: macOS 26.5.2 (arm64), Node v26.5.0, pnpm 10.33.2, WXT 0.21.2,
 Playwright 1.62.0, Chromium 151.0.7922.34, Google Chrome 150.0.7871.187
 installed.
 
-Baseline commit: `dae74f649ea1f42fd6f8b2b6f263c8dc7b74d7e5`. The worktree was
-dirty with the fixes and audit documents described in the unreleased changelog,
-so this is reproducible pre-release evidence, not a signed release record.
+Candidate commit: `c40abf5`, the committed tree carrying the fixes and audit
+documents described in the unreleased changelog. The gate ran against that
+exact tree with no uncommitted changes, so this is reproducible pre-release
+evidence; it is still not a signed release record, because the manual installed
+Chrome checklist below has not been completed.
 
 | Gate                      | Result                                                                           |
 | ------------------------- | -------------------------------------------------------------------------------- |
@@ -52,10 +53,10 @@ so this is reproducible pre-release evidence, not a signed release record.
 | Manifest permissions      | `["scripting","storage"]`; required host permissions `[]`                        |
 | `pnpm audit:dependencies` | pass — 0 known vulnerabilities                                                   |
 | `pnpm test:e2e`           | pass — 41 tests                                                                  |
-| `pnpm zip`                | pass — `.output/payloadra-0.1.0-chrome.zip`, 224,403 bytes                       |
+| `pnpm zip`                | pass — `.output/payloadra-0.1.0-chrome.zip`, 225,870 bytes                       |
 
 Artifact SHA-256:
-`c055ab34b305d2e9962acb3068274252a69b35612de2c86b28627fd33698e199`.
+`fef20c14fb3c07df6e0966333f8e433ac7620b68927c4b048308e65a25ee3274`.
 
 ## Recorded run — 2026-07-26
 
