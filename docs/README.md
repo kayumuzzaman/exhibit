@@ -3,7 +3,11 @@
 Payloadra is a Chrome DevTools panel that records browser-visible network
 requests, explains what each one did in plain language, and lets you inspect the
 sanitized evidence. Everything stays on the machine: the extension has no
-backend, sends no telemetry, and declares no host permissions.
+backend, sends no telemetry, and declares no required host permissions.
+Optional access is requested for the inspected page's origin only when
+interaction grouping starts. Chrome grants that origin access to the extension,
+not just one tab, and keeps the grant until the user revokes it or uninstalls
+the extension; Payloadra uses it only for the active inspected tab.
 
 ## Install the unpacked extension
 
@@ -33,9 +37,11 @@ ledger.
 - **Clear** removes the session from memory and from local storage after a
   confirmation dialog.
 
-Recording also asks for interaction access on the inspected tab. If Chrome
-declines, the panel keeps recording network evidence and says that interaction
-grouping is unavailable.
+Recording also asks for interaction access to the inspected page's origin. If
+Chrome declines, the panel keeps recording network evidence and says that
+interaction grouping is unavailable. Chrome's grant is origin-wide and
+persistent, while Payloadra's active collector remains scoped to the inspected
+tab and recording lease.
 
 ## Read the evidence
 
@@ -43,8 +49,8 @@ Select a request to open the detail workspace. It has two views:
 
 **Explain** answers "what happened":
 
-- one sentence naming the trigger, the request kind, the outcome, the duration,
-  and the classification confidence;
+- one sentence naming the recent correlated interaction, request kind, outcome,
+  duration, and classification confidence without claiming causation;
 - the Server Action identifier when the protocol proves one, never a guessed
   function name;
 - the submitted field names (never their values) and the returned shape;
@@ -61,7 +67,13 @@ their section is opened.
 - **API requests only** is on by default. Turn it off to include documents,
   static assets, and unknown traffic.
 - Quick filters narrow to **Failures**, **Slow calls** (≥ 1000 ms), or
-  **Cache hits**. **Reset filters** returns to the full ledger.
+  **Cache hits**.
+- Expand **Evidence facets** to intersect method, domain, protocol, outcome,
+  and cache state. **Reset filters** clears quick filters, facets, search,
+  interaction scope, and API-only mode.
+- **Interaction groups** scopes the ledger to requests observed shortly after
+  one trusted page interaction. **Unattributed** keeps requests with no recent
+  trusted interaction instead of inventing a causal link.
 - The search box matches route, status, headers, body text, and evidence.
 - When the selected request repeats an earlier one with the same method and
   normalized URL, **Show request comparison** reports status, duration delta,
@@ -70,11 +82,12 @@ their section is opened.
 ## Copy and export
 
 - **Copy safe cURL** copies a runnable command with credential headers removed.
-  Success and failure are announced in the panel.
-- **Export** writes a sanitized HAR 1.2 file. Authorization and cookie headers
-  are always redacted, and only the current session is written.
-- The same export path also produces a Markdown QA report describing the
-  session, failures, slow calls, and repeated calls.
+  Success and failure are announced in the panel. Clipboard content can outlive
+  DevTools and be read by other local applications; Clear cannot retract it.
+- **Export** shows the current request count and enforced-redaction state, then
+  writes either a sanitized HAR 1.2 file or a deterministic Markdown QA report.
+  Authorization and cookie headers are always redacted, and only the current
+  session is written.
 
 ## Retention
 
@@ -83,6 +96,14 @@ their section is opened.
   session ends.
 - **Local** keeps the session in IndexedDB so it survives a browser restart.
 - **Clear** removes the session from both stores.
+
+Clear does not revoke an optional origin permission. Revoke it through Chrome's
+extension permissions/site-access controls when it is no longer needed.
+
+The command-bar **Settings** dialog adds custom sensitive field names. Mandatory
+authorization, cookie, credential-name, and token-pattern protection cannot be
+disabled. Stop and Clear before changing custom names; the setting then applies
+to later captures and persists locally. Theme choice also persists locally.
 
 Recovered sessions are re-redacted, their request identifiers are reissued, and
 their stored analysis is discarded and recomputed rather than trusted.
@@ -99,6 +120,8 @@ their stored analysis is discarded and recomputed rather than trusted.
 ## Related documents
 
 - [Privacy policy](./PRIVACY.md)
+- [Release traceability](./TRACEABILITY.md)
+- [Roadmap](./ROADMAP.md)
 - [Architecture](./ARCHITECTURE.md)
 - [Capture limits](./CAPTURE_LIMITS.md)
 - [Verification](./VERIFICATION.md)

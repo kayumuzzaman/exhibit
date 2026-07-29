@@ -1,13 +1,15 @@
 # Verification
 
-Payloadra has one release gate. Everything below is reproducible from a clean
-checkout.
+Payloadra has one release gate. The commands below are intended to run from a
+clean checkout. The latest recorded run used a dirty development worktree, so
+its exact source state is not reconstructable until the candidate is committed
+or tagged.
 
 ## Commands
 
 ```bash
 pnpm install
-pnpm verify            # format, lint, types, coverage, build, package audit, E2E
+pnpm verify            # format, lint, types, build, coverage, audits, E2E
 pnpm release:artifact  # pnpm verify, then wxt zip
 ```
 
@@ -16,44 +18,76 @@ pnpm release:artifact  # pnpm verify, then wxt zip
 1. `pnpm format:check` — Prettier
 2. `pnpm lint` — ESLint with `--max-warnings=0`
 3. `pnpm typecheck` — `tsc --noEmit` in strict mode
-4. `pnpm test:coverage` — Vitest with a 90% statements/branches/functions/lines gate
-5. `pnpm build` — production Chrome MV3 build
+4. `pnpm build` — production Chrome MV3 build
+5. `pnpm test:coverage` — Vitest with a 90% statements/branches/functions/lines gate
 6. `pnpm audit:package` — static audit of `.output/chrome-mv3`
-7. `pnpm test:e2e` — Playwright, including the packaged-extension suite
+7. `pnpm audit:dependencies` — known high/critical dependency advisories
+8. `pnpm test:e2e` — Playwright, including the packaged-extension suite
 
 The Playwright global setup builds the panel harness and the Next.js fixture,
 and fails fast if `.output/chrome-mv3/manifest.json` is missing.
+
+## Recorded automated run — 2026-07-29
+
+Environment: macOS 26.5.2 (arm64), Node v26.5.0, pnpm 10.33.2, WXT 0.21.2,
+Playwright 1.62.0, Chromium 151.0.7922.34, Google Chrome 150.0.7871.187
+installed.
+
+Baseline commit: `dae74f649ea1f42fd6f8b2b6f263c8dc7b74d7e5`. The worktree was
+dirty with the fixes and audit documents described in the unreleased changelog,
+so this is reproducible pre-release evidence, not a signed release record.
+
+| Gate                      | Result                                                                           |
+| ------------------------- | -------------------------------------------------------------------------------- |
+| `pnpm format:check`       | pass                                                                             |
+| `pnpm lint`               | pass, 0 warnings                                                                 |
+| `pnpm typecheck`          | pass                                                                             |
+| `pnpm test:coverage`      | pass — 49 files, 990 tests                                                       |
+| Coverage — statements     | 95.71%                                                                           |
+| Coverage — branches       | 93.30%                                                                           |
+| Coverage — functions      | 97.32%                                                                           |
+| Coverage — lines          | 96.66%                                                                           |
+| `pnpm build`              | pass — 523.8 kB unpacked                                                         |
+| `pnpm audit:package`      | pass — 0 unapproved network-destination URLs, 0 remote scripts, 0 inline scripts |
+| Manifest permissions      | `["scripting","storage"]`; required host permissions `[]`                        |
+| `pnpm audit:dependencies` | pass — 0 known vulnerabilities                                                   |
+| `pnpm test:e2e`           | pass — 41 tests                                                                  |
+| `pnpm zip`                | pass — `.output/payloadra-0.1.0-chrome.zip`, 224,403 bytes                       |
+
+Artifact SHA-256:
+`c055ab34b305d2e9962acb3068274252a69b35612de2c86b28627fd33698e199`.
 
 ## Recorded run — 2026-07-26
 
 Environment: macOS 25.5.0 (arm64), Node v26.5.0, pnpm 10.33.2, Playwright
 Chromium 151.0.7922.34, Google Chrome 150.0.7871.187 installed.
 
-| Gate                    | Result                                                   |
-| ----------------------- | -------------------------------------------------------- |
-| `pnpm format:check`     | pass                                                     |
-| `pnpm lint`             | pass, 0 warnings                                         |
-| `pnpm typecheck`        | pass                                                     |
-| `pnpm test:coverage`    | pass — 43 files, 863 tests passed                        |
-| Coverage — statements   | 96.22% (4152/4315)                                       |
-| Coverage — branches     | 93.8% (3285/3502)                                        |
-| Coverage — functions    | 98.43% (818/831)                                         |
-| Coverage — lines        | 96.94% (3898/4021)                                       |
-| `pnpm build`            | pass — 484.72 kB unpacked                                |
-| `pnpm audit:package`    | pass — 0 remote URLs, 0 remote scripts, 0 inline scripts |
-| Manifest permissions    | `["scripting","storage"]`, host permissions `[]`         |
-| `pnpm test:e2e`         | pass — 35 tests                                          |
-| `pnpm release:artifact` | pass — `.output/payloadra-0.1.0-chrome.zip`, 216.02 kB   |
+| Gate                    | Result                                                                           |
+| ----------------------- | -------------------------------------------------------------------------------- |
+| `pnpm format:check`     | pass                                                                             |
+| `pnpm lint`             | pass, 0 warnings                                                                 |
+| `pnpm typecheck`        | pass                                                                             |
+| `pnpm test:coverage`    | pass — 43 files, 863 tests passed                                                |
+| Coverage — statements   | 96.22% (4152/4315)                                                               |
+| Coverage — branches     | 93.8% (3285/3502)                                                                |
+| Coverage — functions    | 98.43% (818/831)                                                                 |
+| Coverage — lines        | 96.94% (3898/4021)                                                               |
+| `pnpm build`            | pass — 484.72 kB unpacked                                                        |
+| `pnpm audit:package`    | pass — 0 unapproved network-destination URLs, 0 remote scripts, 0 inline scripts |
+| Manifest permissions    | `["scripting","storage"]`, host permissions `[]`                                 |
+| `pnpm test:e2e`         | pass — 35 tests                                                                  |
+| `pnpm release:artifact` | pass — `.output/payloadra-0.1.0-chrome.zip`, 216.02 kB                           |
 
-The package-audit suite only runs when `.output/chrome-mv3` exists. Inside
-`pnpm verify` the build precedes the audit, so it always runs there; on a clean
-checkout it is skipped rather than failing.
+The unit package-contract tests only run when `.output/chrome-mv3` exists.
+Inside `pnpm verify`, the production build now precedes coverage, so those tests
+do not skip. The standalone static package audit also runs after that build.
 
 ## What the automatic suite covers
 
-- **Recording** — Start/Stop/Clear, API-first default, every quick filter,
-  search, interaction grouping, redirects, repeated calls, cache and
-  service-worker delivery, error and slow states, cancellation, blocked
+- **Recording** — Start/Stop/Clear, API-first display over all-resource capture,
+  incremental interaction-aware search, five intersecting evidence facets,
+  every quick filter, interaction grouping, redirects, repeated calls, cache
+  and service-worker delivery, error and slow states, cancellation, blocked
   cross-origin calls, streamed/binary/truncated/partially decoded bodies,
   comparison, safe cURL, HAR and QA report export, keyboard operation, and
   narrow-layout selection preservation.
@@ -63,10 +97,19 @@ checkout it is skipped rather than failing.
 - **Accessibility** — axe scans of the empty, recording, Explain, Inspect
   (Request/Response/Timing/Evidence), narrow, drawer, and dialog states with no
   critical or serious violations; dialog focus restoration; live status region;
-  non-colour timing labels; reduced-motion honouring.
-- **Retention** — ephemeral recovery after reload, persistent recovery from
-  IndexedDB after clearing session storage, and clear removing evidence from
-  every store.
+  non-colour timing labels; reduced-motion honouring; at least 44×44 CSS pixel
+  phone controls and evidence rows; and no evidence-tab overflow at 900 px.
+- **Retention and settings** — explicit memory/local retention selection,
+  ephemeral recovery after reload, persistent recovery from IndexedDB after
+  clearing session storage, safe corrupt-record clearing, fresh-database
+  handling, clear removing evidence from every evidence store, and theme plus
+  bounded additive custom-redaction settings surviving reload.
+- **Interaction lifecycle** — tab/origin/document/lease validation, malformed
+  message rejection, and a 20-second active-panel heartbeat that keeps an MV3
+  lease active while recording.
+- **Performance** — capture, persistence, search, dense recovery, and a
+  greater-than-400 KiB valid/malformed React Flight fixture run under bounded
+  time, output, and warning budgets.
 - **Next.js** — a real Next 16 production build: Server Action success and
   failure, the route handler, and an RSC navigation payload. The captured
   `Next-Action` header is asserted to be non-empty and opaque; no test pins a
@@ -116,9 +159,22 @@ Run this in the locally installed Google Chrome and record the result here.
 | Clear                | pending |      |                              |
 | Sanitized export     | pending |      |                              |
 
+## Script-verified in real Chrome — 2026-07-29
+
+`node scripts/smoke-chrome.mjs` against Google Chrome 150.0.7871.187:
+
+- extension load: blocked because this Chrome build refuses
+  `--load-extension`;
+- fixture profile traffic: HTTP 200;
+- remote requests observed: none.
+
+The connected browser-control surface also blocks automated access to
+`chrome://extensions`. Loading the unpacked directory and opening the DevTools
+panel therefore still require the manual checklist above.
+
 ## Script-verified in real Chrome — 2026-07-26
 
-`npx tsx scripts/smoke-chrome.mjs` against Google Chrome 150.0.7871.187:
+`node scripts/smoke-chrome.mjs` against Google Chrome 150.0.7871.187:
 
 - extension load: blocked by the browser's `--load-extension` policy;
 - fixture page traffic: profile load HTTP 200;

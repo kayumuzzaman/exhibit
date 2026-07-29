@@ -11,7 +11,7 @@ Payloadra is a local-first Chrome DevTools extension for QA engineers, developer
 Payloadra answers:
 
 - What browser-visible calls happened?
-- Which user interaction or navigation caused each call?
+- Which recent user interaction or navigation preceded each call?
 - What was sent and returned?
 - Did the request succeed, fail, redirect, repeat, hit cache, or pass through a service worker?
 - Is the request a generic API call, GraphQL operation, probable Next.js API route, Server Action, SSR document, or React Server Component payload?
@@ -126,7 +126,9 @@ Specific rules:
 - Recording is off by default and tab-scoped.
 - No background capture and no remote requests from the extension.
 - No analytics, telemetry, cloud sync, remote fonts, remote scripts, or remotely hosted code.
-- Optional per-origin host permission is requested only when interaction capture starts.
+- Optional per-origin host permission is requested only when interaction
+  capture starts. Chrome keeps the origin-wide grant until the user revokes it
+  or uninstalls; collector use remains scoped to the inspected tab.
 - Redaction happens before storage, render, clipboard copy, cURL generation, or export.
 - Export always requires confirmation and shows redaction status, item count, and destination format.
 - Restricted pages fail closed with a clear explanation.
@@ -206,7 +208,10 @@ Every non-happy path gets a designed state:
 
 ## 10. Explain and Inspect Behavior
 
-**Explain** leads with one sentence: trigger, request kind, outcome, duration, and confidence. It then shows safe submitted fields, returned result summary, related calls, cache/repeat/redirect facts, and evidence-based next steps.
+**Explain** leads with one sentence: recent correlated interaction, request kind,
+outcome, duration, and confidence, without claiming causation. It then shows
+safe submitted fields, returned result summary, related calls,
+cache/repeat/redirect facts, and evidence-based next steps.
 
 **Inspect** exposes normalized and raw evidence:
 
@@ -308,4 +313,3 @@ Release is ready only when:
 6. Core workflow is keyboard accessible and responsive in narrow and wide DevTools panels.
 7. Production package loads in Chrome and requests only documented permissions.
 8. All quality gates pass, including ≥90% in all four coverage metrics and automatic E2E.
-

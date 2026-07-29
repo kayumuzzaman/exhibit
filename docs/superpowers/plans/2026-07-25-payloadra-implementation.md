@@ -1,5 +1,10 @@
 # Payloadra Implementation Plan
 
+> **Audit note — 2026-07-29:** This file is the historical red/green execution
+> plan. Its unchecked boxes were never maintained as a completion ledger. Use
+> [release traceability](../../TRACEABILITY.md) for current implementation and
+> acceptance status.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Build and package Payloadra, a privacy-first Chrome DevTools network explainer with ≥90% coverage in all four metrics and automatic browser E2E tests.
@@ -368,7 +373,11 @@ export type FlightDecodeResult = Readonly<{
 
 - [ ] **Step 5: Implement plain-language explanations**
 
-Generate deterministic copy from evidence: trigger, protocol kind, status class, duration, redirect/cache/service-worker/repeated-call facts, and safe next-step guidance. “Retry,” “CORS,” and “CSP” require direct evidence; otherwise use “repeated call” or “request failed before an HTTP response.”
+Generate deterministic copy from evidence: recent correlated interaction,
+protocol kind, status class, duration,
+redirect/cache/service-worker/repeated-call facts, and safe next-step guidance.
+“Retry,” “CORS,” and “CSP” require direct evidence; otherwise use “repeated
+call” or “request failed before an HTTP response.”
 
 - [ ] **Step 6: Run GREEN**
 
@@ -709,7 +718,7 @@ git commit -m "feat: build premium accessible panel shell"
 - [ ] **Step 1: Write failing evidence rendering tests**
 
 ```tsx
-it('states trigger, action identifier, outcome, duration, and confidence without inventing a name', () => {
+it('states correlated interaction, action identifier, outcome, duration, and confidence without inventing a name', () => {
   render(<ExplainView request={serverActionFixture} group={saveGroup} />);
   expect(screen.getByText(/Save profile triggered a Server Action/i)).toBeVisible();
   expect(screen.getByText('40f3a8b1')).toBeVisible();
@@ -869,7 +878,9 @@ Document unpacked installation, Start/Stop workflow, Explain/Inspect, filters, r
 - [ ] **Step 6: Run final automatic acceptance**
 
 Run: `pnpm verify && pnpm release:artifact`
-Expected: all gates PASS; coverage summary shows ≥90% for statements, branches, functions, and lines; zip exists; package audit reports zero remote URLs and exact permissions.
+Expected: all gates PASS; coverage summary shows ≥90% for statements, branches,
+functions, and lines; zip exists; package audit reports zero unapproved
+network-destination URLs and exact permissions.
 
 - [ ] **Step 7: Smoke installed Google Chrome 150**
 

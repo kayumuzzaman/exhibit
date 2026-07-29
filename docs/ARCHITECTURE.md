@@ -56,7 +56,9 @@ Interaction events take a parallel path: the injected collector posts them to
 the background coordinator, the panel's interaction source stamps the owning
 tab, the pipeline redacts each event, and the controller stores it bounded.
 `correlate` groups requests under the trusted interaction that preceded them
-inside a five-second window.
+inside a five-second window. While recording, the panel sends a validated
+heartbeat every 20 seconds over the active lease so the MV3 coordinator remains
+live; a disconnect or Stop cancels the timer.
 
 ## Session state
 
@@ -80,13 +82,21 @@ oversized or malformed payloads with a `corrupt-session` warning, re-redacts the
 contents, reissues request ids, and recomputes classification and explanation
 rather than trusting stored analysis.
 
+Panel preferences use a separate versioned record in `chrome.storage.local`.
+The record contains the light/dark/system theme and bounded custom
+credential-field names. Custom names are additive only: mandatory credential
+names are always merged back in before capture or recovery. Clearing evidence
+does not clear these preferences.
+
 ## Panel workspace
 
 `PayloadraApp` renders a command bar, a session rail, the request ledger, and a
 detail workspace, with an error boundary that falls back to a recovery screen
 offering Clear and Export. Layout switches between wide, medium, narrow, and
 phone modes from the viewport width; the wide layout has draggable, keyboard
-operable separators.
+operable separators. The session rail provides interaction groups, quick
+filters, and method/domain/protocol/outcome/cache facets. Search is updated
+incrementally as requests and correlated interactions arrive.
 
 ## Testing
 

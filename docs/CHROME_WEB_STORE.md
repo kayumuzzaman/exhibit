@@ -1,7 +1,9 @@
 # Chrome Web Store listing
 
-This is the prepared listing copy. Payloadra is currently `UNLICENSED` and
-private; publishing requires the owner to choose a licence first.
+This is draft listing copy, not an approved publisher submission. Payloadra is
+currently `UNLICENSED` and private. Publishing requires the owner to choose a
+licence, close the release blockers in [TRACEABILITY.md](./TRACEABILITY.md), and
+review the final disclosure form against current Chrome Web Store policy.
 
 ## Item details
 
@@ -17,9 +19,9 @@ private; publishing requires the owner to choose a licence first.
 > evidence you can read.
 >
 > Start recording, use your page, and Payloadra explains each request in one
-> sentence: what triggered it, what kind of request it was, what came back, how
-> long it took, and how confident that reading is. Every claim links back to the
-> protocol facts behind it.
+> sentence: which recent interaction it followed, what kind of request it was,
+> what came back, how long it took, and how confident that reading is. Every
+> claim links back to the protocol facts behind it.
 >
 > Inspect gives you the developer view — headers, bodies, timing phases,
 > initiator, and an evidence ledger — with Structured, Text, and Raw protocol
@@ -29,43 +31,64 @@ private; publishing requires the owner to choose a licence first.
 > • No server, no account, no analytics, no outbound requests.
 > • Authorization and cookie headers, credential-shaped fields, and token-like
 > values are redacted before anything is stored, shown, or exported.
-> • No required host permissions. Interaction access is optional, per tab, and
-> requested only when you start recording.
+> • No required host permissions. Interaction access is optional and requested
+> for the inspected page's origin only when you start recording. Chrome keeps
+> the origin grant until you revoke it or uninstall.
 > • Evidence stays on your machine and can be cleared at any time.
 >
-> Also included: API-first filtering, failure/slow/cache quick filters, full-text
-> search, repeated-call comparison, safe cURL copy, sanitized HAR 1.2 export, and
-> a Markdown QA report.
+> Also included: API-first filtering, method/domain/protocol/outcome/cache
+> facets, failure/slow/cache quick filters, full-text search, custom additive
+> redaction names, repeated-call comparison, safe cURL copy, sanitized HAR 1.2
+> export, and a Markdown QA report.
 >
 > Payloadra reports only what the browser can prove. It cannot see
 > server-to-server traffic, and it never guesses a server function name.
 
 ## Permission justifications
 
-- **storage** — Keeps the current recording session on the user's machine so the
-  DevTools panel can be closed and reopened without losing evidence.
+- **storage** — Keeps the memory-retained session plus theme and custom
+  redaction settings on the user's machine.
 - **scripting** — Injects a small collector into the inspected tab to record
-  trusted click, submit, and navigation events so requests can be grouped under
-  the interaction that caused them.
+  trusted click, submit, and navigation events so requests can be correlated
+  with the recent interaction observed before them.
 - **Optional host access (`http://*/*`, `https://*/*`)** — Requested only when
-  the user presses Start, only for the tab being inspected, and only to observe
-  interactions on that page. No content is read or transmitted.
+  the user presses Start, for the inspected page's origin, and only to observe
+  safe click, submit, and navigation metadata. Chrome's permission grant covers
+  that origin across tabs and persists until revoked or uninstalled; Payloadra
+  activates its collector only in the inspected tab. Field values are not read,
+  and no captured content is transmitted by Payloadra.
 - **Remote code** — None. The package contains no remote scripts, no inline
-  scripts, and no remote URLs; this is enforced by `pnpm audit:package`.
+  scripts, and no unapproved network-destination URLs; this is enforced by
+  `pnpm audit:package`.
 
-## Data usage disclosures
+## Data usage disclosure preparation
 
-- Does this item collect personally identifiable information? **No.**
-- Health, financial, authentication, personal communications, location, web
-  history, user activity, website content? **No** — data is processed locally,
-  never transmitted, and credential material is redacted before storage.
-- Is data sold to third parties? **No.**
-- Is data used for purposes unrelated to the item's core functionality? **No.**
-- Is data used to determine creditworthiness or for lending? **No.**
+Do not answer every “collect or use” category **No** merely because processing
+is local. During an active recording, Payloadra processes website content, user
+activity, browsing/network history for the inspected tab,
+authentication-related material, and any personal data present in request or
+response evidence.
+
+Accurate product behavior:
+
+- captured data is used only for the user-requested debugging workflow;
+- data is processed locally and is not transmitted to Payloadra or a third
+  party by the extension;
+- user-initiated safe cURL copy writes sanitized text to the operating-system
+  clipboard, where it can outlive the panel;
+- data is not sold, used for advertising, creditworthiness, or unrelated
+  purposes;
+- known credential material is redacted before trusted storage, display, copy,
+  or export, subject to the documented detection limits;
+- the user chooses whether to retain locally, export, clear, or uninstall.
+
+The publisher must map these facts to the current form wording and obtain any
+required privacy/legal review before submission.
 
 ## Screenshots
 
-Regenerate the set with `npx tsx scripts/screenshots.mjs`. It drives the real
+Regenerate the set with `pnpm screenshots`. It uses the lockfile-pinned local
+runner, drives the real
 panel against the real fixtures, hides the harness controls, and writes exactly
 1280 x 800 dark-theme PNGs to `docs/screenshots/`:
 
@@ -85,7 +108,9 @@ no real credentials, no customer data, and no third-party branding.
 
 1. `pnpm release:artifact`
 2. Confirm `.output/payloadra-0.1.0-chrome.zip` exists.
-3. Confirm the package audit reported zero remote URLs and exactly
+3. Confirm the package audit reported zero unapproved network-destination URLs and exactly
    `["scripting","storage"]`.
 4. Record the browser smoke result in [VERIFICATION.md](./VERIFICATION.md).
 5. Choose and add a licence before uploading.
+6. Resolve the owner, privacy, security, and support contacts.
+7. Review every data-use answer against the final publisher form.

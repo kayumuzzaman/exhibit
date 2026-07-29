@@ -5,11 +5,29 @@ All notable changes to Payloadra are recorded here. This project follows
 
 ## [Unreleased]
 
-Findings from a full review of the 0.1.0 build. Nothing here changes the shape
-of the product; every entry closes a defect found by auditing shipped behaviour.
+Findings and remediations from a full review of the 0.1.0 build.
+These changes remain a development candidate; the 0.1.0 artifact is not recut
+as a release until owner acceptance is complete.
 
 ### Added
 
+- Product, business-model, competitive-landscape, roadmap, release-traceability,
+  security, and support records for the internal release audit.
+- A high/critical dependency audit in the release gate.
+- An explicit Evidence retention selector for browser-session memory or local
+  persistence until Clear.
+- Versioned local settings for theme and bounded additive custom
+  credential-field names, with mandatory redaction rules always enforced.
+- Incremental interaction-aware search and method, domain, protocol, outcome,
+  and cache facets that intersect with quick filters.
+- A 20-second active-panel heartbeat for the background interaction lease.
+- A deterministic screenshot command and a greater-than-400 KiB React Flight
+  performance fixture with bounded warning and output assertions.
+- An interaction-group rail that scopes the request ledger to a trusted page
+  action or the explicit Unattributed group.
+- An export chooser for sanitized HAR 1.2 and Markdown QA reports, with the
+  enforced-redaction state, request count, and selected format visible before
+  download.
 - A toolbar popup. Chrome offers no API for opening DevTools from an extension,
   so clicking the icon previously did nothing at all; the popup now explains
   where the panel lives, and when DevTools is already open on the tab it offers
@@ -18,6 +36,21 @@ of the product; every entry closes a defect found by auditing shipped behaviour.
 
 ### Fixed
 
+- The build/test dependency graph now has zero known advisories: WXT and ESLint
+  were upgraded, patched PostCSS and esbuild versions are enforced, and unused
+  Next.js image-processing binaries are omitted from the fixture toolchain.
+- Short valid HTTP Basic credentials are now redacted under custom header names
+  without treating ordinary prose such as “Basic plan” as a credential.
+- Valid header-dense sessions at the documented 500-request cap now survive
+  storage validation and recovery.
+- Live response-content retrieval now uses shared bounded concurrency, so
+  stalled callbacks drain in configured timeout waves without reordering or
+  duplicating observations.
+- Panel reload now flushes pending local snapshots, and a recovered active
+  session is shown as stopped instead of falsely claiming that its destroyed
+  capture sources are still recording.
+- The persisted-capture performance regression now receives a test timeout that
+  covers its documented three-attempt measurement envelope.
 - Capture no longer waits on the debounced storage write. `accept` awaited each
   repository write, so every captured request stalled the pipeline for a whole
   debounce window and capped capture at roughly ten requests per second; 300
@@ -41,6 +74,39 @@ of the product; every entry closes a defect found by auditing shipped behaviour.
 - Panel layout, focus, and announcement corrections across the narrow and phone
   layouts, the timing waterfall axis, tab and grid semantics, evidence copy
   scoping, and pointer-driven resizing.
+- Explain/Inspect and Inspect-subtab state now survives wide, medium, narrow,
+  and phone layout remounts.
+- Interaction copy now describes the implemented five-second temporal
+  correlation instead of claiming that a click or submit caused a request.
+- Interaction groups expose trusted, untrusted-hint, and unattributed states;
+  selecting a zero-request group clears stale request detail.
+- Repository flush failures now reject their public flush promise while timer
+  callbacks contain expected background failures.
+- Stored-session validation uses a tighter traversal budget, and an interrupted
+  recording's recovered stopped timestamp is persisted so repeated reloads stay
+  stable.
+- Optional-host documentation now states that Chrome grants persistent,
+  origin-wide access even though Payloadra's collector use is inspected-tab
+  scoped.
+- Static assets are captured under the production contract while the API-only
+  choice remains a display filter, matching capture, recovery, and export.
+- Corrupt storage recovery preserves the exact damaged record for explicit
+  clearing, and a fresh IndexedDB without a current-session locator no longer
+  raises a false corruption warning.
+- Recovered sessions recompute classification and explanation from their
+  sanitized evidence. The recovery boundary discards stored analysis so it is
+  never trusted, which left every recovered request classified as unknown and
+  hidden behind the ledger's API-first default after a panel reload.
+- Search synchronizes new request and interaction terms without rebuilding the
+  whole index.
+- Custom redaction settings are normalized, deduplicated, bounded, loaded
+  before recovery and capture, and re-applied to recovered evidence.
+- Phone controls and evidence rows meet the 44 CSS pixel target, and evidence
+  tabs no longer overflow the medium-width workspace.
+- The interface font is IBM Plex Sans, replacing generic Inter while preserving
+  JetBrains Mono for evidence; the full-source Impeccable detector is clean.
+- The release gate builds before coverage so package-contract tests cannot
+  silently skip on a clean worktree, and the screenshot runner is pinned.
 
 ## [0.1.0] — 2026-07-26
 

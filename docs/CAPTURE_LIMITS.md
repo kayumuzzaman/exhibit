@@ -30,8 +30,11 @@ the document request itself.
 | `streamed`    | The response was streamed and DevTools did not buffer it. Headers and timing remain. |
 | `unavailable` | DevTools did not provide content, timed out, or returned an unsupported encoding.    |
 
-Cross-origin responses only expose headers the server allows through CORS, so a
-captured header set can be smaller than what the server actually sent.
+Payloadra reads DevTools evidence, not the page JavaScript CORS view. A CORS
+failure can appear as a failed browser request, but it does not by itself define
+which fields DevTools returns. Chrome can still omit a body or field for
+protocol, cache, streaming, cancellation, privacy, or implementation reasons;
+Payloadra reports only the evidence it actually receives.
 
 ## Session limits
 
@@ -71,11 +74,13 @@ recording continues in network-only mode and the panel says grouping is
 unavailable. Untrusted (script-generated) events are recorded as hints and are
 never used to claim a user action occurred.
 
-Interaction capability lives in the MV3 service worker, whose state does not
-survive termination. Chrome disconnects an idle extension port after several
-minutes, so a long recording with no page interaction can lose interaction
-grouping while network capture continues. Stop and start recording to
-re-establish it.
+Interaction capability lives in the MV3 service worker, whose in-memory state
+does not survive termination. While recording, the panel sends a fixed
+heartbeat message every 20 seconds over the active lease; the worker validates
+and acknowledges it, keeping ordinary idle shutdown from silently dropping the
+lease. A browser/extension reload, crash, forced worker stop, or destroyed
+DevTools context can still end interaction grouping while network capture
+continues. Stop and start recording to re-establish it.
 
 ## Timing
 
