@@ -3,7 +3,7 @@ import { defineConfig } from 'wxt';
 export function buildManifest() {
   return {
     manifest_version: 3,
-    name: 'Payloadra',
+    name: 'Exhibit',
     version: '0.1.0',
     description: 'Privacy-first browser request evidence for DevTools.',
     icons: {

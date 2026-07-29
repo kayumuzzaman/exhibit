@@ -1,5 +1,5 @@
 ---
-target: Payloadra panel
+target: Exhibit panel
 total_score: 20
 max_score: 20
 na_heuristics:
@@ -8,10 +8,10 @@ p1_count: 0
 p2_count: 0
 p3_count: 0
 timestamp: 2026-07-28T20-50-59Z
-slug: payloadra-panel-follow-up
+slug: exhibit-panel-follow-up
 ---
 
-# Payloadra follow-up UI audit
+# Exhibit follow-up UI audit
 
 ## Outcome
 

@@ -16,7 +16,7 @@ const EXTENSION_DIR = fileURLToPath(new URL('../.output/chrome-mv3', import.meta
 
 async function main() {
   const fixture = await startGenericFixture({});
-  const profile = await mkdtemp(join(tmpdir(), 'payloadra-chrome-smoke-'));
+  const profile = await mkdtemp(join(tmpdir(), 'exhibit-chrome-smoke-'));
   const results = [];
   let context;
 

@@ -134,7 +134,7 @@ async function startBackground(
   url = 'https://shop.test/cart?token=secret#checkout',
 ) {
   return fixture.coordinator.handleStart(
-    { type: 'payloadra:start-interactions', tabId, url },
+    { type: 'exhibit:start-interactions', tabId, url },
     extensionSender(),
   );
 }
@@ -157,7 +157,7 @@ async function startActiveBackground(
 }
 
 function devtoolsPortName(start: ActiveBackgroundStart): string {
-  return `payloadra:devtools:${start.tabId}:${start.leaseId}`;
+  return `exhibit:devtools:${start.tabId}:${start.leaseId}`;
 }
 
 function fakeElement(
@@ -212,7 +212,7 @@ class FakeEventHub {
 function collectorFixture() {
   const document = new FakeEventHub();
   const window = new FakeEventHub();
-  const port = new FakePort('payloadra:content');
+  const port = new FakePort('exhibit:content');
   const global: Record<string, unknown> = {};
   let href = 'https://shop.test/cart?token=secret#part';
   let sequence = 0;
@@ -245,8 +245,8 @@ function linkedContentPorts(): {
   isolated: FakePort;
   background: FakePort;
 } {
-  const isolated = new FakePort('payloadra:content');
-  const background = new FakePort('payloadra:content', contentSender());
+  const isolated = new FakePort('exhibit:content');
+  const background = new FakePort('exhibit:content', contentSender());
   const isolatedPost = isolated.postMessage.bind(isolated);
   const backgroundPost = background.postMessage.bind(background);
   isolated.postMessage = (message: unknown): void => {
@@ -548,7 +548,7 @@ describe('background permission and injection flow', () => {
 
     await expect(
       fixture.coordinator.handleStart(
-        { type: 'payloadra:start-interactions', tabId: 9, url: 'chrome://settings' },
+        { type: 'exhibit:start-interactions', tabId: 9, url: 'chrome://settings' },
         extensionSender(),
       ),
     ).resolves.toEqual({
@@ -558,7 +558,7 @@ describe('background permission and injection flow', () => {
     await expect(
       fixture.coordinator.handleStart(
         {
-          type: 'payloadra:start-interactions',
+          type: 'exhibit:start-interactions',
           tabId: 9,
           url: 'https://shop.test',
         },
@@ -571,7 +571,7 @@ describe('background permission and injection flow', () => {
     await expect(
       fixture.coordinator.handleStart(
         {
-          type: 'payloadra:start-interactions',
+          type: 'exhibit:start-interactions',
           tabId: 9,
           url: 'https://shop.test',
           origin: 'https://evil.test',
@@ -684,7 +684,7 @@ describe('background permission and injection flow', () => {
     const fixture = backgroundFixture();
     const started = await startActiveBackground(fixture);
     const devtools = new FakePort(devtoolsPortName(started), extensionSender());
-    const content = new FakePort('payloadra:content', contentSender());
+    const content = new FakePort('exhibit:content', contentSender());
     fixture.coordinator.acceptPort(devtools);
     fixture.coordinator.acceptPort(content);
 
@@ -695,26 +695,26 @@ describe('background permission and injection flow', () => {
         documentId: 'document-9',
       }),
     );
-    const duplicate = new FakePort('payloadra:content', contentSender());
+    const duplicate = new FakePort('exhibit:content', contentSender());
 
     expect(fixture.coordinator.acceptPort(duplicate)).toBe(false);
     if (duplicateStart.status === 'active') {
       await fixture.coordinator.handleRelease(
         {
-          type: 'payloadra:release-interactions',
+          type: 'exhibit:release-interactions',
           tabId: duplicateStart.tabId,
           leaseId: duplicateStart.leaseId,
         },
         extensionSender(),
       );
     }
-    devtools.emit({ type: 'payloadra:stop' });
+    devtools.emit({ type: 'exhibit:stop' });
     expect(content.sent).toEqual([
       {
-        type: 'payloadra:collector-config',
+        type: 'exhibit:collector-config',
         mainHookToken: expect.any(String),
       },
-      { type: 'payloadra:collector-stop' },
+      { type: 'exhibit:collector-stop' },
     ]);
   });
 
@@ -724,11 +724,11 @@ describe('background permission and injection flow', () => {
     const devtools = new FakePort(devtoolsPortName(started), extensionSender());
     expect(fixture.coordinator.acceptPort(devtools)).toBe(true);
 
-    devtools.emit({ type: 'payloadra:heartbeat' });
-    expect(devtools.sent).toEqual([{ type: 'payloadra:heartbeat-ack' }]);
+    devtools.emit({ type: 'exhibit:heartbeat' });
+    expect(devtools.sent).toEqual([{ type: 'exhibit:heartbeat-ack' }]);
 
-    devtools.emit({ type: 'payloadra:heartbeat', extra: true });
-    expect(devtools.sent).toEqual([{ type: 'payloadra:heartbeat-ack' }]);
+    devtools.emit({ type: 'exhibit:heartbeat', extra: true });
+    expect(devtools.sent).toEqual([{ type: 'exhibit:heartbeat-ack' }]);
     expect(devtools.disconnected).toBe(false);
     fixture.coordinator.stopAll();
   });
@@ -737,7 +737,7 @@ describe('background permission and injection flow', () => {
     const coordinatorRef: {
       current: ReturnType<typeof backgroundFixture>['coordinator'] | null;
     } = { current: null };
-    const content = new FakePort('payloadra:content', contentSender());
+    const content = new FakePort('exhibit:content', contentSender());
     const worlds: string[] = [];
     const fixture = backgroundFixture({
       scripting: {
@@ -759,7 +759,7 @@ describe('background permission and injection flow', () => {
     });
 
     expect(worlds.slice(0, 2)).toEqual(['ISOLATED', 'MAIN']);
-    expect(content.sent).toContainEqual({ type: 'payloadra:collector-stop' });
+    expect(content.sent).toContainEqual({ type: 'exhibit:collector-stop' });
     expect(content.disconnected).toBe(true);
   });
 
@@ -796,7 +796,7 @@ describe('background permission and injection flow', () => {
     await vi.waitFor(() => expect(mainCalls).toBe(1));
     const current = await startActiveBackground(fixture);
     const devtools = new FakePort(devtoolsPortName(current), extensionSender());
-    const content = new FakePort('payloadra:content', contentSender());
+    const content = new FakePort('exhibit:content', contentSender());
     expect(fixture.coordinator.acceptPort(devtools)).toBe(true);
     expect(fixture.coordinator.acceptPort(content)).toBe(true);
 
@@ -812,7 +812,7 @@ describe('background permission and injection flow', () => {
       reason: 'superseded',
     });
     content.emit({
-      type: 'payloadra:interaction',
+      type: 'exhibit:interaction',
       event: {
         id: 'current-after-stale-main',
         kind: 'click',
@@ -832,15 +832,15 @@ describe('background permission and injection flow', () => {
       await startActiveBackground(fixture);
       const claimed = await startActiveBackground(fixture);
       const devtools = new FakePort(devtoolsPortName(claimed), extensionSender());
-      const content = new FakePort('payloadra:content', contentSender());
+      const content = new FakePort('exhibit:content', contentSender());
       expect(fixture.coordinator.acceptPort(devtools)).toBe(true);
       expect(fixture.coordinator.acceptPort(content)).toBe(true);
 
       await vi.advanceTimersByTimeAsync(5_000);
       expect(content.disconnected).toBe(false);
-      devtools.emit({ type: 'payloadra:stop' });
+      devtools.emit({ type: 'exhibit:stop' });
 
-      expect(content.sent).toEqual([{ type: 'payloadra:collector-stop' }]);
+      expect(content.sent).toEqual([{ type: 'exhibit:collector-stop' }]);
       expect(content.disconnected).toBe(true);
     } finally {
       fixture.coordinator.stopAll();
@@ -854,13 +854,13 @@ describe('background permission and injection flow', () => {
     try {
       const claimed = await startActiveBackground(fixture);
       const devtools = new FakePort(devtoolsPortName(claimed), extensionSender());
-      const content = new FakePort('payloadra:content', contentSender());
+      const content = new FakePort('exhibit:content', contentSender());
       fixture.coordinator.acceptPort(devtools);
       fixture.coordinator.acceptPort(content);
 
       await vi.advanceTimersByTimeAsync(5_001);
       content.emit({
-        type: 'payloadra:interaction',
+        type: 'exhibit:interaction',
         event: {
           id: 'claimed-after-expiry-window',
           kind: 'click',
@@ -885,13 +885,13 @@ describe('background permission and injection flow', () => {
       fixture.coordinator.stopAll();
       const current = await startActiveBackground(fixture);
       const devtools = new FakePort(devtoolsPortName(current), extensionSender());
-      const content = new FakePort('payloadra:content', contentSender());
+      const content = new FakePort('exhibit:content', contentSender());
       fixture.coordinator.acceptPort(devtools);
       fixture.coordinator.acceptPort(content);
 
       await vi.advanceTimersByTimeAsync(5_001);
       content.emit({
-        type: 'payloadra:interaction',
+        type: 'exhibit:interaction',
         event: {
           id: 'replacement-survives',
           kind: 'click',
@@ -938,7 +938,7 @@ describe('background permission and injection flow', () => {
     const old = await startActiveBackground(fixture);
     const oldPort = new FakePort(devtoolsPortName(old), extensionSender());
     fixture.coordinator.acceptPort(oldPort);
-    oldPort.emit({ type: 'payloadra:stop' });
+    oldPort.emit({ type: 'exhibit:stop' });
 
     const restarting = startBackground(fixture);
     await vi.waitFor(() =>
@@ -982,7 +982,7 @@ describe('background permission and injection flow', () => {
       const old = await startActiveBackground(fixture);
       const oldPort = new FakePort(devtoolsPortName(old), extensionSender());
       fixture.coordinator.acceptPort(oldPort);
-      oldPort.emit({ type: 'payloadra:stop' });
+      oldPort.emit({ type: 'exhibit:stop' });
 
       let settled = false;
       const restarting = startBackground(fixture).finally(() => {
@@ -1048,11 +1048,11 @@ describe('background permission and injection flow', () => {
     });
     try {
       const old = await startActiveBackground(fixture);
-      const oldHookToken = (mainGlobal.__payloadraHistoryHookV1 as { token: string })
+      const oldHookToken = (mainGlobal.__exhibitHistoryHookV1 as { token: string })
         .token;
       const oldPort = new FakePort(devtoolsPortName(old), extensionSender());
       fixture.coordinator.acceptPort(oldPort);
-      oldPort.emit({ type: 'payloadra:stop' });
+      oldPort.emit({ type: 'exhibit:stop' });
 
       const restarting = startBackground(fixture);
       await vi.advanceTimersByTimeAsync(1_000);
@@ -1064,7 +1064,7 @@ describe('background permission and injection flow', () => {
       await Promise.resolve();
       await Promise.resolve();
 
-      const current = mainGlobal.__payloadraHistoryHookV1 as
+      const current = mainGlobal.__exhibitHistoryHookV1 as
         { token: string } | undefined;
       expect(current?.token).not.toBe(oldHookToken);
       expect(history.pushState).not.toBe(originalPush);
@@ -1203,11 +1203,11 @@ describe('background permission and injection flow', () => {
       expect(currentToken).not.toBe(oldToken);
 
       dispatchPageSignal({
-        type: 'payloadra:collector-config',
+        type: 'exhibit:collector-config',
         detail: { mainHookToken: currentToken },
       });
       oldPorts.isolated.emit({
-        type: 'payloadra:collector-config',
+        type: 'exhibit:collector-config',
         mainHookToken: 'x'.repeat(129),
       });
       oldCollector.stop();
@@ -1216,11 +1216,11 @@ describe('background permission and injection flow', () => {
         (signal) =>
           signal !== null &&
           typeof signal === 'object' &&
-          (signal as { type?: unknown }).type === 'payloadra:history-teardown-v1',
+          (signal as { type?: unknown }).type === 'exhibit:history-teardown-v1',
       );
       expect(staleTeardown).toEqual([
         {
-          type: 'payloadra:history-teardown-v1',
+          type: 'exhibit:history-teardown-v1',
           detail: { token: oldToken },
         },
       ]);
@@ -1235,15 +1235,15 @@ describe('background permission and injection flow', () => {
           (signal) =>
             signal !== null &&
             typeof signal === 'object' &&
-            (signal as { type?: unknown }).type === 'payloadra:history-teardown-v1',
+            (signal as { type?: unknown }).type === 'exhibit:history-teardown-v1',
         ),
       ).toEqual([
         {
-          type: 'payloadra:history-teardown-v1',
+          type: 'exhibit:history-teardown-v1',
           detail: { token: oldToken },
         },
         {
-          type: 'payloadra:history-teardown-v1',
+          type: 'exhibit:history-teardown-v1',
           detail: { token: currentToken },
         },
       ]);
@@ -1260,12 +1260,12 @@ describe('role-scoped ports and sender binding', () => {
     const fixture = backgroundFixture();
     const started = await startActiveBackground(fixture);
     const devtools = new FakePort(devtoolsPortName(started), extensionSender());
-    const content = new FakePort('payloadra:content', contentSender());
+    const content = new FakePort('exhibit:content', contentSender());
 
     expect(fixture.coordinator.acceptPort(devtools)).toBe(true);
     expect(fixture.coordinator.acceptPort(content)).toBe(true);
     content.emit({
-      type: 'payloadra:interaction',
+      type: 'exhibit:interaction',
       event: {
         id: 'click-1',
         kind: 'click',
@@ -1282,7 +1282,7 @@ describe('role-scoped ports and sender binding', () => {
       },
     });
     content.emit({
-      type: 'payloadra:interaction',
+      type: 'exhibit:interaction',
       event: {
         id: 'click-2',
         kind: 'click',
@@ -1292,7 +1292,7 @@ describe('role-scoped ports and sender binding', () => {
       },
     });
     content.emit({
-      type: 'payloadra:interaction',
+      type: 'exhibit:interaction',
       event: {
         id: 'click-3',
         kind: 'click',
@@ -1304,7 +1304,7 @@ describe('role-scoped ports and sender binding', () => {
 
     expect(devtools.sent).toEqual([
       {
-        type: 'payloadra:interaction',
+        type: 'exhibit:interaction',
         event: {
           id: 'click-1',
           tabId: '9',
@@ -1322,7 +1322,7 @@ describe('role-scoped ports and sender binding', () => {
         },
       },
       {
-        type: 'payloadra:interaction',
+        type: 'exhibit:interaction',
         event: {
           id: 'click-2',
           tabId: '9',
@@ -1333,7 +1333,7 @@ describe('role-scoped ports and sender binding', () => {
         },
       },
       {
-        type: 'payloadra:interaction',
+        type: 'exhibit:interaction',
         event: {
           id: 'click-3',
           tabId: '9',
@@ -1357,7 +1357,7 @@ describe('role-scoped ports and sender binding', () => {
   ])('rejects a content port with %s', async (_name, sender) => {
     const fixture = backgroundFixture();
     await startBackground(fixture);
-    const content = new FakePort('payloadra:content', sender);
+    const content = new FakePort('exhibit:content', sender);
 
     expect(fixture.coordinator.acceptPort(content)).toBe(false);
     expect(content.disconnected).toBe(true);
@@ -1382,14 +1382,14 @@ describe('role-scoped ports and sender binding', () => {
     const fixture = backgroundFixture();
     const started = await startActiveBackground(fixture);
     const devtools = new FakePort(devtoolsPortName(started), extensionSender());
-    const first = new FakePort('payloadra:content', contentSender());
-    const duplicate = new FakePort('payloadra:content', contentSender());
+    const first = new FakePort('exhibit:content', contentSender());
+    const duplicate = new FakePort('exhibit:content', contentSender());
     fixture.coordinator.acceptPort(devtools);
 
     expect(fixture.coordinator.acceptPort(first)).toBe(true);
     expect(fixture.coordinator.acceptPort(duplicate)).toBe(false);
     first.emit({
-      type: 'payloadra:interaction',
+      type: 'exhibit:interaction',
       tabId: 10,
       origin: 'https://evil.test',
       documentId: 'document-9',
@@ -1408,7 +1408,7 @@ describe('role-scoped ports and sender binding', () => {
     const fixture = backgroundFixture();
     const started = await startActiveBackground(fixture);
     const devtools = new FakePort(devtoolsPortName(started), extensionSender());
-    const content = new FakePort('payloadra:content', contentSender());
+    const content = new FakePort('exhibit:content', contentSender());
     fixture.coordinator.acceptPort(devtools);
     fixture.coordinator.acceptPort(content);
     const invalidEvents = [
@@ -1454,7 +1454,7 @@ describe('role-scoped ports and sender binding', () => {
     ];
 
     for (const event of invalidEvents) {
-      content.emit({ type: 'payloadra:interaction', event });
+      content.emit({ type: 'exhibit:interaction', event });
     }
 
     expect(devtools.sent).toEqual([]);
@@ -1464,9 +1464,9 @@ describe('role-scoped ports and sender binding', () => {
     const fixture = backgroundFixture();
     await startBackground(fixture);
     await startBackground(fixture, 10, 'https://other.test/dashboard');
-    const first9 = new FakePort('payloadra:content', contentSender());
+    const first9 = new FakePort('exhibit:content', contentSender());
     const content10 = new FakePort(
-      'payloadra:content',
+      'exhibit:content',
       contentSender({
         tab: { id: 10, url: 'https://other.test/dashboard' },
         documentId: 'document-10',
@@ -1477,25 +1477,25 @@ describe('role-scoped ports and sender binding', () => {
     fixture.coordinator.acceptPort(first9);
     fixture.coordinator.acceptPort(content10);
     first9.disconnect();
-    const replacement9 = new FakePort('payloadra:content', contentSender());
+    const replacement9 = new FakePort('exhibit:content', contentSender());
 
     expect(fixture.coordinator.acceptPort(replacement9)).toBe(true);
     fixture.coordinator.stopAll();
     fixture.coordinator.stopAll();
 
-    expect(replacement9.sent).toEqual([{ type: 'payloadra:collector-stop' }]);
-    expect(content10.sent).toEqual([{ type: 'payloadra:collector-stop' }]);
+    expect(replacement9.sent).toEqual([{ type: 'exhibit:collector-stop' }]);
+    expect(content10.sent).toEqual([{ type: 'exhibit:collector-stop' }]);
   });
 
   it('rejects absent sessions, unrelated roles, and unsafe numeric port names', () => {
     const fixture = backgroundFixture();
     const noSession = new FakePort(
-      'payloadra:devtools:9:missing-lease',
+      'exhibit:devtools:9:missing-lease',
       extensionSender(),
     );
     const unrelated = new FakePort('other-role', extensionSender());
     const unsafeNumber = new FakePort(
-      'payloadra:devtools:999999999999999999999:missing-lease',
+      'exhibit:devtools:999999999999999999999:missing-lease',
       extensionSender(),
     );
 
@@ -1514,9 +1514,9 @@ describe('role-scoped ports and sender binding', () => {
     );
     const devtools9 = new FakePort(devtoolsPortName(started9), extensionSender());
     const devtools10 = new FakePort(devtoolsPortName(started10), extensionSender());
-    const content9 = new FakePort('payloadra:content', contentSender());
+    const content9 = new FakePort('exhibit:content', contentSender());
     const content10 = new FakePort(
-      'payloadra:content',
+      'exhibit:content',
       contentSender({
         tab: { id: 10, url: 'https://other.test/dashboard' },
         documentId: 'document-10',
@@ -1529,11 +1529,11 @@ describe('role-scoped ports and sender binding', () => {
     fixture.coordinator.acceptPort(content9);
     fixture.coordinator.acceptPort(content10);
 
-    devtools9.emit({ type: 'payloadra:stop' });
+    devtools9.emit({ type: 'exhibit:stop' });
     devtools9.disconnect();
     devtools9.disconnect();
 
-    expect(content9.sent).toEqual([{ type: 'payloadra:collector-stop' }]);
+    expect(content9.sent).toEqual([{ type: 'exhibit:collector-stop' }]);
     expect(content10.sent).toEqual([]);
     expect(devtools10.disconnected).toBe(false);
   });
@@ -1542,14 +1542,14 @@ describe('role-scoped ports and sender binding', () => {
     const fixture = backgroundFixture();
     const started = await startActiveBackground(fixture);
     const devtools = new FakePort(devtoolsPortName(started), extensionSender());
-    const content = new FakePort('payloadra:content', contentSender());
+    const content = new FakePort('exhibit:content', contentSender());
     fixture.coordinator.acceptPort(devtools);
     fixture.coordinator.acceptPort(content);
 
-    devtools.emit({ type: 'payloadra:stop' });
+    devtools.emit({ type: 'exhibit:stop' });
     const sentBeforeStaleMessage = devtools.sent.length;
     content.emit({
-      type: 'payloadra:interaction',
+      type: 'exhibit:interaction',
       event: {
         id: 'stale',
         kind: 'click',
@@ -1584,14 +1584,14 @@ describe('role-scoped ports and sender binding', () => {
     });
     const started = await startActiveBackground(fixture);
     const devtools = new FakePort(devtoolsPortName(started), extensionSender());
-    const staleContent = new FakePort('payloadra:content', contentSender());
+    const staleContent = new FakePort('exhibit:content', contentSender());
     fixture.coordinator.acceptPort(devtools);
     fixture.coordinator.acceptPort(staleContent);
 
     documentId = 'document-new';
     await startBackground(fixture);
     staleContent.emit({
-      type: 'payloadra:interaction',
+      type: 'exhibit:interaction',
       event: {
         id: 'stale-document',
         kind: 'click',
@@ -1616,13 +1616,13 @@ describe('role-scoped ports and sender binding', () => {
       devtoolsPortName(currentStart),
       extensionSender(),
     );
-    const currentContent = new FakePort('payloadra:content', contentSender());
+    const currentContent = new FakePort('exhibit:content', contentSender());
     fixture.coordinator.acceptPort(currentDevtools);
     fixture.coordinator.acceptPort(currentContent);
 
-    staleDevtools.emit({ type: 'payloadra:stop' });
+    staleDevtools.emit({ type: 'exhibit:stop' });
     currentContent.emit({
-      type: 'payloadra:interaction',
+      type: 'exhibit:interaction',
       event: {
         id: 'current',
         kind: 'click',
@@ -1641,14 +1641,14 @@ describe('role-scoped ports and sender binding', () => {
     const secondStart = await startActiveBackground(fixture);
     const first = new FakePort(devtoolsPortName(firstStart), extensionSender());
     const second = new FakePort(devtoolsPortName(secondStart), extensionSender());
-    const content = new FakePort('payloadra:content', contentSender());
+    const content = new FakePort('exhibit:content', contentSender());
     fixture.coordinator.acceptPort(first);
     fixture.coordinator.acceptPort(second);
     fixture.coordinator.acceptPort(content);
 
-    first.emit({ type: 'payloadra:stop' });
+    first.emit({ type: 'exhibit:stop' });
     content.emit({
-      type: 'payloadra:interaction',
+      type: 'exhibit:interaction',
       event: {
         id: 'second-owner',
         kind: 'click',
@@ -1662,7 +1662,7 @@ describe('role-scoped ports and sender binding', () => {
     expect(second.sent).toHaveLength(1);
 
     second.disconnect();
-    expect(content.sent).toEqual([{ type: 'payloadra:collector-stop' }]);
+    expect(content.sent).toEqual([{ type: 'exhibit:collector-stop' }]);
     expect(content.disconnected).toBe(true);
   });
 
@@ -1670,7 +1670,7 @@ describe('role-scoped ports and sender binding', () => {
     const fixture = backgroundFixture();
     const started = await startActiveBackground(fixture);
     const devtools = new FakePort(devtoolsPortName(started), extensionSender());
-    const content = new FakePort('payloadra:content', contentSender());
+    const content = new FakePort('exhibit:content', contentSender());
     fixture.coordinator.acceptPort(devtools);
     fixture.coordinator.acceptPort(content);
     let getterReads = 0;
@@ -1678,7 +1678,7 @@ describe('role-scoped ports and sender binding', () => {
       enumerable: true,
       get() {
         getterReads += 1;
-        return 'payloadra:interaction';
+        return 'exhibit:interaction';
       },
     });
     const proxyMessage = new Proxy(
@@ -1712,7 +1712,7 @@ describe('role-scoped ports and sender binding', () => {
       Array.from({ length: 17 }, (_, index) => [`key${index}`, index]),
     );
     const withSymbol = {
-      type: 'payloadra:start-interactions',
+      type: 'exhibit:start-interactions',
       tabId: 9,
       url: 'https://shop.test',
       [Symbol('secret')]: 'hidden',
@@ -1723,13 +1723,13 @@ describe('role-scoped ports and sender binding', () => {
       tooManyKeys,
       withSymbol,
       {
-        type: 'payloadra:start-interactions',
+        type: 'exhibit:start-interactions',
         tabId: 9,
         url: 'https://shop.test',
         nested,
       },
       {
-        type: 'payloadra:start-interactions',
+        type: 'exhibit:start-interactions',
         tabId: 9,
         url: `https://shop.test/${'x'.repeat(9_000)}`,
       },
@@ -1750,7 +1750,7 @@ describe('role-scoped ports and sender binding', () => {
     const fixture = backgroundFixture();
     const started = await startActiveBackground(fixture);
     const devtools = new FakePort(devtoolsPortName(started), extensionSender());
-    const content = new FakePort('payloadra:content', contentSender());
+    const content = new FakePort('exhibit:content', contentSender());
     fixture.coordinator.acceptPort(devtools);
     fixture.coordinator.acceptPort(content);
     const invalidEnums = [
@@ -1769,9 +1769,7 @@ describe('role-scoped ports and sender binding', () => {
     ];
 
     for (const event of invalidEnums) {
-      expect(() =>
-        content.emit({ type: 'payloadra:interaction', event }),
-      ).not.toThrow();
+      expect(() => content.emit({ type: 'exhibit:interaction', event })).not.toThrow();
     }
     expect(devtools.sent).toEqual([]);
   });
@@ -1779,7 +1777,7 @@ describe('role-scoped ports and sender binding', () => {
 
 describe('panel interaction source', () => {
   it('sends Start synchronously, connects a tab-scoped port, and publishes events', async () => {
-    const port = new FakePort('payloadra:devtools:9');
+    const port = new FakePort('exhibit:devtools:9');
     let resolveStart!: (value: unknown) => void;
     const response = new Promise<unknown>((resolve) => {
       resolveStart = resolve;
@@ -1798,7 +1796,7 @@ describe('panel interaction source', () => {
     });
 
     expect(runtime.sendMessage).toHaveBeenCalledWith({
-      type: 'payloadra:start-interactions',
+      type: 'exhibit:start-interactions',
       tabId: 9,
       url: 'https://shop.test/cart?secret=x',
     });
@@ -1814,11 +1812,11 @@ describe('panel interaction source', () => {
       expect.objectContaining({ status: 'active' }),
     );
     expect(runtime.connect).toHaveBeenCalledWith({
-      name: 'payloadra:devtools:9:lease-panel-9',
+      name: 'exhibit:devtools:9:lease-panel-9',
     });
 
     port.emit({
-      type: 'payloadra:interaction',
+      type: 'exhibit:interaction',
       event: {
         id: 'event',
         tabId: '9',
@@ -1831,7 +1829,7 @@ describe('panel interaction source', () => {
     expect(received).toHaveLength(1);
     unsubscribe();
     port.emit({
-      type: 'payloadra:interaction',
+      type: 'exhibit:interaction',
       event: {
         id: 'ignored',
         tabId: '9',
@@ -1866,7 +1864,7 @@ describe('panel interaction source', () => {
 
   it('sends a bounded heartbeat while active and cancels it on Stop', async () => {
     vi.useFakeTimers();
-    const port = new FakePort('payloadra:devtools:9');
+    const port = new FakePort('exhibit:devtools:9');
     const runtime = {
       sendMessage: vi.fn(async () => ({
         status: 'active',
@@ -1884,15 +1882,15 @@ describe('panel interaction source', () => {
       await vi.advanceTimersByTimeAsync(19_999);
       expect(port.sent).toEqual([]);
       await vi.advanceTimersByTimeAsync(1);
-      expect(port.sent).toEqual([{ type: 'payloadra:heartbeat' }]);
+      expect(port.sent).toEqual([{ type: 'exhibit:heartbeat' }]);
       await vi.advanceTimersByTimeAsync(20_000);
       expect(port.sent).toEqual([
-        { type: 'payloadra:heartbeat' },
-        { type: 'payloadra:heartbeat' },
+        { type: 'exhibit:heartbeat' },
+        { type: 'exhibit:heartbeat' },
       ]);
 
       await source.stop();
-      expect(port.sent.at(-1)).toEqual({ type: 'payloadra:stop' });
+      expect(port.sent.at(-1)).toEqual({ type: 'exhibit:stop' });
       const sentAfterStop = port.sent.length;
       await vi.advanceTimersByTimeAsync(60_000);
       expect(port.sent).toHaveLength(sentAfterStop);
@@ -1903,7 +1901,7 @@ describe('panel interaction source', () => {
   });
 
   it('stops and disconnects an active port once and ignores malformed events', async () => {
-    const port = new FakePort('payloadra:devtools:9');
+    const port = new FakePort('exhibit:devtools:9');
     const runtime = {
       sendMessage: vi.fn(async () => ({
         status: 'active',
@@ -1920,7 +1918,7 @@ describe('panel interaction source', () => {
     await source.start({ tabId: 9, url: 'https://shop.test' });
 
     port.emit({
-      type: 'payloadra:interaction',
+      type: 'exhibit:interaction',
       event: {
         id: 'leak',
         tabId: '9',
@@ -1934,7 +1932,7 @@ describe('panel interaction source', () => {
     await source.stop();
 
     expect(listener).not.toHaveBeenCalled();
-    expect(port.sent).toEqual([{ type: 'payloadra:stop' }]);
+    expect(port.sent).toEqual([{ type: 'exhibit:stop' }]);
     expect(port.disconnected).toBe(true);
   });
 
@@ -1975,7 +1973,7 @@ describe('panel interaction source', () => {
       reason: 'invalid-response',
     });
 
-    const port = new FakePort('payloadra:devtools:9');
+    const port = new FakePort('exhibit:devtools:9');
     const source = createInteractionSource({
       sendMessage: vi.fn(async () => ({
         status: 'active',
@@ -1993,7 +1991,7 @@ describe('panel interaction source', () => {
     source.subscribe(survivor);
     await source.start({ tabId: 9, url: 'https://shop.test' });
     port.emit({
-      type: 'payloadra:interaction',
+      type: 'exhibit:interaction',
       event: {
         id: 'safe',
         tabId: '9',
@@ -2011,7 +2009,7 @@ describe('panel interaction source', () => {
 
   it('does not resurrect a pending Start after Stop', async () => {
     const startGate = pendingValue<unknown>();
-    const port = new FakePort('payloadra:devtools:9');
+    const port = new FakePort('exhibit:devtools:9');
     const runtime = {
       sendMessage: vi.fn(() => startGate.promise),
       connect: vi.fn(() => port),
@@ -2041,7 +2039,7 @@ describe('panel interaction source', () => {
     expect(runtime.sendMessage).toHaveBeenNthCalledWith(
       2,
       expect.objectContaining({
-        type: 'payloadra:release-interactions',
+        type: 'exhibit:release-interactions',
         tabId: 9,
       }),
     );
@@ -2050,8 +2048,8 @@ describe('panel interaction source', () => {
   it('keeps only the latest out-of-order concurrent Start result active', async () => {
     const firstGate = pendingValue<unknown>();
     const secondGate = pendingValue<unknown>();
-    const firstPort = new FakePort('payloadra:devtools:9');
-    const secondPort = new FakePort('payloadra:devtools:10');
+    const firstPort = new FakePort('exhibit:devtools:9');
+    const secondPort = new FakePort('exhibit:devtools:10');
     const runtime = {
       sendMessage: vi
         .fn()
@@ -2118,9 +2116,9 @@ describe('isolated interaction collector', () => {
     fixture.window.emit('hashchange', { isTrusted: true });
 
     expect(fixture.port.sent).toEqual([
-      { type: 'payloadra:content-ready' },
+      { type: 'exhibit:content-ready' },
       {
-        type: 'payloadra:interaction',
+        type: 'exhibit:interaction',
         event: {
           id: 'interaction-1',
           kind: 'click',
@@ -2131,7 +2129,7 @@ describe('isolated interaction collector', () => {
         },
       },
       {
-        type: 'payloadra:interaction',
+        type: 'exhibit:interaction',
         event: {
           id: 'interaction-2',
           kind: 'submit',
@@ -2142,7 +2140,7 @@ describe('isolated interaction collector', () => {
         },
       },
       {
-        type: 'payloadra:interaction',
+        type: 'exhibit:interaction',
         event: {
           id: 'interaction-3',
           kind: 'navigation',
@@ -2152,7 +2150,7 @@ describe('isolated interaction collector', () => {
         },
       },
       {
-        type: 'payloadra:interaction',
+        type: 'exhibit:interaction',
         event: {
           id: 'interaction-4',
           kind: 'navigation',
@@ -2168,7 +2166,7 @@ describe('isolated interaction collector', () => {
     const fixture = collectorFixture();
     installInteractionCollector(fixture.environment);
 
-    fixture.window.emit('payloadra:history-v1', {
+    fixture.window.emit('exhibit:history-v1', {
       isTrusted: false,
       detail: {
         value: 'password',
@@ -2178,7 +2176,7 @@ describe('isolated interaction collector', () => {
     });
 
     expect(fixture.port.sent.at(-1)).toEqual({
-      type: 'payloadra:interaction',
+      type: 'exhibit:interaction',
       event: {
         id: 'interaction-1',
         kind: 'history',
@@ -2197,13 +2195,13 @@ describe('isolated interaction collector', () => {
 
     expect(first.status).toBe('installed');
     expect(second.status).toBe('already-installed');
-    expect(fixture.port.sent).toEqual([{ type: 'payloadra:content-ready' }]);
+    expect(fixture.port.sent).toEqual([{ type: 'exhibit:content-ready' }]);
 
     fixture.port.emit({
-      type: 'payloadra:collector-config',
+      type: 'exhibit:collector-config',
       mainHookToken: 'hook-token',
     });
-    fixture.port.emit({ type: 'payloadra:collector-stop' });
+    fixture.port.emit({ type: 'exhibit:collector-stop' });
     fixture.document.emit('click', {
       isTrusted: true,
       composedPath: () => [fakeElement('button', {}, 'Ignored')],
@@ -2211,13 +2209,13 @@ describe('isolated interaction collector', () => {
 
     expect(fixture.window.dispatched).toEqual([
       {
-        type: 'payloadra:history-teardown-v1',
+        type: 'exhibit:history-teardown-v1',
         detail: { token: 'hook-token' },
       },
     ]);
     expect(fixture.port.disconnected).toBe(true);
-    expect(fixture.global.__payloadraInteractionBridgeV1).toBeUndefined();
-    expect(fixture.port.sent).toEqual([{ type: 'payloadra:content-ready' }]);
+    expect(fixture.global.__exhibitInteractionBridgeV1).toBeUndefined();
+    expect(fixture.port.sent).toEqual([{ type: 'exhibit:content-ready' }]);
   });
 
   it('fails closed when event paths, URLs, or port delivery are hostile', () => {
@@ -2269,9 +2267,9 @@ describe('isolated interaction collector', () => {
     fixture.window.emit('hashchange', { isTrusted: true });
 
     expect(fixture.port.sent).toEqual([
-      { type: 'payloadra:content-ready' },
+      { type: 'exhibit:content-ready' },
       {
-        type: 'payloadra:interaction',
+        type: 'exhibit:interaction',
         event: {
           id: 'interaction-1',
           kind: 'click',
@@ -2290,7 +2288,7 @@ describe('isolated interaction collector', () => {
     };
     const installation = installInteractionCollector(fixture.environment);
     fixture.port.emit({
-      type: 'payloadra:collector-config',
+      type: 'exhibit:collector-config',
       mainHookToken: 'hook-token',
     });
 
@@ -2555,8 +2553,8 @@ describe('MAIN-world history hook', () => {
     expect(replaceResult).toBe('replace-result');
     expect(calls).toEqual(['push', 'replace']);
     expect(dispatched).toEqual([
-      { type: 'payloadra:history-v1' },
-      { type: 'payloadra:history-v1' },
+      { type: 'exhibit:history-v1' },
+      { type: 'exhibit:history-v1' },
     ]);
     expect(JSON.stringify(dispatched)).not.toContain('secret');
     installed.stop();
@@ -2587,14 +2585,14 @@ describe('MAIN-world history hook', () => {
     expect(installed.status).toBe('installed');
     expect(installMainHistoryHook(environment).status).toBe('already-installed');
     history.pushState = pageReplacement;
-    listeners.get('payloadra:history-teardown-v1')?.({
+    listeners.get('exhibit:history-teardown-v1')?.({
       detail: { token: installed.token },
     });
 
     expect(history.pushState).toBe(pageReplacement);
     expect(history.replaceState).toBe(originalReplace);
-    expect(environment.global.__payloadraHistoryHookV1).toBeUndefined();
-    expect(listeners.has('payloadra:history-teardown-v1')).toBe(false);
+    expect(environment.global.__exhibitHistoryHookV1).toBeUndefined();
+    expect(listeners.has('exhibit:history-teardown-v1')).toBe(false);
   });
 
   it('never lets telemetry dispatch alter history return or throw behavior', () => {
@@ -2691,7 +2689,7 @@ describe('MAIN-world history hook', () => {
     expect(history.pushState).toBe(replacementPush);
 
     const hostileGlobal = {
-      __payloadraHistoryHookV1: {
+      __exhibitHistoryHookV1: {
         token: 'hostile-token',
         stop: () => {
           throw new Error('page disappeared');
@@ -2732,17 +2730,17 @@ describe('MAIN-world history hook', () => {
     expect(oldToken).toEqual(expect.any(String));
     expect(currentToken).toEqual(expect.any(String));
     expect(currentToken).not.toBe(oldToken);
-    listeners.get('payloadra:history-teardown-v1')?.(null);
-    listeners.get('payloadra:history-teardown-v1')?.('forged');
-    listeners.get('payloadra:history-teardown-v1')?.({ detail: null });
-    listeners.get('payloadra:history-teardown-v1')?.({ detail: 'forged' });
+    listeners.get('exhibit:history-teardown-v1')?.(null);
+    listeners.get('exhibit:history-teardown-v1')?.('forged');
+    listeners.get('exhibit:history-teardown-v1')?.({ detail: null });
+    listeners.get('exhibit:history-teardown-v1')?.({ detail: 'forged' });
     expect(history.pushState).toBe(currentPush);
-    listeners.get('payloadra:history-teardown-v1')?.({
+    listeners.get('exhibit:history-teardown-v1')?.({
       detail: { token: oldToken },
     });
     expect(history.pushState).toBe(currentPush);
 
-    listeners.get('payloadra:history-teardown-v1')?.({
+    listeners.get('exhibit:history-teardown-v1')?.({
       detail: { token: currentToken },
     });
     expect(history.pushState).toBe(originalPush);

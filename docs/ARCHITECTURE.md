@@ -1,6 +1,6 @@
-# Payloadra architecture
+# Exhibit architecture
 
-Payloadra is a Manifest V3 Chrome extension built with WXT, React 19, and
+Exhibit is a Manifest V3 Chrome extension built with WXT, React 19, and
 TypeScript in strict mode. It is organised so that untrusted browser data
 crosses exactly one boundary before it becomes evidence the product trusts.
 
@@ -8,7 +8,7 @@ crosses exactly one boundary before it becomes evidence the product trusts.
 
 | Surface                   | Entry point                       | Role                                                              |
 | ------------------------- | --------------------------------- | ----------------------------------------------------------------- |
-| DevTools page             | `entrypoints/devtools/main.ts`    | Registers the Payloadra panel.                                    |
+| DevTools page             | `entrypoints/devtools/main.ts`    | Registers the Exhibit panel.                                      |
 | Panel                     | `entrypoints/panel/main.tsx`      | Composes capture, interactions, storage, and the React workspace. |
 | Background service worker | `entrypoints/background.ts`       | Owns the tab-scoped interaction capability and its leases.        |
 | Injected collector        | `entrypoints/interaction.ts`      | Records trusted DOM interactions in the isolated world.           |
@@ -90,7 +90,7 @@ does not clear these preferences.
 
 ## Panel workspace
 
-`PayloadraApp` renders a command bar, a session rail, the request ledger, and a
+`ExhibitApp` renders a command bar, a session rail, the request ledger, and a
 detail workspace, with an error boundary that falls back to a recovery screen
 offering Clear and Export. Layout switches between wide, medium, narrow, and
 phone modes from the viewport width; the wide layout has draggable, keyboard

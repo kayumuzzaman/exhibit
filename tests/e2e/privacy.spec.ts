@@ -10,59 +10,59 @@ function assertNoSecrets(label: string, text: string): void {
 
 test.describe('privacy boundaries', () => {
   test('never surfaces credentials in the panel, exports, storage, or console', async ({
-    payloadra,
+    exhibit,
     consoleErrors,
   }) => {
-    await payloadra.startRecording();
-    await payloadra.trigger('secret');
-    await payloadra.trigger('save-profile');
-    await payloadra.trigger('submit-form');
-    await payloadra.trigger('upload');
-    await payloadra.setApiOnly(false);
+    await exhibit.startRecording();
+    await exhibit.trigger('secret');
+    await exhibit.trigger('save-profile');
+    await exhibit.trigger('submit-form');
+    await exhibit.trigger('upload');
+    await exhibit.setApiOnly(false);
 
-    await payloadra.openRequest('/api/secret');
-    await payloadra.openInspect();
+    await exhibit.openRequest('/api/secret');
+    await exhibit.openInspect();
     for (const tab of ['Overview', 'Request', 'Response', 'Evidence'] as const) {
-      await payloadra.openEvidenceTab(tab);
-      assertNoSecrets(`inspect ${tab}`, await payloadra.pageText());
+      await exhibit.openEvidenceTab(tab);
+      assertNoSecrets(`inspect ${tab}`, await exhibit.pageText());
     }
 
-    await payloadra.stopRecording();
-    const har = await payloadra.exportEvidence();
+    await exhibit.stopRecording();
+    const har = await exhibit.exportEvidence();
     assertNoSecrets('HAR export', har);
-    assertNoSecrets('QA report export', await payloadra.exportEvidence('markdown'));
-    assertNoSecrets('session storage', await payloadra.storedSessionText());
+    assertNoSecrets('QA report export', await exhibit.exportEvidence('markdown'));
+    assertNoSecrets('session storage', await exhibit.storedSessionText());
     assertNoSecrets('console output', consoleErrors.join('\n'));
   });
 
   test('redacts credential headers, query tokens, and body fields in place', async ({
-    payloadra,
+    exhibit,
   }) => {
-    await payloadra.startRecording();
-    await payloadra.trigger('secret');
-    await payloadra.setApiOnly(false);
+    await exhibit.startRecording();
+    await exhibit.trigger('secret');
+    await exhibit.setApiOnly(false);
 
-    await payloadra.openRequest('/api/secret');
-    await payloadra.openInspect();
-    await payloadra.openEvidenceTab('Request');
+    await exhibit.openRequest('/api/secret');
+    await exhibit.openInspect();
+    await exhibit.openEvidenceTab('Request');
 
-    const detail = payloadra.detailWorkspace();
+    const detail = exhibit.detailWorkspace();
     await expect(detail).toContainText('authorization');
     await expect(detail).toContainText('[REDACTED]');
     await expect(detail).not.toContainText(FIXTURE_SECRETS.authorization);
 
-    await payloadra.openEvidenceTab('Overview');
+    await exhibit.openEvidenceTab('Overview');
     await expect(detail).toContainText('access_token=[REDACTED]');
   });
 
   test('keeps the exported HAR limited to the sanitized session', async ({
-    payloadra,
+    exhibit,
   }) => {
-    await payloadra.startRecording();
-    await payloadra.trigger('save-profile');
-    await payloadra.stopRecording();
+    await exhibit.startRecording();
+    await exhibit.trigger('save-profile');
+    await exhibit.stopRecording();
 
-    const har = JSON.parse(await payloadra.exportEvidence()) as {
+    const har = JSON.parse(await exhibit.exportEvidence()) as {
       log: { entries: { request: { headers: { name: string; value: string }[] } }[] };
     };
 

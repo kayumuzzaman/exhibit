@@ -107,9 +107,9 @@ describe('filter boundary paths', () => {
 describe('search index boundary paths', () => {
   it('indexes an unparsable URL as a single opaque term', () => {
     const index = new SearchIndex();
-    index.add(requestWithUrl('opaque', 'payloadra-opaque-url'));
+    index.add(requestWithUrl('opaque', 'exhibit-opaque-url'));
 
-    expect(index.query('payloadra-opaque-url').map(({ id }) => id)).toEqual(['opaque']);
+    expect(index.query('exhibit-opaque-url').map(({ id }) => id)).toEqual(['opaque']);
   });
 
   it('keeps an undecodable percent sequence searchable as written', () => {

@@ -1,4 +1,4 @@
-# Payloadra support
+# Exhibit support
 
 **Status:** Internal preview; no public support service
 
@@ -48,7 +48,7 @@ tracker. Public distribution is blocked until the owner publishes:
 
 Include:
 
-- Payloadra commit or package version;
+- Exhibit commit or package version;
 - Chrome and operating-system versions;
 - page category and framework version, without customer secrets;
 - exact reproduction steps;
@@ -59,7 +59,7 @@ Include:
 - relevant test output.
 
 Do not attach a real HAR, session database, authorization header, cookie,
-customer response body, or credential. Payloadra redaction reduces risk but
+customer response body, or credential. Exhibit redaction reduces risk but
 does not make captured evidence public.
 
 Security issues follow [SECURITY.md](./SECURITY.md), not a normal support path.

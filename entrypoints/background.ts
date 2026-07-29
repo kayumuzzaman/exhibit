@@ -65,12 +65,12 @@ export default defineBackground(() => {
       return undefined;
     }
     if (
-      type !== 'payloadra:start-interactions' &&
-      type !== 'payloadra:release-interactions'
+      type !== 'exhibit:start-interactions' &&
+      type !== 'exhibit:release-interactions'
     ) {
       return undefined;
     }
-    if (type === 'payloadra:release-interactions') {
+    if (type === 'exhibit:release-interactions') {
       void coordinator.handleRelease(message, sender as RuntimeSenderLike);
       return undefined;
     }

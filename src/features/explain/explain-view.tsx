@@ -110,7 +110,7 @@ export function ExplainView({
         <RelatedRequests relatedRequests={relatedRequests} request={request} />
         <Guidance explanation={explanation} request={request} />
         <details className="explain-evidence">
-          <summary>Why Payloadra says this</summary>
+          <summary>Why Exhibit says this</summary>
           <ul>
             {explanation.evidence.map((fact) => (
               <li key={fact}>{fact}</li>

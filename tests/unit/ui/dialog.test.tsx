@@ -4,7 +4,7 @@ import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
-import { PayloadraApp } from '../../../src/app/app';
+import { ExhibitApp } from '../../../src/app/app';
 import { DEFAULT_REDACTION_CONFIG, redactSession } from '../../../src/domain/redaction';
 import { createSession } from '../../../src/domain/session';
 import type { SanitizedRecordingSession } from '../../../src/domain/sanitized';
@@ -40,7 +40,7 @@ describe('command dialogs', () => {
     const user = userEvent.setup();
     const exportEvidence = vi.fn().mockResolvedValue(undefined);
     render(
-      <PayloadraApp controller={controllerFake()} exportEvidence={exportEvidence} />,
+      <ExhibitApp controller={controllerFake()} exportEvidence={exportEvidence} />,
     );
     const trigger = screen.getByRole('button', { name: 'Export evidence' });
     await user.click(trigger);
@@ -64,7 +64,7 @@ describe('command dialogs', () => {
     const user = userEvent.setup();
     const exportEvidence = vi.fn().mockResolvedValue(undefined);
     render(
-      <PayloadraApp controller={controllerFake()} exportEvidence={exportEvidence} />,
+      <ExhibitApp controller={controllerFake()} exportEvidence={exportEvidence} />,
     );
     const trigger = screen.getByRole('button', { name: 'Export evidence' });
     await user.click(trigger);
@@ -84,7 +84,7 @@ describe('command dialogs', () => {
     const user = userEvent.setup();
     const exportEvidence = vi.fn().mockRejectedValue(new Error('raw export detail'));
     render(
-      <PayloadraApp controller={controllerFake()} exportEvidence={exportEvidence} />,
+      <ExhibitApp controller={controllerFake()} exportEvidence={exportEvidence} />,
     );
     await user.click(screen.getByRole('button', { name: 'Export evidence' }));
     await user.click(screen.getByRole('button', { name: 'Export sanitized HAR' }));
@@ -100,7 +100,7 @@ describe('command dialogs', () => {
 
   it('gives clear confirmation initial focus, Escape close, and completion announcement', async () => {
     const user = userEvent.setup();
-    render(<PayloadraApp controller={controllerFake()} />);
+    render(<ExhibitApp controller={controllerFake()} />);
     const trigger = screen.getByRole('button', { name: 'Clear evidence' });
     await user.click(trigger);
 
@@ -121,7 +121,7 @@ describe('command dialogs', () => {
     const user = userEvent.setup();
     const controller = controllerFake();
     controller.clear = vi.fn().mockRejectedValue(new Error('raw clear failure'));
-    render(<PayloadraApp controller={controller} />);
+    render(<ExhibitApp controller={controller} />);
 
     await user.click(screen.getByRole('button', { name: 'Clear evidence' }));
     await user.click(screen.getByRole('button', { name: 'Clear evidence now' }));

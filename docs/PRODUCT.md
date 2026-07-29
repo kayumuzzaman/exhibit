@@ -1,4 +1,4 @@
-# Payloadra product brief
+# Exhibit product brief
 
 **Status:** Internal preview; not released
 
@@ -6,12 +6,12 @@
 
 ## Product statement
 
-Payloadra is a local-first Chrome DevTools extension that turns browser-visible
+Exhibit is a local-first Chrome DevTools extension that turns browser-visible
 network traffic into sanitized, evidence-backed explanations. It helps a person
 connect an interaction to requests observed shortly afterward, understand what
 happened, and export safer evidence without changing the inspected website.
 
-Payloadra does not observe server-to-server traffic and does not replace a
+Exhibit does not observe server-to-server traffic and does not replace a
 proxy, application performance monitor, or server debugger.
 
 ## Primary user and wedge
@@ -24,7 +24,7 @@ Three roles can use the product:
 
 The recommended launch wedge is **QA and support teams debugging authorized
 Next.js web applications**. This is a positioning hypothesis, not a validated
-market decision. It concentrates Payloadra's strongest differentiators:
+market decision. It concentrates Exhibit's strongest differentiators:
 
 - time-bounded interaction-to-request correlation;
 - conservative explanations with visible confidence and evidence;
@@ -49,7 +49,7 @@ serve their raw-traffic workflow well.
 
 ## Anti-personas and non-goals
 
-Payloadra is not intended for:
+Exhibit is not intended for:
 
 - teams needing server, mobile-app, native-client, or container traffic;
 - traffic modification, replay, mocking, throttling, or TLS interception;
@@ -62,7 +62,7 @@ Payloadra is not intended for:
 ### Evidence before inference
 
 Every explanation names the evidence and confidence. Unknown remains unknown.
-Payloadra never infers a Server Action source function name from an opaque
+Exhibit never infers a Server Action source function name from an opaque
 identifier.
 
 ### Privacy at the trusted boundary
@@ -89,7 +89,7 @@ visible in product copy and exports.
 
 ## Core workflow
 
-1. Open Payloadra in DevTools on an authorized regular web page.
+1. Open Exhibit in DevTools on an authorized regular web page.
 2. Start recording.
 3. Perform the workflow being investigated.
 4. Select a time-correlated interaction group or request.
@@ -100,7 +100,7 @@ visible in product copy and exports.
 
 ## Success measures
 
-Payloadra has no telemetry by design. Product validation therefore uses
+Exhibit has no telemetry by design. Product validation therefore uses
 consented research sessions, support feedback, and release-test evidence.
 
 Proposed validation measures:

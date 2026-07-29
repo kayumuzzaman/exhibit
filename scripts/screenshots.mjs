@@ -8,7 +8,7 @@ import {
   startNextFixture,
   buildNextFixture,
 } from '../tests/fixtures/next-app-server.ts';
-import { PayloadraDriver } from '../tests/e2e/devtools-driver.ts';
+import { ExhibitDriver } from '../tests/e2e/devtools-driver.ts';
 
 /**
  * Captures the Chrome Web Store screenshot set from the real panel driven
@@ -62,56 +62,56 @@ async function main() {
 
   try {
     await page.goto(`${fixture.origin}/panel/`);
-    const payloadra = new PayloadraDriver(page);
-    await payloadra.ready();
+    const exhibit = new ExhibitDriver(page);
+    await exhibit.ready();
 
     // 1. Recording ledger with representative traffic.
-    await payloadra.startRecording();
-    await payloadra.trigger('save-profile');
-    await payloadra.trigger('load-profile');
-    await payloadra.trigger('graphql');
-    await payloadra.trigger('submit-form');
-    await payloadra.trigger('failing');
-    await payloadra.trigger('slow');
+    await exhibit.startRecording();
+    await exhibit.trigger('save-profile');
+    await exhibit.trigger('load-profile');
+    await exhibit.trigger('graphql');
+    await exhibit.trigger('submit-form');
+    await exhibit.trigger('failing');
+    await exhibit.trigger('slow');
     await shot('01-recording-ledger');
 
     // 2. Explain a real Next.js Server Action with its evidence disclosure.
-    await payloadra.openNextFixture();
-    await payloadra.triggerInNextFixture('#next-save-action');
+    await exhibit.openNextFixture();
+    await exhibit.triggerInNextFixture('#next-save-action');
     // Selected by the primary columns, which every ledger width keeps: the
     // Server Action is the POST the fixture page makes back to its own route.
-    await payloadra
+    await exhibit
       .requestRows()
       .filter({ hasText: '/next' })
       .filter({ hasText: 'POST' })
       .first()
       .click();
-    await payloadra.openExplain();
+    await exhibit.openExplain();
     await page.locator('.explain-evidence').evaluate((node) => {
       node.open = true;
     });
     await shot('02-explain-server-action');
 
     // 3. Inspect timing for the slow call.
-    await payloadra.openRequest('/api/slow');
-    await payloadra.openInspect();
-    await payloadra.openEvidenceTab('Timing');
+    await exhibit.openRequest('/api/slow');
+    await exhibit.openInspect();
+    await exhibit.openEvidenceTab('Timing');
     await shot('03-inspect-timing');
 
     // 4. Partial React Flight decode beside its raw protocol fallback.
-    await payloadra.setApiOnly(false);
-    await payloadra.trigger('flight-partial');
-    await payloadra.openRequest('/api/flight-partial');
-    await payloadra.openInspect();
-    await payloadra.openEvidenceTab('Response');
+    await exhibit.setApiOnly(false);
+    await exhibit.trigger('flight-partial');
+    await exhibit.openRequest('/api/flight-partial');
+    await exhibit.openInspect();
+    await exhibit.openEvidenceTab('Response');
     await page.locator('.body-viewer').scrollIntoViewIfNeeded();
     await shot('04-flight-raw-fallback');
 
     // 5. Redaction in place across header, query, and body.
-    await payloadra.trigger('secret');
-    await payloadra.openRequest('/api/secret');
-    await payloadra.openInspect();
-    await payloadra.openEvidenceTab('Request');
+    await exhibit.trigger('secret');
+    await exhibit.openRequest('/api/secret');
+    await exhibit.openInspect();
+    await exhibit.openEvidenceTab('Request');
     await shot('05-redaction');
   } finally {
     await context.close();

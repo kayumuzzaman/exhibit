@@ -18,12 +18,12 @@ import type {
 } from '../../ports/interaction-source';
 import { deriveOriginPermission, sanitizePageUrl } from './permissions';
 
-const DEVTOOLS_PORT_PREFIX = 'payloadra:devtools:';
-const CONTENT_PORT_NAME = 'payloadra:content';
-const COLLECTOR_GUARD = '__payloadraInteractionBridgeV1';
-const HISTORY_GUARD = '__payloadraHistoryHookV1';
-const HISTORY_SIGNAL = 'payloadra:history-v1';
-const HISTORY_TEARDOWN_SIGNAL = 'payloadra:history-teardown-v1';
+const DEVTOOLS_PORT_PREFIX = 'exhibit:devtools:';
+const CONTENT_PORT_NAME = 'exhibit:content';
+const COLLECTOR_GUARD = '__exhibitInteractionBridgeV1';
+const HISTORY_GUARD = '__exhibitHistoryHookV1';
+const HISTORY_SIGNAL = 'exhibit:history-v1';
+const HISTORY_TEARDOWN_SIGNAL = 'exhibit:history-teardown-v1';
 const MAX_EVENT_PATH = 32;
 const MAX_EVENT_ID_CODE_POINTS = 128;
 const MAX_TEXT_NODES = 256;
@@ -126,13 +126,13 @@ export interface PanelRuntimeLike {
 }
 
 type StartCommand = Readonly<{
-  type: 'payloadra:start-interactions';
+  type: 'exhibit:start-interactions';
   tabId: number;
   url: string;
 }>;
 
 type ReleaseCommand = Readonly<{
-  type: 'payloadra:release-interactions';
+  type: 'exhibit:release-interactions';
   tabId: number;
   leaseId: string;
 }>;
@@ -289,14 +289,14 @@ function readStartCommand(value: unknown): StartCommand | null {
   if (
     safe === null ||
     !hasExactKeys(safe, ['type', 'tabId', 'url']) ||
-    safe.type !== 'payloadra:start-interactions' ||
+    safe.type !== 'exhibit:start-interactions' ||
     !isTabId(safe.tabId) ||
     typeof safe.url !== 'string'
   ) {
     return null;
   }
   return {
-    type: 'payloadra:start-interactions',
+    type: 'exhibit:start-interactions',
     tabId: safe.tabId,
     url: safe.url,
   };
@@ -307,7 +307,7 @@ function readReleaseCommand(value: unknown): ReleaseCommand | null {
   if (
     safe === null ||
     !hasExactKeys(safe, ['type', 'tabId', 'leaseId']) ||
-    safe.type !== 'payloadra:release-interactions' ||
+    safe.type !== 'exhibit:release-interactions' ||
     !isTabId(safe.tabId) ||
     !cappedString(safe.leaseId, 128) ||
     safe.leaseId === ''
@@ -315,7 +315,7 @@ function readReleaseCommand(value: unknown): ReleaseCommand | null {
     return null;
   }
   return {
-    type: 'payloadra:release-interactions',
+    type: 'exhibit:release-interactions',
     tabId: safe.tabId,
     leaseId: safe.leaseId,
   };
@@ -645,7 +645,7 @@ export function createBackgroundInteractionCoordinator(
     const content = session.contentPort;
     session.contentPort = null;
     if (content !== null) {
-      safePost(content, { type: 'payloadra:collector-stop' });
+      safePost(content, { type: 'exhibit:collector-stop' });
       safeDisconnect(content);
     }
     for (const lease of session.leases.values()) {
@@ -793,17 +793,17 @@ export function createBackgroundInteractionCoordinator(
       if (
         safe !== null &&
         hasExactKeys(safe, ['type']) &&
-        safe.type === 'payloadra:heartbeat' &&
+        safe.type === 'exhibit:heartbeat' &&
         sessions.get(tabId) === session &&
         session.leases.get(leaseId)?.port === port
       ) {
-        safePost(port, { type: 'payloadra:heartbeat-ack' });
+        safePost(port, { type: 'exhibit:heartbeat-ack' });
         return;
       }
       if (
         safe !== null &&
         hasExactKeys(safe, ['type']) &&
-        safe.type === 'payloadra:stop' &&
+        safe.type === 'exhibit:stop' &&
         sessions.get(tabId) === session &&
         session.leases.get(leaseId)?.port === port
       ) {
@@ -836,7 +836,7 @@ export function createBackgroundInteractionCoordinator(
       return;
     }
     safePost(port, {
-      type: 'payloadra:collector-config',
+      type: 'exhibit:collector-config',
       mainHookToken: expectedToken,
     });
   }
@@ -874,7 +874,7 @@ export function createBackgroundInteractionCoordinator(
       ) {
         return;
       }
-      if (hasExactKeys(safe, ['type']) && safe.type === 'payloadra:content-ready') {
+      if (hasExactKeys(safe, ['type']) && safe.type === 'exhibit:content-ready') {
         const mainHookToken = session.mainHookToken;
         if (mainHookToken !== null) {
           configureContentPort(session, port, documentId, mainHookToken);
@@ -884,7 +884,7 @@ export function createBackgroundInteractionCoordinator(
       if (
         !session.active ||
         !hasExactKeys(safe, ['type', 'event']) ||
-        safe.type !== 'payloadra:interaction'
+        safe.type !== 'exhibit:interaction'
       ) {
         return;
       }
@@ -898,7 +898,7 @@ export function createBackgroundInteractionCoordinator(
       });
       for (const lease of session.leases.values()) {
         if (lease.port !== null) {
-          safePost(lease.port, { type: 'payloadra:interaction', event });
+          safePost(lease.port, { type: 'exhibit:interaction', event });
         }
       }
     };
@@ -1283,7 +1283,7 @@ export function createInteractionSource(runtime: PanelRuntimeLike): InteractionS
     active = null;
     clearHeartbeat(binding);
     if (sendStop) {
-      safePost(binding.port, { type: 'payloadra:stop' });
+      safePost(binding.port, { type: 'exhibit:stop' });
     }
     safeDisconnect(binding.port);
   }
@@ -1295,7 +1295,7 @@ export function createInteractionSource(runtime: PanelRuntimeLike): InteractionS
         return;
       }
       binding.heartbeat = null;
-      if (!safePost(binding.port, { type: 'payloadra:heartbeat' })) {
+      if (!safePost(binding.port, { type: 'exhibit:heartbeat' })) {
         closeActivePort(false);
         return;
       }
@@ -1321,7 +1321,7 @@ export function createInteractionSource(runtime: PanelRuntimeLike): InteractionS
     try {
       await Promise.resolve(
         runtime.sendMessage({
-          type: 'payloadra:release-interactions',
+          type: 'exhibit:release-interactions',
           tabId: result.tabId,
           leaseId: result.leaseId,
         }),
@@ -1338,7 +1338,7 @@ export function createInteractionSource(runtime: PanelRuntimeLike): InteractionS
       let response: PromiseLike<unknown>;
       try {
         response = runtime.sendMessage({
-          type: 'payloadra:start-interactions',
+          type: 'exhibit:start-interactions',
           tabId: context.tabId,
           url: context.url,
         });
@@ -1408,7 +1408,7 @@ export function createInteractionSource(runtime: PanelRuntimeLike): InteractionS
               active?.port !== port ||
               safe === null ||
               !hasExactKeys(safe, ['type', 'event']) ||
-              safe.type !== 'payloadra:interaction'
+              safe.type !== 'exhibit:interaction'
             ) {
               return;
             }
@@ -1694,7 +1694,7 @@ export function installInteractionCollector(
     }
     const url = currentSafeUrl(environment);
     safePost(port, {
-      type: 'payloadra:interaction',
+      type: 'exhibit:interaction',
       event: {
         id,
         kind,
@@ -1769,7 +1769,7 @@ export function installInteractionCollector(
     if (
       safe !== null &&
       hasExactKeys(safe, ['type', 'mainHookToken']) &&
-      safe.type === 'payloadra:collector-config' &&
+      safe.type === 'exhibit:collector-config' &&
       cappedString(safe.mainHookToken, 128) &&
       safe.mainHookToken !== ''
     ) {
@@ -1779,7 +1779,7 @@ export function installInteractionCollector(
     if (
       safe !== null &&
       hasExactKeys(safe, ['type']) &&
-      safe.type === 'payloadra:collector-stop'
+      safe.type === 'exhibit:collector-stop'
     ) {
       stop();
     }
@@ -1798,7 +1798,7 @@ export function installInteractionCollector(
   environment.window.addEventListener('popstate', onNavigation, true);
   environment.window.addEventListener('hashchange', onNavigation, true);
   environment.window.addEventListener(HISTORY_SIGNAL, onHistory, true);
-  safePost(port, { type: 'payloadra:content-ready' });
+  safePost(port, { type: 'exhibit:content-ready' });
   return installation;
 }
 
@@ -1870,7 +1870,7 @@ export function teardownMainHistoryHook(
 ): void {
   try {
     const global = target ?? (globalThis as unknown as Record<string, unknown>);
-    const guard = Object.getOwnPropertyDescriptor(global, '__payloadraHistoryHookV1');
+    const guard = Object.getOwnPropertyDescriptor(global, '__exhibitHistoryHookV1');
     if (
       guard === undefined ||
       !('value' in guard) ||

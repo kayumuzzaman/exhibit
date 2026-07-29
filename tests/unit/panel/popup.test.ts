@@ -61,8 +61,8 @@ describe('toolbar popup', () => {
   it('explains where the panel lives before any script runs', async () => {
     const markup = await popupMarkup();
 
-    expect(markup).toContain('Payloadra is a DevTools panel');
-    expect(markup).toContain('Payloadra');
+    expect(markup).toContain('Exhibit is a DevTools panel');
+    expect(markup).toContain('Exhibit');
   });
 
   it('offers to show the panel when DevTools is open on the active tab', async () => {

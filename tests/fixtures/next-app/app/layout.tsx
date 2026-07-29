@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 
 export const metadata = {
-  title: 'Payloadra Next fixture',
+  title: 'Exhibit Next fixture',
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {

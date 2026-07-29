@@ -1,16 +1,16 @@
 # Capture limits
 
-Payloadra reports only what a browser observer can prove. These limits are
+Exhibit reports only what a browser observer can prove. These limits are
 product behaviour, not defects.
 
 ## Hidden traffic is unavailable
 
-**Payloadra cannot see server-to-server traffic.** A request your server makes
+**Exhibit cannot see server-to-server traffic.** A request your server makes
 to another service never reaches the browser, so it never reaches DevTools and
-never reaches Payloadra. The same applies to anything the page does not perform:
+never reaches Exhibit. The same applies to anything the page does not perform:
 background jobs, webhooks, database calls, and edge-function fan-out.
 
-What Payloadra can prove is the request the browser made and the response it
+What Exhibit can prove is the request the browser made and the response it
 received.
 
 ## DevTools must be open
@@ -30,11 +30,11 @@ the document request itself.
 | `streamed`    | The response was streamed and DevTools did not buffer it. Headers and timing remain. |
 | `unavailable` | DevTools did not provide content, timed out, or returned an unsupported encoding.    |
 
-Payloadra reads DevTools evidence, not the page JavaScript CORS view. A CORS
+Exhibit reads DevTools evidence, not the page JavaScript CORS view. A CORS
 failure can appear as a failed browser request, but it does not by itself define
 which fields DevTools returns. Chrome can still omit a body or field for
 protocol, cache, streaming, cancellation, privacy, or implementation reasons;
-Payloadra reports only the evidence it actually receives.
+Exhibit reports only the evidence it actually receives.
 
 ## Session limits
 
@@ -53,7 +53,7 @@ Payloadra reports only the evidence it actually receives.
   JSON MIME type on an `/api/` path.
 - **Unknown** means nothing distinguished the request.
 
-Payloadra never infers a server function name. A Server Action is reported by
+Exhibit never infers a server function name. A Server Action is reported by
 its opaque build identifier, and the panel says so. Next.js RSC headers, action
 headers, and query markers are internal and version-sensitive; the evidence list
 records that caveat with the finding.

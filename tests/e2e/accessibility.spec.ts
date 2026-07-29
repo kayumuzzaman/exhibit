@@ -2,7 +2,7 @@ import { fileURLToPath } from 'node:url';
 import type { Locator, Page } from 'playwright/test';
 
 import { expect, test } from './extension.fixture';
-import type { PayloadraDriver } from './devtools-driver';
+import type { ExhibitDriver } from './devtools-driver';
 
 const AXE_SOURCE = fileURLToPath(
   new URL('../../node_modules/axe-core/axe.min.js', import.meta.url),
@@ -41,11 +41,11 @@ async function scan(page: Page, label: string): Promise<void> {
   expect(blocking, `${label} has blocking accessibility violations`).toEqual([]);
 }
 
-async function populate(payloadra: PayloadraDriver): Promise<void> {
-  await payloadra.startRecording();
-  await payloadra.trigger('save-profile');
-  await payloadra.trigger('graphql');
-  await payloadra.trigger('slow');
+async function populate(exhibit: ExhibitDriver): Promise<void> {
+  await exhibit.startRecording();
+  await exhibit.trigger('save-profile');
+  await exhibit.trigger('graphql');
+  await exhibit.trigger('slow');
 }
 
 async function expectTouchTargets(locator: Locator, label: string): Promise<void> {
@@ -65,37 +65,37 @@ async function expectTouchTargets(locator: Locator, label: string): Promise<void
 
 test.describe('accessibility', () => {
   test('passes axe in the empty, recording, explain, and inspect states', async ({
-    payloadra,
+    exhibit,
   }) => {
-    await scan(payloadra.page, 'empty panel');
+    await scan(exhibit.page, 'empty panel');
 
-    await populate(payloadra);
-    await scan(payloadra.page, 'recording ledger');
+    await populate(exhibit);
+    await scan(exhibit.page, 'recording ledger');
 
-    await payloadra.openRequest('/api/profile');
-    await scan(payloadra.page, 'explain workspace');
+    await exhibit.openRequest('/api/profile');
+    await scan(exhibit.page, 'explain workspace');
 
-    await payloadra.openInspect();
+    await exhibit.openInspect();
     for (const tab of ['Request', 'Response', 'Timing', 'Evidence'] as const) {
-      await payloadra.openEvidenceTab(tab);
-      await scan(payloadra.page, `inspect ${tab}`);
+      await exhibit.openEvidenceTab(tab);
+      await scan(exhibit.page, `inspect ${tab}`);
     }
   });
 
   test('passes axe in the narrow layout and inside the filters drawer', async ({
-    payloadra,
+    exhibit,
   }) => {
-    await populate(payloadra);
-    await payloadra.page.setViewportSize({ width: 390, height: 844 });
-    await scan(payloadra.page, 'narrow ledger');
+    await populate(exhibit);
+    await exhibit.page.setViewportSize({ width: 390, height: 844 });
+    await scan(exhibit.page, 'narrow ledger');
 
-    await payloadra.page.getByRole('button', { name: 'Open session rail' }).click();
+    await exhibit.page.getByRole('button', { name: 'Open session rail' }).click();
     await expect(
-      payloadra.page.getByRole('dialog', { name: 'Session filters' }),
+      exhibit.page.getByRole('dialog', { name: 'Session filters' }),
     ).toBeVisible();
-    await scan(payloadra.page, 'session filters drawer');
+    await scan(exhibit.page, 'session filters drawer');
 
-    const closeRail = payloadra.page.getByRole('button', {
+    const closeRail = exhibit.page.getByRole('button', {
       name: 'Close session rail',
     });
     const closeRailBox = await closeRail.boundingBox();
@@ -104,8 +104,8 @@ test.describe('accessibility', () => {
     expect(closeRailBox!.height).toBeGreaterThanOrEqual(44);
     await closeRail.click();
 
-    await payloadra.page.getByRole('button', { name: 'Export evidence' }).click();
-    const exportActions = payloadra.page.locator('.dialog__actions .button');
+    await exhibit.page.getByRole('button', { name: 'Export evidence' }).click();
+    const exportActions = exhibit.page.locator('.dialog__actions .button');
     await expect(exportActions).toHaveCount(2);
     for (const action of await exportActions.all()) {
       const box = await action.boundingBox();
@@ -116,21 +116,21 @@ test.describe('accessibility', () => {
   });
 
   test('keeps phone controls and evidence rows at least 44 CSS pixels', async ({
-    payloadra,
+    exhibit,
   }) => {
-    await populate(payloadra);
-    await payloadra.page.setViewportSize({ width: 390, height: 844 });
+    await populate(exhibit);
+    await exhibit.page.setViewportSize({ width: 390, height: 844 });
 
     await expectTouchTargets(
-      payloadra.page.locator(
+      exhibit.page.locator(
         '.command-bar .button, .command-bar .theme-control, .ledger-search input, .ledger-search .button',
       ),
       'phone command and search',
     );
-    await expectTouchTargets(payloadra.requestRows(), 'phone request row');
+    await expectTouchTargets(exhibit.requestRows(), 'phone request row');
 
-    await payloadra.page.getByRole('button', { name: 'Open session rail' }).click();
-    const drawer = payloadra.page.getByRole('dialog', { name: 'Session filters' });
+    await exhibit.page.getByRole('button', { name: 'Open session rail' }).click();
+    const drawer = exhibit.page.getByRole('dialog', { name: 'Session filters' });
     await drawer.locator('.facet-filters summary').click();
     await expectTouchTargets(
       drawer.locator(
@@ -140,53 +140,53 @@ test.describe('accessibility', () => {
     );
 
     await drawer.getByRole('button', { name: 'Close session rail' }).click();
-    await payloadra.openRequest('/api/profile');
-    await payloadra.openInspect();
-    await payloadra.openEvidenceTab('Response');
+    await exhibit.openRequest('/api/profile');
+    await exhibit.openInspect();
+    await exhibit.openEvidenceTab('Response');
     await expectTouchTargets(
-      payloadra.detailWorkspace().locator('.tabs__tab:visible, .copy-button:visible'),
+      exhibit.detailWorkspace().locator('.tabs__tab:visible, .copy-button:visible'),
       'phone evidence controls',
     );
   });
 
-  test('restores focus to the trigger after a dialog closes', async ({ payloadra }) => {
-    await populate(payloadra);
+  test('restores focus to the trigger after a dialog closes', async ({ exhibit }) => {
+    await populate(exhibit);
 
-    const exportButton = payloadra.page.getByRole('button', {
+    const exportButton = exhibit.page.getByRole('button', {
       name: 'Export evidence',
     });
     await exportButton.click();
     await expect(
-      payloadra.page.getByRole('dialog', { name: 'Export sanitized evidence' }),
+      exhibit.page.getByRole('dialog', { name: 'Export sanitized evidence' }),
     ).toBeVisible();
-    await scan(payloadra.page, 'export dialog');
+    await scan(exhibit.page, 'export dialog');
 
-    await payloadra.page.keyboard.press('Escape');
+    await exhibit.page.keyboard.press('Escape');
     await expect(exportButton).toBeFocused();
   });
 
   test('announces recording state through a live status region', async ({
-    payloadra,
+    exhibit,
   }) => {
-    const status = payloadra.page.getByRole('status');
+    const status = exhibit.page.getByRole('status');
     await expect(status).toContainText('Not recording');
 
-    await payloadra.startRecording();
+    await exhibit.startRecording();
     await expect(status).toContainText('Recording');
 
-    await payloadra.stopRecording();
+    await exhibit.stopRecording();
     await expect(status).toContainText('Recording stopped.');
   });
 
   test('labels timing phases with text as well as colour and pattern', async ({
-    payloadra,
+    exhibit,
   }) => {
-    await populate(payloadra);
-    await payloadra.openRequest('/api/slow');
-    await payloadra.openInspect();
-    await payloadra.openEvidenceTab('Timing');
+    await populate(exhibit);
+    await exhibit.openRequest('/api/slow');
+    await exhibit.openInspect();
+    await exhibit.openEvidenceTab('Timing');
 
-    const waterfall = payloadra.page.getByRole('img', {
+    const waterfall = exhibit.page.getByRole('img', {
       name: /Request timing waterfall/u,
     });
     await expect(waterfall).toBeVisible();
@@ -196,10 +196,10 @@ test.describe('accessibility', () => {
     await expect(waterfall).toContainText('ms');
   });
 
-  test('aligns every ledger value under its own heading', async ({ payloadra }) => {
-    await populate(payloadra);
+  test('aligns every ledger value under its own heading', async ({ exhibit }) => {
+    await populate(exhibit);
 
-    const offsets = await payloadra.page.evaluate(() => {
+    const offsets = await exhibit.page.evaluate(() => {
       const table = document.querySelector('table.request-table');
       const headings = [...(table?.querySelectorAll('thead th') ?? [])];
       const cells = [...(table?.querySelectorAll('tbody tr:first-child td') ?? [])];
@@ -218,12 +218,12 @@ test.describe('accessibility', () => {
   });
 
   test('marks the selected row with more than a background colour', async ({
-    payloadra,
+    exhibit,
   }) => {
-    await populate(payloadra);
-    await payloadra.openRequest('/api/profile');
+    await populate(exhibit);
+    await exhibit.openRequest('/api/profile');
 
-    const shadow = await payloadra
+    const shadow = await exhibit
       .requestRows()
       .filter({ hasText: '/api/profile' })
       .first()
@@ -232,11 +232,11 @@ test.describe('accessibility', () => {
     expect(shadow).toContain('inset');
   });
 
-  test('honours the reduced-motion preference', async ({ payloadra }) => {
-    await payloadra.page.emulateMedia({ reducedMotion: 'reduce' });
-    await payloadra.reload();
+  test('honours the reduced-motion preference', async ({ exhibit }) => {
+    await exhibit.page.emulateMedia({ reducedMotion: 'reduce' });
+    await exhibit.reload();
 
-    await expect(payloadra.page.locator('.app-shell')).toHaveAttribute(
+    await expect(exhibit.page.locator('.app-shell')).toHaveAttribute(
       'data-reduced-motion',
       'true',
     );
@@ -245,16 +245,16 @@ test.describe('accessibility', () => {
 
 test.describe('narrow layout focus', () => {
   test('moves focus into the detail region and back to the row', async ({
-    payloadra,
+    exhibit,
   }) => {
-    await payloadra.startRecording();
-    await payloadra.trigger('save-profile');
-    await payloadra.page.setViewportSize({ width: 390, height: 844 });
+    await exhibit.startRecording();
+    await exhibit.trigger('save-profile');
+    await exhibit.page.setViewportSize({ width: 390, height: 844 });
 
-    await payloadra.openRequest('/api/profile');
-    await expect(payloadra.detailWorkspace()).toBeFocused();
+    await exhibit.openRequest('/api/profile');
+    await expect(exhibit.detailWorkspace()).toBeFocused();
 
-    await payloadra.page.getByRole('button', { name: 'Back to requests' }).click();
-    await expect(payloadra.requestRows().first()).toBeFocused();
+    await exhibit.page.getByRole('button', { name: 'Back to requests' }).click();
+    await expect(exhibit.requestRows().first()).toBeFocused();
   });
 });

@@ -6,15 +6,15 @@ import {
 
 export type ThemeMode = 'dark' | 'devtools' | 'light' | 'system';
 
-export type PayloadraSettings = Readonly<{
+export type ExhibitSettings = Readonly<{
   customFieldNames: readonly string[];
   theme: ThemeMode;
 }>;
 
-export type PayloadraSettingsService = Readonly<{
-  initial: PayloadraSettings;
-  saveCustomFieldNames(customFieldNames: readonly string[]): Promise<PayloadraSettings>;
-  saveTheme(theme: ThemeMode): Promise<PayloadraSettings>;
+export type ExhibitSettingsService = Readonly<{
+  initial: ExhibitSettings;
+  saveCustomFieldNames(customFieldNames: readonly string[]): Promise<ExhibitSettings>;
+  saveTheme(theme: ThemeMode): Promise<ExhibitSettings>;
 }>;
 
 export interface SettingsStorageArea {
@@ -23,13 +23,13 @@ export interface SettingsStorageArea {
   setAccessLevel?(options: { accessLevel: 'TRUSTED_CONTEXTS' }): Promise<void>;
 }
 
-export interface PayloadraSettingsRepository {
-  load(): Promise<PayloadraSettings>;
-  save(settings: PayloadraSettings): Promise<PayloadraSettings>;
+export interface ExhibitSettingsRepository {
+  load(): Promise<ExhibitSettings>;
+  save(settings: ExhibitSettings): Promise<ExhibitSettings>;
   restrictToTrustedContexts(): Promise<void>;
 }
 
-const SETTINGS_KEY = 'payloadra:settings:v1';
+const SETTINGS_KEY = 'exhibit:settings:v1';
 const SETTINGS_VERSION = 1;
 const MAX_CUSTOM_FIELD_NAMES = 64;
 const MAX_FIELD_NAME_CODE_POINTS = 80;
@@ -41,7 +41,7 @@ const THEMES = new Set<ThemeMode>(['dark', 'devtools', 'light', 'system']);
  * default. Following the operating system instead lets the panel arrive light
  * inside a dark DevTools window, which reads as a rendering fault.
  */
-export const DEFAULT_PAYLOADRA_SETTINGS: PayloadraSettings = Object.freeze({
+export const DEFAULT_EXHIBIT_SETTINGS: ExhibitSettings = Object.freeze({
   customFieldNames: Object.freeze([]),
   theme: 'devtools',
 });
@@ -50,7 +50,7 @@ function canonicalFieldName(value: string): string {
   return value.toLowerCase().replace(/[^a-z0-9]/gu, '');
 }
 
-function freezeSettings(settings: PayloadraSettings): PayloadraSettings {
+function freezeSettings(settings: ExhibitSettings): ExhibitSettings {
   return Object.freeze({
     customFieldNames: Object.freeze([...settings.customFieldNames]),
     theme: settings.theme,
@@ -88,7 +88,7 @@ export function parseCustomFieldNames(value: string): readonly string[] {
   return normalizeCustomFieldNames(value.split(/[,\n]/u));
 }
 
-export function buildRedactionConfig(settings: PayloadraSettings): RedactionConfig {
+export function buildRedactionConfig(settings: ExhibitSettings): RedactionConfig {
   return Object.freeze({
     ...DEFAULT_REDACTION_CONFIG,
     fieldNames: Object.freeze([
@@ -109,9 +109,9 @@ function ownValue(value: object, key: PropertyKey): unknown {
   }
 }
 
-function decodeSettings(value: unknown): PayloadraSettings {
+function decodeSettings(value: unknown): ExhibitSettings {
   if (value === null || typeof value !== 'object') {
-    return DEFAULT_PAYLOADRA_SETTINGS;
+    return DEFAULT_EXHIBIT_SETTINGS;
   }
   try {
     const keys = Object.getOwnPropertyNames(value).sort();
@@ -119,7 +119,7 @@ function decodeSettings(value: unknown): PayloadraSettings {
       keys.join('\n') !== 'customFieldNames\ntheme\nversion' ||
       ownValue(value, 'version') !== SETTINGS_VERSION
     ) {
-      return DEFAULT_PAYLOADRA_SETTINGS;
+      return DEFAULT_EXHIBIT_SETTINGS;
     }
     const theme = ownValue(value, 'theme');
     const customFieldNames = ownValue(value, 'customFieldNames');
@@ -129,27 +129,27 @@ function decodeSettings(value: unknown): PayloadraSettings {
       !Array.isArray(customFieldNames) ||
       customFieldNames.some((name) => typeof name !== 'string')
     ) {
-      return DEFAULT_PAYLOADRA_SETTINGS;
+      return DEFAULT_EXHIBIT_SETTINGS;
     }
     return freezeSettings({
       customFieldNames: normalizeCustomFieldNames(customFieldNames),
       theme: theme as ThemeMode,
     });
   } catch {
-    return DEFAULT_PAYLOADRA_SETTINGS;
+    return DEFAULT_EXHIBIT_SETTINGS;
   }
 }
 
-export function createPayloadraSettingsRepository(
+export function createExhibitSettingsRepository(
   area: SettingsStorageArea,
-): PayloadraSettingsRepository {
+): ExhibitSettingsRepository {
   return {
-    async load(): Promise<PayloadraSettings> {
+    async load(): Promise<ExhibitSettings> {
       const values = await area.get(SETTINGS_KEY);
       return decodeSettings(values[SETTINGS_KEY]);
     },
 
-    async save(settings): Promise<PayloadraSettings> {
+    async save(settings): Promise<ExhibitSettings> {
       const normalized = freezeSettings({
         customFieldNames: normalizeCustomFieldNames(settings.customFieldNames),
         theme: THEMES.has(settings.theme) ? settings.theme : 'system',

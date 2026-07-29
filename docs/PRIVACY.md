@@ -1,4 +1,4 @@
-# Payloadra privacy policy
+# Exhibit privacy policy
 
 **Status:** Draft for an unreleased internal preview
 
@@ -6,12 +6,12 @@
 
 **Effective date:** Not effective until public distribution
 
-Payloadra is a local developer tool. It has no server, no account, and no
+Exhibit is a local developer tool. It has no server, no account, and no
 analytics.
 
-## What Payloadra processes locally
+## What Exhibit processes locally
 
-While you are recording, Payloadra reads the network evidence Chrome DevTools
+While you are recording, Exhibit reads the network evidence Chrome DevTools
 already shows for the inspected tab: request and response metadata, headers,
 timings, and response bodies when DevTools can provide them. It also records
 trusted interaction events (click, submit, navigation) on the inspected page so
@@ -20,13 +20,13 @@ correlation, not proof that the action caused a request.
 
 This can include website content, authentication-related material, browsing
 activity within the inspected tab, and personal data present in requests or
-responses. Payloadra attempts to redact known credential names and shapes before
+responses. Exhibit attempts to redact known credential names and shapes before
 trusted storage or display. Local processing and redaction reduce exposure; they
 do not make all captured evidence non-sensitive.
 
 ## Where the data goes
 
-Payloadra has no backend and does not transmit captured evidence to Payloadra.
+Exhibit has no backend and does not transmit captured evidence to Exhibit.
 Processing and the user-controlled destinations are:
 
 - captured evidence is redacted before it is stored or displayed;
@@ -43,7 +43,7 @@ files remain until the user deletes them. Clipboard contents can outlive the
 panel and may be readable by other local applications. Clear cannot retract a
 download, clipboard content, or any copy made from either.
 
-Payloadra makes no outbound network request of its own. The packaged extension
+Exhibit makes no outbound network request of its own. The packaged extension
 is audited on every release for remote code, inline scripts, and unapproved
 network-destination URLs (`pnpm audit:package`).
 
@@ -92,17 +92,17 @@ before sharing it outside your machine.
 
 ## Permissions and why they are needed
 
-| Permission                             | Why                                                                                                                                                                                                                                                                  |
-| -------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `storage`                              | Keeps the memory-retained session in `chrome.storage.session` and theme/custom redaction settings in `chrome.storage.local`.                                                                                                                                         |
-| `scripting`                            | Injects the interaction collector into the inspected tab so requests can be correlated with recent click, submit, and navigation events.                                                                                                                             |
-| `http://*/*`, `https://*/*` (optional) | Requested for the inspected page's origin when recording starts so interaction metadata can be observed. Chrome's grant covers that origin across tabs and persists until the user revokes it or uninstalls; Payloadra's collector use remains inspected-tab scoped. |
+| Permission                             | Why                                                                                                                                                                                                                                                                |
+| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `storage`                              | Keeps the memory-retained session in `chrome.storage.session` and theme/custom redaction settings in `chrome.storage.local`.                                                                                                                                       |
+| `scripting`                            | Injects the interaction collector into the inspected tab so requests can be correlated with recent click, submit, and navigation events.                                                                                                                           |
+| `http://*/*`, `https://*/*` (optional) | Requested for the inspected page's origin when recording starts so interaction metadata can be observed. Chrome's grant covers that origin across tabs and persists until the user revokes it or uninstalls; Exhibit's collector use remains inspected-tab scoped. |
 
 See Chrome's official
 [optional-permissions documentation](https://developer.chrome.com/docs/extensions/reference/api/permissions/)
 for the browser grant and revocation model.
 
-Payloadra declares no required host permissions, no `externally_connectable`
+Exhibit declares no required host permissions, no `externally_connectable`
 surface, and no background network access.
 
 ## Your control
@@ -118,7 +118,7 @@ surface, and no background network access.
 
 ## Contact
 
-Payloadra is an unreleased internal project. Use the existing private project
+Exhibit is an unreleased internal project. Use the existing private project
 channel for privacy questions. Public distribution is blocked until the legal
 owner publishes a monitored privacy contact and applicable jurisdictional
 details.

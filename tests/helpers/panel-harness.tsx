@@ -1,6 +1,6 @@
 import { createRoot } from 'react-dom/client';
 
-import { PayloadraApp } from '../../src/app/app';
+import { ExhibitApp } from '../../src/app/app';
 import type { RetentionMode } from '../../src/domain/model';
 import { toSanitizedHar } from '../../src/domain/har-export';
 import { toQaReport } from '../../src/domain/report-export';
@@ -13,13 +13,13 @@ import {
 } from '../../src/features/session/session-controller';
 import {
   buildRedactionConfig,
-  createPayloadraSettingsRepository,
-  DEFAULT_PAYLOADRA_SETTINGS,
+  createExhibitSettingsRepository,
+  DEFAULT_EXHIBIT_SETTINGS,
   normalizeCustomFieldNames,
-  type PayloadraSettings,
-  type PayloadraSettingsService,
+  type ExhibitSettings,
+  type ExhibitSettingsService,
   type SettingsStorageArea,
-} from '../../src/features/settings/payloadra-settings';
+} from '../../src/features/settings/exhibit-settings';
 import { downloadText } from '../../src/infrastructure/downloads';
 import { createIndexedDbSessionRepository } from '../../src/infrastructure/storage/indexeddb-repository';
 import {
@@ -49,7 +49,7 @@ export type FixtureActions = Readonly<{
 }>;
 
 declare global {
-  var payloadraHarness: PanelHarness | undefined;
+  var exhibitHarness: PanelHarness | undefined;
   var fixtureActions: FixtureActions | undefined;
 }
 
@@ -106,10 +106,10 @@ export async function mountPanelHarness(
   const inspectedTabId = options.tabId ?? 1;
   const tabId = String(inspectedTabId);
   const port = createTestCapturePort();
-  const settingsRepository = createPayloadraSettingsRepository(localSettingsArea());
+  const settingsRepository = createExhibitSettingsRepository(localSettingsArea());
   let currentSettings = await settingsRepository
     .load()
-    .catch(() => DEFAULT_PAYLOADRA_SETTINGS);
+    .catch(() => DEFAULT_EXHIBIT_SETTINGS);
   const initialRedactionConfig = buildRedactionConfig(currentSettings);
   const ephemeral: SessionRepository = createSessionStorageRepository(
     sessionStorageArea(),
@@ -167,9 +167,9 @@ export async function mountPanelHarness(
 
   let settingsOperation = Promise.resolve();
   function updateSettings(
-    update: (settings: PayloadraSettings) => PayloadraSettings,
-    apply?: (settings: PayloadraSettings) => void,
-  ): Promise<PayloadraSettings> {
+    update: (settings: ExhibitSettings) => ExhibitSettings,
+    apply?: (settings: ExhibitSettings) => void,
+  ): Promise<ExhibitSettings> {
     const result = settingsOperation.then(async () => {
       const saved = await settingsRepository.save(update(currentSettings));
       apply?.(saved);
@@ -182,7 +182,7 @@ export async function mountPanelHarness(
     );
     return result;
   }
-  const settingsService: PayloadraSettingsService = {
+  const settingsService: ExhibitSettingsService = {
     initial: currentSettings,
     saveCustomFieldNames(customFieldNames) {
       const snapshot = controller.getSnapshot();
@@ -214,7 +214,7 @@ export async function mountPanelHarness(
     const snapshot = controller.getSnapshot();
     lastHar = toSanitizedHar(snapshot);
     lastReport = toQaReport(snapshot);
-    const baseName = `payloadra-${snapshot.id.replace(/[^a-z0-9-]/giu, '-')}`;
+    const baseName = `exhibit-${snapshot.id.replace(/[^a-z0-9-]/giu, '-')}`;
     if (format === 'markdown') {
       downloadText(`${baseName}.md`, 'text/markdown', lastReport);
       return;
@@ -223,7 +223,7 @@ export async function mountPanelHarness(
   }
 
   createRoot(options.container).render(
-    <PayloadraApp
+    <ExhibitApp
       controller={controller}
       exportEvidence={exportEvidence}
       settings={settingsService}
@@ -275,6 +275,6 @@ export async function mountPanelHarness(
       }
     },
   };
-  globalThis.payloadraHarness = harness;
+  globalThis.exhibitHarness = harness;
   return harness;
 }

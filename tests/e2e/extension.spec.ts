@@ -72,7 +72,7 @@ test.describe('packaged extension', () => {
 
       const result = await page.evaluate(async () =>
         chrome.runtime.sendMessage({
-          type: 'payloadra:start-interactions',
+          type: 'exhibit:start-interactions',
           tabId: 999_999,
           url: 'https://example.test/orders',
         }),

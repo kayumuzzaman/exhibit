@@ -105,14 +105,14 @@ describe('request table', () => {
     const user = userEvent.setup();
     const onSelect = vi.fn();
     const rows = [
-      { ...request('a'), url: 'payloadra-opaque-route' },
+      { ...request('a'), url: 'exhibit-opaque-route' },
       request('b'),
       request('c'),
     ];
 
     render(<RequestTable onSelect={onSelect} requests={rows} selectedId={null} />);
 
-    expect(screen.getByText('payloadra-opaque-route')).toBeVisible();
+    expect(screen.getByText('exhibit-opaque-route')).toBeVisible();
 
     const first = screen.getAllByRole('row')[1]!;
     first.focus();
@@ -442,12 +442,12 @@ describe('remaining explain and rail branches', () => {
   });
 
   it('reports an unparsable related URL without throwing', () => {
-    const related = { ...request('related'), url: 'payloadra-opaque-related' };
-    const selected = { ...request('selected'), url: 'payloadra-opaque-related' };
+    const related = { ...request('related'), url: 'exhibit-opaque-related' };
+    const selected = { ...request('selected'), url: 'exhibit-opaque-related' };
 
     render(<ExplainView relatedRequests={[related, selected]} request={selected} />);
 
-    expect(screen.getByText(/payloadra-opaque-related/u)).toBeVisible();
+    expect(screen.getByText(/exhibit-opaque-related/u)).toBeVisible();
     expect(screen.getByText(/matched this method and normalized URL/u)).toBeVisible();
   });
 

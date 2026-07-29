@@ -2,7 +2,7 @@
  * Fixture service worker. It only serves `/api/service-worker-data` so the
  * capture pipeline observes a genuine `workerStart` resource timing.
  */
-const CACHE_NAME = 'payloadra-fixture-v1';
+const CACHE_NAME = 'exhibit-fixture-v1';
 const HANDLED_PATH = '/api/service-worker-data';
 
 self.addEventListener('install', (event) => {

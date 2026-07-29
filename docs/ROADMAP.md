@@ -1,10 +1,10 @@
-# Payloadra roadmap
+# Exhibit roadmap
 
 **Status:** Evidence-gated; no dates committed
 
 **Last reviewed:** 2026-07-29
 
-Payloadra should close the approved version 0.1 contract before expanding its
+Exhibit should close the approved version 0.1 contract before expanding its
 feature surface. Each stage has an exit condition; passing tests alone does not
 substitute for user or owner decisions.
 

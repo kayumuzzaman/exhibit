@@ -1,4 +1,4 @@
-# Payloadra
+# Exhibit
 
 Privacy-first browser request evidence for Chrome DevTools.
 
@@ -6,7 +6,7 @@ Privacy-first browser request evidence for Chrome DevTools.
 > the approved version 0.1 contract still has installed-Chrome, licensing, and
 > public-contact blockers. See [release traceability](./docs/TRACEABILITY.md).
 
-Payloadra records the requests a page actually made, explains each one in a
+Exhibit records the requests a page actually made, explains each one in a
 sentence backed by protocol facts, and lets you inspect the sanitized evidence.
 There is no server, no account, and no telemetry: everything is processed and
 stored locally, and known credential names and shapes are redacted before
@@ -22,7 +22,7 @@ pnpm build
 
 Open `chrome://extensions`, enable **Developer mode**, choose **Load unpacked**,
 and select `.output/chrome-mv3`. Open DevTools on any regular web page and pick
-the **Payloadra** panel.
+the **Exhibit** panel.
 
 Requires Node 22.13+ within the 22.x line or Node 24+, pnpm 10+, and Chrome
 120+.
@@ -40,7 +40,7 @@ Requires Node 22.13+ within the 22.x line or Node 24+, pnpm 10+, and Chrome
 - **Export or copy** a sanitized HAR 1.2 file, deterministic Markdown QA report,
   or safe cURL command.
 
-Payloadra reports only what a browser observer can prove. It cannot see
+Exhibit reports only what a browser observer can prove. It cannot see
 server-to-server traffic and never guesses a server function name. See
 [capture limits](./docs/CAPTURE_LIMITS.md).
 

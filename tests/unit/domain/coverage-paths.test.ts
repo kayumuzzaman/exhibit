@@ -110,19 +110,19 @@ describe('export boundaries', () => {
           stoppedAt: Number.POSITIVE_INFINITY,
         }),
       ),
-    ) as { log: { _payloadra: { startedAt: string; stoppedAt: string } } };
+    ) as { log: { _exhibit: { startedAt: string; stoppedAt: string } } };
 
-    expect(har.log._payloadra.startedAt).toBe('1970-01-01T00:00:00.000Z');
-    expect(har.log._payloadra.stoppedAt).toBe('1970-01-01T00:00:00.000Z');
+    expect(har.log._exhibit.startedAt).toBe('1970-01-01T00:00:00.000Z');
+    expect(har.log._exhibit.stoppedAt).toBe('1970-01-01T00:00:00.000Z');
   });
 
   it('keeps null session timestamps null in the HAR export', () => {
     const har = JSON.parse(toSanitizedHar(sessionWith([sanitizedRequestWith()]))) as {
-      log: { _payloadra: { startedAt: null; stoppedAt: null } };
+      log: { _exhibit: { startedAt: null; stoppedAt: null } };
     };
 
-    expect(har.log._payloadra.startedAt).toBeNull();
-    expect(har.log._payloadra.stoppedAt).toBeNull();
+    expect(har.log._exhibit.startedAt).toBeNull();
+    expect(har.log._exhibit.stoppedAt).toBeNull();
   });
 
   it('escapes markdown control characters and unusable times in the QA report', () => {
@@ -291,7 +291,7 @@ describe('export ordering and parsing boundaries', () => {
         sessionWith([
           {
             ...sanitizedRequestWith(),
-            url: 'payloadra-opaque',
+            url: 'exhibit-opaque',
           } as SanitizedCapturedRequest,
         ]),
       ),
@@ -463,15 +463,15 @@ describe('HAR and report shape boundaries', () => {
           ],
         }),
       ),
-    ) as { log: { _payloadra: { warningCodes: string[] } } };
+    ) as { log: { _exhibit: { warningCodes: string[] } } };
 
-    expect(har.log._payloadra.warningCodes).toEqual(['invalid-har', 'sink-failed']);
+    expect(har.log._exhibit.warningCodes).toEqual(['invalid-har', 'sink-failed']);
   });
 
   it('reports an empty session without inventing sections', () => {
     const report = toQaReport(sessionWith([]));
 
-    expect(report).toContain('# Payloadra QA Report');
+    expect(report).toContain('# Exhibit QA Report');
     expect(report).toContain('None.');
   });
 

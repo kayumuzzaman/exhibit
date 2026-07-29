@@ -23,7 +23,7 @@ async function start(): Promise<void> {
   const controls = document.querySelector('#fixture-controls');
   const panelRoot = document.querySelector('#panel-root');
   if (controls === null || panelRoot === null) {
-    throw new Error('Payloadra harness containers are unavailable.');
+    throw new Error('Exhibit harness containers are unavailable.');
   }
   globalThis.renderFixtureControls?.(controls);
   await mountPanelHarness({ container: panelRoot, origin: globalThis.location.origin });

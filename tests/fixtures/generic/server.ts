@@ -15,17 +15,17 @@ import { fileURLToPath } from 'node:url';
  * console output. Privacy specs assert their absence after real capture.
  */
 export const FIXTURE_SECRETS = {
-  apiKey: 'sk_live_payloadraE2eApiKeyCanary0001',
-  authorization: 'Bearer payloadra.e2e.authorization.canary.0001',
-  cookie: 'payloadra_e2e_cookie_canary_0001',
-  password: 'payloadra-e2e-password-canary-0001',
-  queryToken: 'payloadra-e2e-query-token-canary-0001',
-  responseToken: 'payloadra-e2e-response-token-canary-0001',
+  apiKey: 'sk_live_exhibitE2eApiKeyCanary0001',
+  authorization: 'Bearer exhibit.e2e.authorization.canary.0001',
+  cookie: 'exhibit_e2e_cookie_canary_0001',
+  password: 'exhibit-e2e-password-canary-0001',
+  queryToken: 'exhibit-e2e-query-token-canary-0001',
+  responseToken: 'exhibit-e2e-response-token-canary-0001',
 } as const;
 
 export const FIXTURE_PROFILE = {
   displayName: 'Ada',
-  email: 'ada@payloadra.test',
+  email: 'ada@exhibit.test',
   id: 'profile-0001',
 } as const;
 
@@ -399,7 +399,7 @@ export async function startGenericFixture(
         proxyToNext(options.nextOrigin, request, response);
         return;
       }
-      response.setHeader('x-fixture', 'payloadra-generic');
+      response.setHeader('x-fixture', 'exhibit-generic');
       try {
         if (await handleApi(url, request, response, hanging)) return;
 

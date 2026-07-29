@@ -13,7 +13,7 @@ import axe from 'axe-core';
 import { useSyncExternalStore } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 
-import { PayloadraApp } from '../../../src/app/app';
+import { ExhibitApp } from '../../../src/app/app';
 import { AppErrorBoundary } from '../../../src/app/error-boundary';
 import { RESTRICTED_PAGE_ORIGIN } from '../../../src/domain/inspected-page';
 import type { RecordingPhase } from '../../../src/domain/model';
@@ -24,7 +24,7 @@ import type {
   SanitizedRecordingSession,
 } from '../../../src/domain/sanitized';
 import type { SessionController } from '../../../src/features/session/session-controller';
-import type { PayloadraSettingsService } from '../../../src/features/settings/payloadra-settings';
+import type { ExhibitSettingsService } from '../../../src/features/settings/exhibit-settings';
 import { requestWith, sanitizedRequestWith } from '../../helpers/request-factory';
 
 function sessionWith(
@@ -79,11 +79,11 @@ function setViewport(width: number): void {
   window.dispatchEvent(new Event('resize'));
 }
 
-describe('PayloadraApp', () => {
+describe('ExhibitApp', () => {
   it('supports the complete keyboard recording path from the stable control', async () => {
     const user = userEvent.setup();
     const controller = controllerFake();
-    const { container } = render(<PayloadraApp controller={controller} />);
+    const { container } = render(<ExhibitApp controller={controller} />);
     const start = screen.getByRole('button', { name: 'Start recording' });
     const slot = start.parentElement;
 
@@ -110,7 +110,7 @@ describe('PayloadraApp', () => {
       new Promise<void>((resolve) => {
         finishStop = resolve;
       });
-    render(<PayloadraApp controller={controller} />);
+    render(<ExhibitApp controller={controller} />);
 
     const start = screen.getByRole('button', { name: 'Start recording' });
     await user.click(start);
@@ -144,7 +144,7 @@ describe('PayloadraApp', () => {
     controller.setRetention = vi.fn(async (retention) => {
       controller.replace({ ...controller.getSnapshot(), retention });
     });
-    render(<PayloadraApp controller={controller} />);
+    render(<ExhibitApp controller={controller} />);
     await user.click(screen.getByRole('button', { name: 'Open session rail' }));
 
     const retention = screen.getByRole('combobox', {
@@ -166,7 +166,7 @@ describe('PayloadraApp', () => {
     const user = userEvent.setup();
     const controller = controllerFake();
     controller.setRetention = vi.fn(async () => undefined);
-    render(<PayloadraApp controller={controller} />);
+    render(<ExhibitApp controller={controller} />);
     await user.click(screen.getByRole('button', { name: 'Open session rail' }));
 
     const retention = screen.getByRole('combobox', {
@@ -182,7 +182,7 @@ describe('PayloadraApp', () => {
 
   it('edits and persists custom privacy fields from the command-bar settings', async () => {
     const user = userEvent.setup();
-    const settings: PayloadraSettingsService = {
+    const settings: ExhibitSettingsService = {
       initial: { customFieldNames: ['Existing Field'], theme: 'dark' },
       saveCustomFieldNames: vi.fn(async (customFieldNames) => ({
         customFieldNames,
@@ -194,7 +194,7 @@ describe('PayloadraApp', () => {
       })),
     };
     const { container } = render(
-      <PayloadraApp controller={controllerFake()} settings={settings} />,
+      <ExhibitApp controller={controllerFake()} settings={settings} />,
     );
 
     expect(container.querySelector('.app-shell')).toHaveAttribute('data-theme', 'dark');
@@ -228,7 +228,7 @@ describe('PayloadraApp', () => {
   it('requires stopped, cleared evidence before changing redaction fields', async () => {
     const user = userEvent.setup();
     render(
-      <PayloadraApp
+      <ExhibitApp
         controller={controllerFake(
           sessionWith('recording', [sanitizedRequestWith({ id: 'retained' })]),
         )}
@@ -263,7 +263,7 @@ describe('PayloadraApp', () => {
         }),
       ]),
     );
-    const { container } = render(<PayloadraApp controller={controller} />);
+    const { container } = render(<ExhibitApp controller={controller} />);
 
     expect(screen.getByRole('banner')).toBeVisible();
     expect(screen.getByRole('navigation', { name: 'Session workspace' })).toBeVisible();
@@ -321,7 +321,7 @@ describe('PayloadraApp', () => {
       }),
     ];
     const { container } = render(
-      <PayloadraApp controller={controllerFake(sessionWith('recording', records))} />,
+      <ExhibitApp controller={controllerFake(sessionWith('recording', records))} />,
     );
 
     await user.type(
@@ -386,7 +386,7 @@ describe('PayloadraApp', () => {
       },
       DEFAULT_REDACTION_CONFIG,
     );
-    render(<PayloadraApp controller={controllerFake(session)} />);
+    render(<ExhibitApp controller={controllerFake(session)} />);
 
     await user.click(screen.getByRole('row', { name: /profile/i }));
 
@@ -395,7 +395,7 @@ describe('PayloadraApp', () => {
     ).toBeVisible();
     expect(
       screen.getByRole('heading', {
-        name: /After Save profile, Payloadra observed a Server Action/i,
+        name: /After Save profile, Exhibit observed a Server Action/i,
       }),
     ).toBeVisible();
     expect(screen.queryByText(/"saved"/)).not.toBeInTheDocument();
@@ -509,7 +509,7 @@ describe('PayloadraApp', () => {
       },
       DEFAULT_REDACTION_CONFIG,
     );
-    render(<PayloadraApp controller={controllerFake(session)} />);
+    render(<ExhibitApp controller={controllerFake(session)} />);
 
     await user.click(screen.getByRole('row', { name: /\/account/i }));
     const detail = screen.getByRole('region', { name: 'Request detail' });
@@ -576,7 +576,7 @@ describe('PayloadraApp', () => {
       /capture stopped unexpectedly/i,
     ],
   ])('gives actionable copy for %s', (_name, session, copy) => {
-    render(<PayloadraApp controller={controllerFake(session)} />);
+    render(<ExhibitApp controller={controllerFake(session)} />);
     expect(screen.getByText(copy)).toBeVisible();
   });
 
@@ -596,7 +596,7 @@ describe('PayloadraApp', () => {
       value: matchMedia,
     });
     const session = { ...sessionWith('recording'), evictedCount: 3 };
-    const { container } = render(<PayloadraApp controller={controllerFake(session)} />);
+    const { container } = render(<ExhibitApp controller={controllerFake(session)} />);
 
     expect(container.firstElementChild).toHaveAttribute('data-reduced-motion', 'true');
     expect(screen.getByText(/3 oldest requests were removed/i)).toBeVisible();
@@ -610,7 +610,7 @@ describe('PayloadraApp', () => {
   it('supports bounded pointer and keyboard resizing with separator values', async () => {
     setViewport(1_440);
     const user = userEvent.setup();
-    render(<PayloadraApp controller={controllerFake()} />);
+    render(<ExhibitApp controller={controllerFake()} />);
     const [railSeparator] = screen.getAllByRole('separator');
     expect(Number(railSeparator?.getAttribute('aria-valuenow'))).toBeGreaterThanOrEqual(
       200,
@@ -634,7 +634,7 @@ describe('PayloadraApp', () => {
   it('keeps all three regions inside exactly 1100 px after combined resizes', async () => {
     setViewport(1_100);
     const user = userEvent.setup();
-    const { container } = render(<PayloadraApp controller={controllerFake()} />);
+    const { container } = render(<ExhibitApp controller={controllerFake()} />);
     const workspace = container.querySelector<HTMLElement>('.workspace--wide');
     const [railSeparator, ledgerSeparator] = screen.getAllByRole('separator');
     const usedWidth = () =>
@@ -665,7 +665,7 @@ describe('PayloadraApp', () => {
   it('treats the medium session rail as a dismissible focus-contained drawer', async () => {
     setViewport(900);
     const user = userEvent.setup();
-    const { container } = render(<PayloadraApp controller={controllerFake()} />);
+    const { container } = render(<ExhibitApp controller={controllerFake()} />);
     const opener = screen.getByRole('button', { name: 'Open session rail' });
 
     await user.click(opener);
@@ -695,7 +695,7 @@ describe('PayloadraApp', () => {
     const { container } = render(
       <>
         <style>{'[inert], [inert] * { pointer-events: none; }'}</style>
-        <PayloadraApp controller={controller} />
+        <ExhibitApp controller={controller} />
       </>,
     );
     const opener = screen.getByRole('button', { name: 'Open session rail' });
@@ -770,7 +770,7 @@ describe('PayloadraApp', () => {
       }),
     ];
     render(
-      <PayloadraApp controller={controllerFake(sessionWith('recording', records))} />,
+      <ExhibitApp controller={controllerFake(sessionWith('recording', records))} />,
     );
 
     const failures = screen.getByRole('button', { name: 'Failures' });
@@ -816,7 +816,7 @@ describe('PayloadraApp', () => {
 
     setViewport(1_440);
     const { unmount } = render(
-      <PayloadraApp controller={controllerFake(sessionWith('recording', [request]))} />,
+      <ExhibitApp controller={controllerFake(sessionWith('recording', [request]))} />,
     );
 
     // The default ledger is wider than the table minimum, so nothing clips and
@@ -835,7 +835,7 @@ describe('PayloadraApp', () => {
 
     setViewport(1_024);
     const { unmount: unmountMedium } = render(
-      <PayloadraApp controller={controllerFake(sessionWith('recording', [request]))} />,
+      <ExhibitApp controller={controllerFake(sessionWith('recording', [request]))} />,
     );
 
     expect(headers()).toEqual(['Time', 'Method', 'Route', 'Status', 'Duration']);
@@ -843,7 +843,7 @@ describe('PayloadraApp', () => {
 
     setViewport(390);
     render(
-      <PayloadraApp controller={controllerFake(sessionWith('recording', [request]))} />,
+      <ExhibitApp controller={controllerFake(sessionWith('recording', [request]))} />,
     );
 
     expect(headers()).toEqual(['Method', 'Route', 'Status']);
@@ -853,7 +853,7 @@ describe('PayloadraApp', () => {
     setViewport(1_440);
     const user = userEvent.setup();
     const controller = controllerFake();
-    render(<PayloadraApp controller={controller} />);
+    render(<ExhibitApp controller={controller} />);
 
     await user.click(screen.getByRole('button', { name: 'Record this page' }));
 
@@ -941,7 +941,7 @@ describe('PayloadraApp', () => {
       }),
     ];
     render(
-      <PayloadraApp controller={controllerFake(sessionWith('recording', records))} />,
+      <ExhibitApp controller={controllerFake(sessionWith('recording', records))} />,
     );
 
     await user.click(screen.getByText('Evidence facets'));
@@ -987,7 +987,7 @@ describe('PayloadraApp', () => {
       },
     });
     render(
-      <PayloadraApp
+      <ExhibitApp
         controller={controllerFake(sessionWith('recording', [documentRequest]))}
       />,
     );
@@ -1012,7 +1012,7 @@ describe('PayloadraApp', () => {
         },
       ],
     };
-    render(<PayloadraApp controller={controllerFake(session)} />);
+    render(<ExhibitApp controller={controllerFake(session)} />);
 
     expect(screen.getByRole('alert')).toHaveTextContent(
       /capture stopped unexpectedly.*start recording again/i,
@@ -1033,7 +1033,7 @@ describe('PayloadraApp', () => {
       classification: { kind: 'api', confidence: 'confirmed', evidence: [] },
     });
     const { container } = render(
-      <PayloadraApp controller={controllerFake(sessionWith('recording', [request]))} />,
+      <ExhibitApp controller={controllerFake(sessionWith('recording', [request]))} />,
     );
 
     await user.click(screen.getByRole('row', { name: /orders/i }));
@@ -1047,7 +1047,7 @@ describe('PayloadraApp', () => {
       'true',
     );
     expect(within(detail).getByRole('tab', { name: 'Inspect' })).toBeVisible();
-    expect(detail).toHaveTextContent(/Payloadra observed an API request/i);
+    expect(detail).toHaveTextContent(/Exhibit observed an API request/i);
     expect(container.querySelector('.detail-skeleton')).toBeNull();
   });
 
@@ -1078,12 +1078,12 @@ describe('PayloadraApp', () => {
   });
 });
 
-describe('PayloadraApp dialog failures', () => {
+describe('ExhibitApp dialog failures', () => {
   it('shows a clear failure inside the open dialog', async () => {
     const user = userEvent.setup();
     const controller = controllerFake();
     controller.clear = () => Promise.reject(new Error('storage locked'));
-    render(<PayloadraApp controller={controller} />);
+    render(<ExhibitApp controller={controller} />);
 
     await user.click(screen.getByRole('button', { name: 'Clear evidence' }));
     await user.click(screen.getByRole('button', { name: 'Clear evidence now' }));
@@ -1099,7 +1099,7 @@ describe('PayloadraApp dialog failures', () => {
     const user = userEvent.setup();
     const controller = controllerFake();
     render(
-      <PayloadraApp
+      <ExhibitApp
         controller={controller}
         exportEvidence={() => Promise.reject(new Error('download blocked'))}
       />,
@@ -1118,7 +1118,7 @@ describe('PayloadraApp dialog failures', () => {
     const user = userEvent.setup();
     const controller = controllerFake();
     controller.start = () => Promise.reject(new Error('capture unavailable'));
-    render(<PayloadraApp controller={controller} />);
+    render(<ExhibitApp controller={controller} />);
 
     await user.click(screen.getByRole('button', { name: 'Start recording' }));
 
@@ -1128,15 +1128,15 @@ describe('PayloadraApp dialog failures', () => {
   });
 });
 
-describe('PayloadraApp presentation boundaries', () => {
+describe('ExhibitApp presentation boundaries', () => {
   it('announces the transitional recording phases', () => {
     const { unmount } = render(
-      <PayloadraApp controller={controllerFake(sessionWith('starting'))} />,
+      <ExhibitApp controller={controllerFake(sessionWith('starting'))} />,
     );
     expect(screen.getByRole('status')).toHaveTextContent('Starting recording');
     unmount();
 
-    render(<PayloadraApp controller={controllerFake(sessionWith('stopping'))} />);
+    render(<ExhibitApp controller={controllerFake(sessionWith('stopping'))} />);
     expect(screen.getByRole('status')).toHaveTextContent('Stopping recording');
   });
 
@@ -1152,17 +1152,17 @@ describe('PayloadraApp presentation boundaries', () => {
         id: 'second',
         classification: { kind: 'api', confidence: 'confirmed', evidence: [] },
       }),
-    ].map((request) => ({ ...request, url: 'payloadra-opaque-route' }));
+    ].map((request) => ({ ...request, url: 'exhibit-opaque-route' }));
 
     render(
-      <PayloadraApp controller={controllerFake(sessionWith('recording', opaque))} />,
+      <ExhibitApp controller={controllerFake(sessionWith('recording', opaque))} />,
     );
 
     const rows = screen.getAllByRole('row').slice(1);
     await user.click(rows[1]!);
 
     const detail = screen.getByRole('region', { name: 'Request detail' });
-    expect(detail).toHaveTextContent('payloadra-opaque-route');
+    expect(detail).toHaveTextContent('exhibit-opaque-route');
 
     await user.click(within(detail).getByRole('tab', { name: 'Inspect' }));
     expect(
@@ -1174,7 +1174,7 @@ describe('PayloadraApp presentation boundaries', () => {
     const original = window.matchMedia;
     Reflect.deleteProperty(window as unknown as Record<string, unknown>, 'matchMedia');
 
-    const { container } = render(<PayloadraApp controller={controllerFake()} />);
+    const { container } = render(<ExhibitApp controller={controllerFake()} />);
 
     expect(
       container.querySelector('[data-reduced-motion="false"]'),
@@ -1187,11 +1187,11 @@ describe('PayloadraApp presentation boundaries', () => {
   });
 });
 
-describe('PayloadraApp shell layout contract', () => {
+describe('ExhibitApp shell layout contract', () => {
   it('groups the status region and notices into one shell row', () => {
     const session = sessionWith('recording', [sanitizedRequestWith({ id: 'orders' })]);
     const { container } = render(
-      <PayloadraApp controller={controllerFake({ ...session, evictedCount: 3 })} />,
+      <ExhibitApp controller={controllerFake({ ...session, evictedCount: 3 })} />,
     );
 
     const notices = container.querySelector('.app-notices');
@@ -1202,7 +1202,7 @@ describe('PayloadraApp shell layout contract', () => {
   });
 });
 
-describe('PayloadraApp failure reporting', () => {
+describe('ExhibitApp failure reporting', () => {
   it.each([
     [
       'corrupt-session' as const,
@@ -1222,7 +1222,7 @@ describe('PayloadraApp failure reporting', () => {
       warnings: [{ code, message: 'Untrusted storage detail must not render.' }],
     };
 
-    render(<PayloadraApp controller={controllerFake(degraded)} />);
+    render(<ExhibitApp controller={controllerFake(degraded)} />);
 
     expect(screen.getByRole('alert')).toHaveTextContent(message);
     expect(document.body.textContent).not.toContain('Untrusted storage detail');
@@ -1244,7 +1244,7 @@ describe('PayloadraApp failure reporting', () => {
       DEFAULT_REDACTION_CONFIG,
     );
 
-    render(<PayloadraApp controller={controllerFake(degraded)} />);
+    render(<ExhibitApp controller={controllerFake(degraded)} />);
 
     expect(
       screen.getByText('Capture stopped unexpectedly', { selector: 'h2' }),
@@ -1256,7 +1256,7 @@ describe('PayloadraApp failure reporting', () => {
     const user = userEvent.setup();
     const controller = controllerFake();
     controller.clear = () => Promise.reject(new Error('storage locked'));
-    render(<PayloadraApp controller={controller} />);
+    render(<ExhibitApp controller={controller} />);
 
     await user.click(screen.getByRole('button', { name: 'Clear evidence' }));
     await user.click(screen.getByRole('button', { name: 'Clear evidence now' }));
@@ -1270,7 +1270,7 @@ describe('PayloadraApp failure reporting', () => {
 
   it('recomputes wide column widths when the viewport changes inside the wide band', () => {
     setViewport(1_600);
-    const { container } = render(<PayloadraApp controller={controllerFake()} />);
+    const { container } = render(<ExhibitApp controller={controllerFake()} />);
     const workspace = container.querySelector<HTMLElement>('.workspace--wide');
     const used = () =>
       Number.parseFloat(workspace?.style.getPropertyValue('--rail-width') ?? '0') +
@@ -1284,11 +1284,11 @@ describe('PayloadraApp failure reporting', () => {
   });
 });
 
-describe('PayloadraApp drawer lifecycle', () => {
+describe('ExhibitApp drawer lifecycle', () => {
   it('closes the filters drawer when the layout becomes wide', async () => {
     setViewport(900);
     const user = userEvent.setup();
-    render(<PayloadraApp controller={controllerFake()} />);
+    render(<ExhibitApp controller={controllerFake()} />);
 
     await user.click(screen.getByRole('button', { name: 'Open session rail' }));
     expect(
@@ -1304,7 +1304,7 @@ describe('PayloadraApp drawer lifecycle', () => {
   });
 });
 
-describe('PayloadraApp approved v0.1 surfaces', () => {
+describe('ExhibitApp approved v0.1 surfaces', () => {
   it('shows interaction groups and filters the ledger by the selected group', async () => {
     setViewport(1_440);
     const user = userEvent.setup();
@@ -1339,7 +1339,7 @@ describe('PayloadraApp approved v0.1 surfaces', () => {
       },
       DEFAULT_REDACTION_CONFIG,
     );
-    render(<PayloadraApp controller={controllerFake(session)} />);
+    render(<ExhibitApp controller={controllerFake(session)} />);
 
     await user.type(
       screen.getByRole('searchbox', { name: 'Search requests' }),
@@ -1400,7 +1400,7 @@ describe('PayloadraApp approved v0.1 surfaces', () => {
       },
       DEFAULT_REDACTION_CONFIG,
     );
-    render(<PayloadraApp controller={controllerFake(session)} />);
+    render(<ExhibitApp controller={controllerFake(session)} />);
 
     await user.click(screen.getByRole('row', { name: /api\/background/i }));
     expect(screen.getByRole('region', { name: 'Request detail' })).toHaveTextContent(
@@ -1426,7 +1426,7 @@ describe('PayloadraApp approved v0.1 surfaces', () => {
     const user = userEvent.setup();
     const exportEvidence = vi.fn(async () => undefined);
     render(
-      <PayloadraApp
+      <ExhibitApp
         controller={controllerFake(
           sessionWith('stopped', [
             sanitizedRequestWith({ id: 'one' }),
@@ -1461,7 +1461,7 @@ describe('PayloadraApp approved v0.1 surfaces', () => {
     setViewport(1_440);
     const user = userEvent.setup();
     render(
-      <PayloadraApp
+      <ExhibitApp
         controller={controllerFake(
           sessionWith('recording', [
             sanitizedRequestWith({

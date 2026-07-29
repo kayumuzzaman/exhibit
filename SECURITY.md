@@ -1,4 +1,4 @@
-# Payloadra security policy
+# Exhibit security policy
 
 **Project status:** Private internal preview
 
@@ -35,7 +35,7 @@ Never send a real credential as proof. Use a canary value.
 
 ## Security model
 
-Payloadra treats the inspected page, HAR objects, response content, interaction
+Exhibit treats the inspected page, HAR objects, response content, interaction
 messages, stored sessions, and imported browser values as untrusted.
 
 Primary trust boundaries:
@@ -55,7 +55,7 @@ Primary trust boundaries:
 The extension declares `storage` and `scripting`, no required host permission,
 and optional `http://*/*`/`https://*/*` access requested for interaction
 grouping. Chrome's optional grant is origin-wide and persists until revoked or
-uninstalled; Payloadra's collector and recording lease are scoped to the active
+uninstalled; Exhibit's collector and recording lease are scoped to the active
 inspected tab. It does not use `chrome.debugger`.
 
 ## Security guarantees
@@ -80,7 +80,7 @@ and shape look ordinary, including opaque webhook path segments, OAuth
 `code`/`state` values, or a secret embedded in prose. Captured and exported
 evidence must still be treated as sensitive.
 
-Payloadra cannot:
+Exhibit cannot:
 
 - see server-to-server or hidden backend traffic;
 - secure an already compromised browser, extension process, or operating

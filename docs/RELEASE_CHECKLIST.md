@@ -1,4 +1,4 @@
-# Payloadra release checklist
+# Exhibit release checklist
 
 **Prepared:** 2026-07-29 · **Candidate:** `main`, commit recorded in
 [VERIFICATION.md](./VERIFICATION.md)
@@ -17,7 +17,7 @@ be done, with the exact action for each item.
 | Package audit        | 0 remote scripts, 0 inline scripts, 0 unapproved network destinations                                          |
 | Dependency audit     | 0 known high or critical advisories                                                                            |
 | Manifest             | MV3, `["storage","scripting"]`, **no required host permissions**, optional origins only                        |
-| Artifact             | `.output/payloadra-0.1.0-chrome.zip` with size and SHA-256 recorded                                            |
+| Artifact             | `.output/exhibit-0.1.0-chrome.zip` with size and SHA-256 recorded                                              |
 | Icons                | 16 / 32 / 48 / 128 PNG present; no unreferenced assets ship                                                    |
 | Screenshots          | Five 1280×800 dark-theme PNGs from the real panel, fixture data only                                           |
 | Listing copy         | Name, summary, description, category, permission justifications — [CHROME_WEB_STORE.md](./CHROME_WEB_STORE.md) |
@@ -42,7 +42,7 @@ each step should show:
 
 | #   | Step                 | Expected                                                                    |
 | --- | -------------------- | --------------------------------------------------------------------------- |
-| 1   | Panel registration   | A **Payloadra** tab appears in DevTools                                     |
+| 1   | Panel registration   | An **Exhibit** tab appears in DevTools                                      |
 | 2   | Start/Stop           | Status pill goes live; Stop returns it to Not recording                     |
 | 3   | Interaction grouping | Rail lists the action you performed, with its request count and trust state |
 | 4   | Explain/Inspect      | Explain gives one sentence with confidence; Inspect renders headers/body    |
@@ -71,13 +71,13 @@ Chrome 120 exactly the ledger scrollbars use Chrome's default styling.
 
 | Decision         | Currently                        | Where it must change                     |
 | ---------------- | -------------------------------- | ---------------------------------------- |
-| Legal owner name | "the Payloadra project owner"    | `LICENSE`                                |
+| Legal owner name | "the Exhibit project owner"      | `LICENSE`                                |
 | Licence terms    | Proprietary, all rights reserved | `LICENSE`, `package.json` (`UNLICENSED`) |
 | Store publisher  | Not chosen                       | Chrome Web Store developer account       |
 
 A Web Store submission needs a real publisher account, a verified email, and —
 for a paid developer account — the one-time registration fee. Decide whether
-Payloadra ships proprietary, open source, or dual-licensed before uploading;
+Exhibit ships proprietary, open source, or dual-licensed before uploading;
 the choice is hard to reverse after publication.
 
 ### Step 4 — Monitored contacts
@@ -99,7 +99,7 @@ has no remote and no hosting, so this needs somewhere to live.
 
 1. `pnpm release:artifact` — runs the full gate, then packages
 2. Confirm the audit line reports exactly `["scripting","storage"]`
-3. Upload `.output/payloadra-0.1.0-chrome.zip`
+3. Upload `.output/exhibit-0.1.0-chrome.zip`
 4. Paste the listing fields from [CHROME_WEB_STORE.md](./CHROME_WEB_STORE.md)
 5. Upload the five screenshots from `docs/screenshots/`
 6. Optionally add a 440×280 small promo tile — not generated, and not required

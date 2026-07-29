@@ -22,10 +22,10 @@ export type FixtureAction =
   | 'xhr';
 
 /**
- * Page object for the Payloadra panel. It drives the panel exactly as a
+ * Page object for the Exhibit panel. It drives the panel exactly as a
  * developer would: visible controls, accessible names, and keyboard input.
  */
-export class PayloadraDriver {
+export class ExhibitDriver {
   constructor(readonly page: Page) {}
 
   async ready(): Promise<void> {
@@ -67,7 +67,7 @@ export class PayloadraDriver {
   /** Loads the Next fixture in a same-origin frame and instruments its traffic. */
   async openNextFixture(path = '/next'): Promise<void> {
     await this.page.evaluate(async (src) => {
-      await globalThis.payloadraHarness?.openFrame(src);
+      await globalThis.exhibitHarness?.openFrame(src);
     }, path);
     await expect(this.nextFrame().locator('#next-state')).toHaveText('idle');
   }
@@ -103,7 +103,7 @@ export class PayloadraDriver {
 
   async settle(): Promise<void> {
     await this.page.evaluate(async () => {
-      await globalThis.payloadraHarness?.settle();
+      await globalThis.exhibitHarness?.settle();
     });
   }
 
@@ -209,16 +209,14 @@ export class PayloadraDriver {
     return this.page.evaluate(
       (selectedFormat) =>
         selectedFormat === 'har'
-          ? (globalThis.payloadraHarness?.exportedHar() ?? '')
-          : (globalThis.payloadraHarness?.exportedReport() ?? ''),
+          ? (globalThis.exhibitHarness?.exportedHar() ?? '')
+          : (globalThis.exhibitHarness?.exportedReport() ?? ''),
       format,
     );
   }
 
   async exportedReport(): Promise<string> {
-    return this.page.evaluate(
-      () => globalThis.payloadraHarness?.exportedReport() ?? '',
-    );
+    return this.page.evaluate(() => globalThis.exhibitHarness?.exportedReport() ?? '');
   }
 
   async clearEvidence(): Promise<void> {

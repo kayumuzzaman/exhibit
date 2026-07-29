@@ -8,12 +8,12 @@ import { createRecordingPipeline } from '../../src/features/capture/recording-pi
 import { createSessionController } from '../../src/features/session/session-controller';
 import {
   buildRedactionConfig,
-  createPayloadraSettingsRepository,
-  DEFAULT_PAYLOADRA_SETTINGS,
+  createExhibitSettingsRepository,
+  DEFAULT_EXHIBIT_SETTINGS,
   normalizeCustomFieldNames,
-  type PayloadraSettings,
-  type PayloadraSettingsService,
-} from '../../src/features/settings/payloadra-settings';
+  type ExhibitSettings,
+  type ExhibitSettingsService,
+} from '../../src/features/settings/exhibit-settings';
 import { chromeCaptureSource } from '../../src/infrastructure/chrome/devtools-capture-source';
 import {
   createInteractionSource,
@@ -92,13 +92,13 @@ async function startPanel(): Promise<void> {
   const inspectedTabId = chrome.devtools.inspectedWindow.tabId;
   const tabId = String(inspectedTabId);
   const page = await inspectedPage();
-  const settingsRepository = createPayloadraSettingsRepository(
+  const settingsRepository = createExhibitSettingsRepository(
     extensionLocalSettingsArea(),
   );
   await settingsRepository.restrictToTrustedContexts().catch(() => undefined);
   let currentSettings = await settingsRepository
     .load()
-    .catch(() => DEFAULT_PAYLOADRA_SETTINGS);
+    .catch(() => DEFAULT_EXHIBIT_SETTINGS);
   const initialRedactionConfig = buildRedactionConfig(currentSettings);
   const ephemeral: SessionRepository =
     createSessionStorageRepository(extensionSessionArea());
@@ -161,9 +161,9 @@ async function startPanel(): Promise<void> {
   });
   let settingsOperation = Promise.resolve();
   function updateSettings(
-    update: (settings: PayloadraSettings) => PayloadraSettings,
-    apply?: (settings: PayloadraSettings) => void,
-  ): Promise<PayloadraSettings> {
+    update: (settings: ExhibitSettings) => ExhibitSettings,
+    apply?: (settings: ExhibitSettings) => void,
+  ): Promise<ExhibitSettings> {
     const result = settingsOperation.then(async () => {
       const saved = await settingsRepository.save(update(currentSettings));
       apply?.(saved);
@@ -176,7 +176,7 @@ async function startPanel(): Promise<void> {
     );
     return result;
   }
-  const settingsService: PayloadraSettingsService = {
+  const settingsService: ExhibitSettingsService = {
     initial: currentSettings,
     saveCustomFieldNames(customFieldNames) {
       const snapshot = controller.getSnapshot();
@@ -223,7 +223,7 @@ async function startPanel(): Promise<void> {
     undefined,
     async (format) => {
       const snapshot = controller.getSnapshot();
-      const baseName = `payloadra-${snapshot.id.replace(/[^a-z0-9-]/giu, '-')}`;
+      const baseName = `exhibit-${snapshot.id.replace(/[^a-z0-9-]/giu, '-')}`;
       if (format === 'markdown') {
         downloadText(`${baseName}.md`, 'text/markdown', toQaReport(snapshot));
         return;
@@ -247,7 +247,7 @@ function reportBootFailure(): void {
   notice.className = 'boot-failure';
   notice.setAttribute('role', 'alert');
   notice.textContent =
-    'Payloadra could not start in this DevTools window. Close DevTools and reopen it to try again.';
+    'Exhibit could not start in this DevTools window. Close DevTools and reopen it to try again.';
   container.replaceChildren(notice);
 }
 

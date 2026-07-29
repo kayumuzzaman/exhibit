@@ -1,14 +1,14 @@
-# Payloadra Product and Technical Design
+# Exhibit Product and Technical Design
 
 **Status:** Approved for implementation
 **Date:** 2026-07-25
-**Approval basis:** The supplied “Payloadra — Full Product Plan” explicitly requests full autonomous implementation. This document makes implementation choices without changing that approved product scope.
+**Approval basis:** The supplied “Exhibit — Full Product Plan” explicitly requests full autonomous implementation. This document makes implementation choices without changing that approved product scope.
 
 ## 1. Product
 
-Payloadra is a local-first Chrome DevTools extension for QA engineers, developers, and support teams. A user opens DevTools on an authorized tab, starts recording, exercises the site, and gets an evidence-led explanation of every browser-visible API interaction.
+Exhibit is a local-first Chrome DevTools extension for QA engineers, developers, and support teams. A user opens DevTools on an authorized tab, starts recording, exercises the site, and gets an evidence-led explanation of every browser-visible API interaction.
 
-Payloadra answers:
+Exhibit answers:
 
 - What browser-visible calls happened?
 - Which recent user interaction or navigation preceded each call?
@@ -17,13 +17,13 @@ Payloadra answers:
 - Is the request a generic API call, GraphQL operation, probable Next.js API route, Server Action, SSR document, or React Server Component payload?
 - Can safe evidence be copied or exported for a bug report?
 
-Payloadra never claims visibility into server-to-server traffic that Chrome did not receive.
+Exhibit never claims visibility into server-to-server traffic that Chrome did not receive.
 
 ## 2. Release Scope
 
 Version 1 includes phases 1–4 of the supplied plan:
 
-- Manifest V3 Chrome extension and Payloadra DevTools panel.
+- Manifest V3 Chrome extension and Exhibit DevTools panel.
 - Explicit Start, Stop, Clear, retention, and export controls.
 - Generic browser request capture and evidence normalization.
 - Explain and Inspect modes.
@@ -59,7 +59,7 @@ WXT provides Manifest V3 output, file-based extension entrypoints, React integra
 
 ### DevTools bootstrap
 
-Creates one “Payloadra” panel per inspected tab. It owns no product state and only registers the panel.
+Creates one “Exhibit” panel per inspected tab. It owns no product state and only registers the panel.
 
 ### Panel application
 
@@ -104,7 +104,7 @@ No stage mutates raw Chrome objects.
 
 ## 5. Capture Contract and Honest Limits
 
-Payloadra captures only browser-visible DevTools evidence. A request may lack a body because it is binary, streamed, cached, blocked, too large, canceled, compressed in an unsupported way, or unavailable through Chrome’s API.
+Exhibit captures only browser-visible DevTools evidence. A request may lack a body because it is binary, streamed, cached, blocked, too large, canceled, compressed in an unsupported way, or unavailable through Chrome’s API.
 
 The UI uses three confidence levels:
 
@@ -231,7 +231,7 @@ Sanitized HAR export:
 
 - emits HAR 1.2-compatible session metadata and entries;
 - includes only redacted/truncated content already present in the session;
-- marks Payloadra-specific classification and redaction metadata under namespaced extension fields;
+- marks Exhibit-specific classification and redaction metadata under namespaced extension fields;
 - excludes browser cookies and authorization values even if custom redaction settings are relaxed.
 
 QA report export:
@@ -287,7 +287,7 @@ Google Chrome and Edge no longer permit Playwright’s command-line side-loading
 
 Every external boundary returns a typed result. Capture, permission, body retrieval, storage, decoding, clipboard, and download failures become recoverable UI notices with retry or fallback where useful. A single malformed request can never stop the recording loop. Global error boundaries preserve export/clear controls.
 
-Storage writes are transactional or versioned. On quota or corruption, Payloadra keeps the in-memory session, disables persistence for that session, and explains the recovery path.
+Storage writes are transactional or versioned. On quota or corruption, Exhibit keeps the in-memory session, disables persistence for that session, and explains the recovery path.
 
 ## 14. Packaging and Documentation
 
@@ -306,7 +306,7 @@ Deliverables:
 Release is ready only when:
 
 1. A QA user can record an authorized workflow without site code changes.
-2. Payloadra correctly groups browser-visible calls and clearly labels uncertainty.
+2. Exhibit correctly groups browser-visible calls and clearly labels uncertainty.
 3. Explain and Inspect answer the supplied success questions across required fixtures.
 4. Sensitive fixtures never expose secrets in storage, UI, clipboard, cURL, HAR, report, logs, or test artifacts.
 5. Session limits prevent unbounded memory/storage growth.

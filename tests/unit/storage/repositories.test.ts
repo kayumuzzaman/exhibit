@@ -13,7 +13,7 @@ import type { SanitizedRecordingSession } from '../../../src/domain/sanitized';
 import { createSession } from '../../../src/domain/session';
 import {
   createIndexedDbSessionRepository,
-  openPayloadraDatabase,
+  openExhibitDatabase,
 } from '../../../src/infrastructure/storage/indexeddb-repository';
 import {
   createSessionStorageRepository,
@@ -308,8 +308,8 @@ describe('chrome.storage.session repository', () => {
     expect(recovered?.id).toBe('tab-5:1000');
     expect(area.setCalls[0]).toEqual(
       expect.objectContaining({
-        'payloadra:session:tab-5:1000': expect.any(Object),
-        'payloadra:current:tab-5': {
+        'exhibit:session:tab-5:1000': expect.any(Object),
+        'exhibit:current:tab-5': {
           version: 1,
           tabId: 'tab-5',
           sessionId: 'tab-5:1000',
@@ -320,7 +320,7 @@ describe('chrome.storage.session repository', () => {
 
   it('retains a stale locator and reports recoverable state when its snapshot is missing', async () => {
     const area = new FakeStorageArea();
-    const locatorKey = 'payloadra:current:tab-5';
+    const locatorKey = 'exhibit:current:tab-5';
     const locator = {
       version: 1,
       tabId: 'tab-5',
@@ -351,13 +351,13 @@ describe('chrome.storage.session repository', () => {
     await repository.clear('old-session');
 
     expect((await repository.loadCurrent('tab-5'))?.id).toBe('new-session');
-    expect(area.values.has('payloadra:session:old-session')).toBe(false);
-    expect(area.values.has('payloadra:session:new-session')).toBe(true);
+    expect(area.values.has('exhibit:session:old-session')).toBe(false);
+    expect(area.values.has('exhibit:session:new-session')).toBe(true);
   });
 
   it('retains a corrupt locator and returns recoverable local state', async () => {
     const area = new FakeStorageArea();
-    const locatorKey = 'payloadra:current:tab-5';
+    const locatorKey = 'exhibit:current:tab-5';
     const corrupt = { version: 1, sessionId: 5 };
     area.values.set(locatorKey, corrupt);
 
@@ -372,8 +372,8 @@ describe('chrome.storage.session repository', () => {
 
   it('warns for a malformed current locator and clears its referenced raw record', async () => {
     const area = new FakeStorageArea();
-    const locatorKey = 'payloadra:current:tab-5';
-    const sessionKey = 'payloadra:session:raw-corrupt';
+    const locatorKey = 'exhibit:current:tab-5';
+    const sessionKey = 'exhibit:session:raw-corrupt';
     area.values.set(locatorKey, {
       version: 2,
       tabId: 'tab-5',
@@ -463,10 +463,10 @@ describe('chrome.storage.session repository', () => {
 
     expect(area.setCalls).toHaveLength(1);
     expect(Object.keys(area.setCalls[0] ?? {})).toContain(
-      'payloadra:session:healthy-storage',
+      'exhibit:session:healthy-storage',
     );
     expect(Object.keys(area.setCalls[0] ?? {})).not.toContain(
-      'payloadra:session:oversized-storage',
+      'exhibit:session:oversized-storage',
     );
   });
 
@@ -476,12 +476,12 @@ describe('chrome.storage.session repository', () => {
 
     await repository.clear('unknown-session');
 
-    expect(area.removeCalls).toEqual(['payloadra:session:unknown-session']);
+    expect(area.removeCalls).toEqual(['exhibit:session:unknown-session']);
   });
 
   it('returns a recoverable warning for corrupt storage without deleting evidence', async () => {
     const area = new FakeStorageArea();
-    const key = 'payloadra:session:tab-5:1000';
+    const key = 'exhibit:session:tab-5:1000';
     const corrupt = { version: 1, session: { requests: 'not-an-array' } };
     area.values.set(key, corrupt);
 
@@ -538,7 +538,7 @@ describe('IndexedDB repository', () => {
 
     await repository.save(session);
     const recovered = await repository.load(session.id);
-    const database = await openPayloadraDatabase(factory);
+    const database = await openExhibitDatabase(factory);
 
     expect([...database.objectStoreNames]).toEqual(['sessions', 'settings']);
     expect(database.version).toBe(1);
@@ -553,7 +553,7 @@ describe('IndexedDB repository', () => {
 
   it('retains malformed stored evidence and returns an empty recoverable session', async () => {
     const factory = new IDBFactory();
-    const database = await openPayloadraDatabase(factory);
+    const database = await openExhibitDatabase(factory);
     const transaction = database.transaction('sessions', 'readwrite');
     transaction.objectStore('sessions').put({ bad: true }, 'corrupt-1');
     await new Promise<void>((resolve, reject) => {
@@ -565,7 +565,7 @@ describe('IndexedDB repository', () => {
 
     const repository = createIndexedDbSessionRepository(factory);
     const recovered = await repository.load('corrupt-1');
-    const reopened = await openPayloadraDatabase(factory);
+    const reopened = await openExhibitDatabase(factory);
     const read = reopened
       .transaction('sessions')
       .objectStore('sessions')
@@ -620,7 +620,7 @@ describe('IndexedDB repository', () => {
 
   it('retains a stale IndexedDB locator when the target snapshot is missing', async () => {
     const factory = new IDBFactory();
-    const database = await openPayloadraDatabase(factory);
+    const database = await openExhibitDatabase(factory);
     const transaction = database.transaction('settings', 'readwrite');
     const locator = {
       version: 1,
@@ -641,7 +641,7 @@ describe('IndexedDB repository', () => {
       warnings: [expect.objectContaining({ code: 'corrupt-session' })],
     });
 
-    const reopened = await openPayloadraDatabase(factory);
+    const reopened = await openExhibitDatabase(factory);
     const request = reopened
       .transaction('settings')
       .objectStore('settings')
@@ -656,7 +656,7 @@ describe('IndexedDB repository', () => {
 
   it('retains a corrupt IndexedDB locator and reports recoverable state', async () => {
     const factory = new IDBFactory();
-    const database = await openPayloadraDatabase(factory);
+    const database = await openExhibitDatabase(factory);
     const transaction = database.transaction('settings', 'readwrite');
     transaction
       .objectStore('settings')
@@ -676,7 +676,7 @@ describe('IndexedDB repository', () => {
 
   it('warns for a malformed IndexedDB locator and clears its referenced raw record', async () => {
     const factory = new IDBFactory();
-    const database = await openPayloadraDatabase(factory);
+    const database = await openExhibitDatabase(factory);
     const transaction = database.transaction(['sessions', 'settings'], 'readwrite');
     transaction
       .objectStore('settings')
@@ -696,7 +696,7 @@ describe('IndexedDB repository', () => {
     );
     await repository.clearCurrent?.('tab-5');
     expect(await repository.load('raw-corrupt')).toBeNull();
-    const reopened = await openPayloadraDatabase(factory);
+    const reopened = await openExhibitDatabase(factory);
     const locator = reopened
       .transaction('settings')
       .objectStore('settings')
@@ -715,7 +715,7 @@ describe('IndexedDB repository', () => {
     const repository = createIndexedDbSessionRepository(factory);
     await expect(repository.clear('missing')).resolves.toBeUndefined();
 
-    const database = await openPayloadraDatabase(factory);
+    const database = await openExhibitDatabase(factory);
     const transaction = database.transaction('sessions', 'readwrite');
     transaction.objectStore('sessions').put({ bad: true }, 'corrupt-clear');
     await new Promise<void>((resolve, reject) => {
@@ -745,7 +745,7 @@ describe('IndexedDB repository', () => {
       }),
     } as unknown as IDBFactory;
 
-    await expect(openPayloadraDatabase(factory, 'existing')).resolves.toBe(database);
+    await expect(openExhibitDatabase(factory, 'existing')).resolves.toBe(database);
     expect(createObjectStore).not.toHaveBeenCalled();
   });
 
@@ -766,7 +766,7 @@ describe('IndexedDB repository', () => {
         },
       } as unknown as IDBFactory;
 
-      await expect(openPayloadraDatabase(factory)).rejects.toThrow(
+      await expect(openExhibitDatabase(factory)).rejects.toThrow(
         failure === 'blocked' ? 'blocked' : 'open failed',
       );
     },
@@ -782,7 +782,7 @@ describe('IndexedDB repository', () => {
     const factory = {
       open: () => request,
     } as unknown as IDBFactory;
-    const opened = openPayloadraDatabase(factory);
+    const opened = openExhibitDatabase(factory);
     (request.onblocked as (() => void) | undefined)?.();
     await expect(opened).rejects.toThrow('blocked');
 
@@ -797,7 +797,7 @@ describe('IndexedDB repository', () => {
     const secondFactory = {
       open: () => secondRequest,
     } as unknown as IDBFactory;
-    const secondOpened = openPayloadraDatabase(secondFactory);
+    const secondOpened = openExhibitDatabase(secondFactory);
     (secondRequest.onsuccess as (() => void) | undefined)?.();
     await secondOpened;
     expect(secondDatabase.onversionchange).toEqual(expect.any(Function));
@@ -1472,7 +1472,7 @@ describe('IndexedDB repository write coalescing', () => {
     );
     await Promise.all(writes);
 
-    const database = await openPayloadraDatabase(factory);
+    const database = await openExhibitDatabase(factory);
     const stored = await new Promise<unknown>((resolve, reject) => {
       const transaction = database.transaction('sessions', 'readonly');
       const request = transaction.objectStore('sessions').get('burst');

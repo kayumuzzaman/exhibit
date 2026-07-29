@@ -2,14 +2,14 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { DEFAULT_REDACTION_FIELD_NAMES } from '../../../src/features/settings/redaction-settings';
 import {
-  DEFAULT_PAYLOADRA_SETTINGS,
+  DEFAULT_EXHIBIT_SETTINGS,
   buildRedactionConfig,
-  createPayloadraSettingsRepository,
+  createExhibitSettingsRepository,
   normalizeCustomFieldNames,
   parseCustomFieldNames,
-} from '../../../src/features/settings/payloadra-settings';
+} from '../../../src/features/settings/exhibit-settings';
 
-describe('Payloadra settings', () => {
+describe('Exhibit settings', () => {
   it('normalizes, deduplicates, and bounds user field names case-insensitively', () => {
     expect(
       normalizeCustomFieldNames([
@@ -27,7 +27,7 @@ describe('Payloadra settings', () => {
 
   it('merges custom names without allowing mandatory defaults to be relaxed', () => {
     const config = buildRedactionConfig({
-      ...DEFAULT_PAYLOADRA_SETTINGS,
+      ...DEFAULT_EXHIBIT_SETTINGS,
       customFieldNames: ['Private Note'],
     });
 
@@ -44,7 +44,7 @@ describe('Payloadra settings', () => {
 
   it('loads defaults for malformed local data and saves a validated v1 envelope', async () => {
     const values = new Map<string, unknown>([
-      ['payloadra:settings:v1', { version: 1, customFieldNames: 'unsafe' }],
+      ['exhibit:settings:v1', { version: 1, customFieldNames: 'unsafe' }],
     ]);
     const area = {
       get: vi.fn(async (key: string) =>
@@ -55,9 +55,9 @@ describe('Payloadra settings', () => {
       }),
       setAccessLevel: vi.fn(async () => undefined),
     };
-    const repository = createPayloadraSettingsRepository(area);
+    const repository = createExhibitSettingsRepository(area);
 
-    expect(await repository.load()).toEqual(DEFAULT_PAYLOADRA_SETTINGS);
+    expect(await repository.load()).toEqual(DEFAULT_EXHIBIT_SETTINGS);
 
     const saved = await repository.save({
       theme: 'dark',
@@ -67,7 +67,7 @@ describe('Payloadra settings', () => {
       theme: 'dark',
       customFieldNames: ['Private Note'],
     });
-    expect(values.get('payloadra:settings:v1')).toEqual({
+    expect(values.get('exhibit:settings:v1')).toEqual({
       version: 1,
       theme: 'dark',
       customFieldNames: ['Private Note'],

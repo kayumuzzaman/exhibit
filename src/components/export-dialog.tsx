@@ -56,7 +56,7 @@ export function ExportDialog({
             aria-label="Sanitized HAR 1.2"
             checked={format === 'har'}
             {...(format === 'har' ? { 'data-initial-focus': '' } : {})}
-            name="payloadra-export-format"
+            name="exhibit-export-format"
             onChange={() => onFormatChange('har')}
             type="radio"
             value="har"
@@ -72,7 +72,7 @@ export function ExportDialog({
             aria-label="Markdown QA report"
             checked={format === 'markdown'}
             {...(format === 'markdown' ? { 'data-initial-focus': '' } : {})}
-            name="payloadra-export-format"
+            name="exhibit-export-format"
             onChange={() => onFormatChange('markdown')}
             type="radio"
             value="markdown"

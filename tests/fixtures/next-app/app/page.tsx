@@ -10,7 +10,7 @@ export default function Page() {
 
   return (
     <main>
-      <h1>Payloadra Next fixture</h1>
+      <h1>Exhibit Next fixture</h1>
       <p id="next-state">{state}</p>
       <button
         id="next-save-action"

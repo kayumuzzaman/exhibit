@@ -1,6 +1,6 @@
 # Verification
 
-Payloadra has one release gate. The commands below are intended to run from a
+Exhibit has one release gate. The commands below are intended to run from a
 clean checkout. The latest recorded run is reconstructable: it was produced from
 the committed candidate identified below.
 
@@ -53,10 +53,10 @@ Chrome checklist below has not been completed.
 | Manifest permissions      | `["scripting","storage"]`; required host permissions `[]`                        |
 | `pnpm audit:dependencies` | pass — 0 known vulnerabilities                                                   |
 | `pnpm test:e2e`           | pass — 43 tests                                                                  |
-| `pnpm zip`                | pass — `.output/payloadra-0.1.0-chrome.zip`, 225,588 bytes                       |
+| `pnpm zip`                | pass — `.output/exhibit-0.1.0-chrome.zip`, 225,572 bytes                         |
 
 Artifact SHA-256:
-`74d83c91b39f3477667cb75cc49f0f9c7af85c8496de433dc08b16e05eb5f2d2`.
+`1d42ea363e3ea2388858fb8565b0354f06108f899ee6dbae51b1b090a36be9c1`.
 
 ## Recorded run — 2026-07-26
 
@@ -77,7 +77,7 @@ Chromium 151.0.7922.34, Google Chrome 150.0.7871.187 installed.
 | `pnpm audit:package`    | pass — 0 unapproved network-destination URLs, 0 remote scripts, 0 inline scripts |
 | Manifest permissions    | `["scripting","storage"]`, host permissions `[]`                                 |
 | `pnpm test:e2e`         | pass — 35 tests                                                                  |
-| `pnpm release:artifact` | pass — `.output/payloadra-0.1.0-chrome.zip`, 216.02 kB                           |
+| `pnpm release:artifact` | pass — 216.02 kB (produced under the former product name)                        |
 
 The unit package-contract tests only run when `.output/chrome-mv3` exists.
 Inside `pnpm verify`, the production build now precedes coverage, so those tests
@@ -124,7 +124,7 @@ do not skip. The standalone static package audit also runs after that build.
 
 - **The DevTools window cannot be automated.** Playwright cannot attach to
   Chrome's DevTools UI, so the panel workspace is driven through a harness page
-  that mounts the production `PayloadraApp`, session controller, recording
+  that mounts the production `ExhibitApp`, session controller, recording
   pipeline, and storage repositories, substituting only the Chrome DevTools
   capture adapter with a browser capture port built on real `fetch`/`XHR`
   interception and real `PerformanceResourceTiming`. The Chrome adapter itself
@@ -141,7 +141,7 @@ Run this in the locally installed Google Chrome and record the result here.
 2. Open `chrome://extensions`, enable **Developer mode**, choose
    **Load unpacked**, and select `.output/chrome-mv3`.
 3. Start the fixtures if you want deterministic traffic, or use any web app.
-4. Open DevTools and confirm the **Payloadra** panel is registered.
+4. Open DevTools and confirm the **Exhibit** panel is registered.
 5. Press **Start**, perform one interaction that issues requests, and confirm
    the ledger fills and the interaction groups the requests.
 6. Open **Explain** and **Inspect** for one request and confirm both render.

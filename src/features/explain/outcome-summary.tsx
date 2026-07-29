@@ -27,8 +27,8 @@ function interactionLabel(group: InteractionGroup | null): string {
 }
 
 function observationLead(group: InteractionGroup | null): string {
-  if (group?.kind !== 'event') return 'Payloadra observed';
-  return `After ${interactionLabel(group)}, Payloadra observed`;
+  if (group?.kind !== 'event') return 'Exhibit observed';
+  return `After ${interactionLabel(group)}, Exhibit observed`;
 }
 
 function outcome(status: number): string {

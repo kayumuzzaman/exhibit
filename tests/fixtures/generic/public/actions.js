@@ -4,10 +4,10 @@
  * capture pipeline observes genuine timings, headers, and body states.
  */
 const SECRETS = {
-  apiKey: 'sk_live_payloadraE2eApiKeyCanary0001',
-  authorization: 'Bearer payloadra.e2e.authorization.canary.0001',
-  password: 'payloadra-e2e-password-canary-0001',
-  queryToken: 'payloadra-e2e-query-token-canary-0001',
+  apiKey: 'sk_live_exhibitE2eApiKeyCanary0001',
+  authorization: 'Bearer exhibit.e2e.authorization.canary.0001',
+  password: 'exhibit-e2e-password-canary-0001',
+  queryToken: 'exhibit-e2e-query-token-canary-0001',
 };
 
 async function drain(response) {

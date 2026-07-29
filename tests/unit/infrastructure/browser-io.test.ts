@@ -68,7 +68,7 @@ describe('clipboard boundary', () => {
 
 describe('download boundary', () => {
   it('creates, clicks, and revokes a single object URL', () => {
-    const createObjectURL = vi.fn(() => 'blob:payloadra');
+    const createObjectURL = vi.fn(() => 'blob:exhibit');
     const revokeObjectURL = vi.fn();
     vi.stubGlobal(
       'URL',
@@ -85,7 +85,7 @@ describe('download boundary', () => {
 
     expect(createObjectURL).toHaveBeenCalledTimes(1);
     expect(click).toHaveBeenCalledTimes(1);
-    expect(revokeObjectURL).toHaveBeenCalledWith('blob:payloadra');
+    expect(revokeObjectURL).toHaveBeenCalledWith('blob:exhibit');
     expect(document.querySelectorAll('a')).toHaveLength(0);
   });
 

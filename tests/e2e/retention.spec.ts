@@ -1,71 +1,67 @@
 import { expect, test } from './extension.fixture';
 
 test.describe('retention and recovery', () => {
-  test('recovers an ephemeral session after the panel reloads', async ({
-    payloadra,
-  }) => {
-    await payloadra.startRecording();
-    await payloadra.trigger('save-profile');
-    await expect(payloadra.requestRows()).toHaveCount(1);
+  test('recovers an ephemeral session after the panel reloads', async ({ exhibit }) => {
+    await exhibit.startRecording();
+    await exhibit.trigger('save-profile');
+    await expect(exhibit.requestRows()).toHaveCount(1);
 
-    await payloadra.reload();
+    await exhibit.reload();
 
-    await expect(payloadra.requestRows()).toHaveCount(1);
-    await expect(payloadra.rowFor('/api/profile')).toHaveCount(1);
+    await expect(exhibit.requestRows()).toHaveCount(1);
+    await expect(exhibit.rowFor('/api/profile')).toHaveCount(1);
   });
 
   test('recovers a persistent session from local storage after reload', async ({
-    payloadra,
+    exhibit,
   }) => {
-    await payloadra.setRetention('persistent');
-    await payloadra.startRecording();
-    await payloadra.trigger('save-profile');
-    await payloadra.trigger('graphql');
-    await expect(payloadra.requestRows()).toHaveCount(2);
+    await exhibit.setRetention('persistent');
+    await exhibit.startRecording();
+    await exhibit.trigger('save-profile');
+    await exhibit.trigger('graphql');
+    await expect(exhibit.requestRows()).toHaveCount(2);
 
-    await payloadra.page.evaluate(() => sessionStorage.clear());
-    await payloadra.reload();
+    await exhibit.page.evaluate(() => sessionStorage.clear());
+    await exhibit.reload();
 
-    await expect(payloadra.requestRows()).toHaveCount(2);
-    await expect(payloadra.rowFor('/graphql')).toHaveCount(1);
+    await expect(exhibit.requestRows()).toHaveCount(2);
+    await expect(exhibit.rowFor('/graphql')).toHaveCount(1);
     await expect(
-      payloadra.page.getByRole('button', { name: 'Start recording' }),
+      exhibit.page.getByRole('button', { name: 'Start recording' }),
     ).toBeVisible();
-    const firstStoppedAt = await payloadra.page.evaluate(
-      () => globalThis.payloadraHarness?.controller.getSnapshot().stoppedAt,
+    const firstStoppedAt = await exhibit.page.evaluate(
+      () => globalThis.exhibitHarness?.controller.getSnapshot().stoppedAt,
     );
 
-    await payloadra.reload();
+    await exhibit.reload();
 
     expect(
-      await payloadra.page.evaluate(
-        () => globalThis.payloadraHarness?.controller.getSnapshot().stoppedAt,
+      await exhibit.page.evaluate(
+        () => globalThis.exhibitHarness?.controller.getSnapshot().stoppedAt,
       ),
     ).toBe(firstStoppedAt);
   });
 
   test('clearing removes recovered evidence from every retention store', async ({
-    payloadra,
+    exhibit,
   }) => {
-    await payloadra.setRetention('persistent');
-    await payloadra.startRecording();
-    await payloadra.trigger('save-profile');
-    await expect(payloadra.requestRows()).toHaveCount(1);
+    await exhibit.setRetention('persistent');
+    await exhibit.startRecording();
+    await exhibit.trigger('save-profile');
+    await expect(exhibit.requestRows()).toHaveCount(1);
 
-    await payloadra.clearEvidence();
-    await payloadra.reload();
+    await exhibit.clearEvidence();
+    await exhibit.reload();
 
-    await expect(payloadra.requestRows()).toHaveCount(0);
-    expect(await payloadra.storedSessionText()).not.toContain('/api/profile');
+    await expect(exhibit.requestRows()).toHaveCount(0);
+    expect(await exhibit.storedSessionText()).not.toContain('/api/profile');
   });
 
-  test('reports the active retention mode in the session rail', async ({
-    payloadra,
-  }) => {
-    const rail = payloadra.page.getByRole('navigation', { name: 'Session workspace' });
+  test('reports the active retention mode in the session rail', async ({ exhibit }) => {
+    const rail = exhibit.page.getByRole('navigation', { name: 'Session workspace' });
     await expect(rail).toContainText('Memory');
 
-    await payloadra.setRetention('persistent');
+    await exhibit.setRetention('persistent');
     await expect(rail).toContainText('Local');
   });
 });

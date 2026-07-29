@@ -1,8 +1,8 @@
-# Payloadra release traceability
+# Exhibit release traceability
 
 **Audit date:** 2026-07-29
 
-**Baseline:** the approved [design](./superpowers/specs/2026-07-25-payloadra-design.md) and [implementation plan](./superpowers/plans/2026-07-25-payloadra-implementation.md) dated 2026-07-25
+**Baseline:** the approved [design](./superpowers/specs/2026-07-25-exhibit-design.md) and [implementation plan](./superpowers/plans/2026-07-25-exhibit-implementation.md) dated 2026-07-25
 
 **Release decision:** not ready for public distribution
 

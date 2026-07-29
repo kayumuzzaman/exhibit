@@ -2,9 +2,9 @@ import type { RecordingPhase } from '../../domain/model';
 import { Button } from '../../components/button';
 import { Icon } from '../../components/icon';
 import { StatusPill } from '../../components/status-pill';
-import type { ThemeMode } from '../settings/payloadra-settings';
+import type { ThemeMode } from '../settings/exhibit-settings';
 
-export type { ThemeMode } from '../settings/payloadra-settings';
+export type { ThemeMode } from '../settings/exhibit-settings';
 
 export function CommandBar({
   busy,
@@ -47,7 +47,7 @@ export function CommandBar({
         <span aria-hidden="true" className="brand-mark">
           <span />
         </span>
-        <span className="brand-word">Payloadra</span>
+        <span className="brand-word">Exhibit</span>
         <span className="brand-scope">Network evidence</span>
       </div>
 

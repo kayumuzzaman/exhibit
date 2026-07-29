@@ -1,13 +1,13 @@
 # Chrome Web Store listing
 
-This is draft listing copy, not an approved publisher submission. Payloadra is
+This is draft listing copy, not an approved publisher submission. Exhibit is
 currently `UNLICENSED` and private. Publishing requires the owner to choose a
 licence, close the release blockers in [TRACEABILITY.md](./TRACEABILITY.md), and
 review the final disclosure form against current Chrome Web Store policy.
 
 ## Item details
 
-- **Name:** Payloadra
+- **Name:** Exhibit
 - **Summary (132 characters max):** Privacy-first browser request evidence for
   DevTools. Record, explain, and inspect what your page actually sent.
 - **Category:** Developer Tools
@@ -15,10 +15,10 @@ review the final disclosure form against current Chrome Web Store policy.
 
 ## Detailed description
 
-> Payloadra is a DevTools panel that turns browser network activity into
+> Exhibit is a DevTools panel that turns browser network activity into
 > evidence you can read.
 >
-> Start recording, use your page, and Payloadra explains each request in one
+> Start recording, use your page, and Exhibit explains each request in one
 > sentence: which recent interaction it followed, what kind of request it was,
 > what came back, how long it took, and how confident that reading is. Every
 > claim links back to the protocol facts behind it.
@@ -41,14 +41,14 @@ review the final disclosure form against current Chrome Web Store policy.
 > redaction names, repeated-call comparison, safe cURL copy, sanitized HAR 1.2
 > export, and a Markdown QA report.
 >
-> Payloadra reports only what the browser can prove. It cannot see
+> Exhibit reports only what the browser can prove. It cannot see
 > server-to-server traffic, and it never guesses a server function name.
 
 ## Single purpose
 
-The dashboard requires one narrow purpose. Payloadra's:
+The dashboard requires one narrow purpose. Exhibit's:
 
-> Payloadra records the network requests a page makes while the user is
+> Exhibit records the network requests a page makes while the user is
 > recording in DevTools, and presents them as redacted, explained evidence that
 > the user can inspect and export locally.
 
@@ -66,9 +66,9 @@ with any server.
 - **Optional host access (`http://*/*`, `https://*/*`)** — Requested only when
   the user presses Start, for the inspected page's origin, and only to observe
   safe click, submit, and navigation metadata. Chrome's permission grant covers
-  that origin across tabs and persists until revoked or uninstalled; Payloadra
+  that origin across tabs and persists until revoked or uninstalled; Exhibit
   activates its collector only in the inspected tab. Field values are not read,
-  and no captured content is transmitted by Payloadra.
+  and no captured content is transmitted by Exhibit.
 - **Remote code** — None. The package contains no remote scripts, no inline
   scripts, and no unapproved network-destination URLs; this is enforced by
   `pnpm audit:package`.
@@ -76,7 +76,7 @@ with any server.
 ## Data usage disclosure preparation
 
 Do not answer every “collect or use” category **No** merely because processing
-is local. During an active recording, Payloadra processes website content, user
+is local. During an active recording, Exhibit processes website content, user
 activity, browsing/network history for the inspected tab,
 authentication-related material, and any personal data present in request or
 response evidence.
@@ -84,7 +84,7 @@ response evidence.
 Accurate product behavior:
 
 - captured data is used only for the user-requested debugging workflow;
-- data is processed locally and is not transmitted to Payloadra or a third
+- data is processed locally and is not transmitted to Exhibit or a third
   party by the extension;
 - user-initiated safe cURL copy writes sanitized text to the operating-system
   clipboard, where it can outlive the panel;

@@ -551,7 +551,7 @@ describe('Chrome DevTools capture source boundaries', () => {
         request: { method: 'GET', url: 'https://app.test/graphql', headers: [] },
       }),
       entry('opaque', 1_006, {
-        request: { method: 'GET', url: 'payloadra-opaque', headers: [] },
+        request: { method: 'GET', url: 'exhibit-opaque', headers: [] },
         _resourceType: 'image',
       }),
       entry('style', 1_007, { _resourceType: 'stylesheet' }),

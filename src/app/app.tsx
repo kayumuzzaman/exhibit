@@ -41,10 +41,10 @@ import {
 } from '../features/session/session-rail';
 import type { SessionController } from '../features/session/session-controller';
 import {
-  DEFAULT_PAYLOADRA_SETTINGS,
+  DEFAULT_EXHIBIT_SETTINGS,
   parseCustomFieldNames,
-  type PayloadraSettingsService,
-} from '../features/settings/payloadra-settings';
+  type ExhibitSettingsService,
+} from '../features/settings/exhibit-settings';
 import {
   AppProvider,
   useExportEvidence,
@@ -75,13 +75,13 @@ const WIDE_LIST_MAX = 900;
 const WIDE_RAIL_MIN = 200;
 const WIDE_RAIL_MAX = 360;
 
-const DEFAULT_SETTINGS_SERVICE: PayloadraSettingsService = {
-  initial: DEFAULT_PAYLOADRA_SETTINGS,
+const DEFAULT_SETTINGS_SERVICE: ExhibitSettingsService = {
+  initial: DEFAULT_EXHIBIT_SETTINGS,
   async saveCustomFieldNames(customFieldNames) {
-    return { ...DEFAULT_PAYLOADRA_SETTINGS, customFieldNames };
+    return { ...DEFAULT_EXHIBIT_SETTINGS, customFieldNames };
   },
   async saveTheme(theme) {
-    return { ...DEFAULT_PAYLOADRA_SETTINGS, theme };
+    return { ...DEFAULT_EXHIBIT_SETTINGS, theme };
   },
 };
 
@@ -459,7 +459,7 @@ function PanelShell({
   settingsService,
 }: Readonly<{
   devtoolsThemeSource: DevtoolsThemeSource;
-  settingsService: PayloadraSettingsService;
+  settingsService: ExhibitSettingsService;
 }>) {
   const session = useSession();
   const controller = useSessionController();
@@ -1045,7 +1045,7 @@ function PanelShell({
 
       {dialog === 'settings' ? (
         <Dialog
-          description="Add field names that Payloadra must always redact. Mandatory authorization, cookie, credential-name, and token-pattern protection stays on."
+          description="Add field names that Exhibit must always redact. Mandatory authorization, cookie, credential-name, and token-pattern protection stays on."
           onClose={dismissDialog}
           title="Privacy and redaction settings"
         >
@@ -1090,7 +1090,7 @@ function PanelShell({
   );
 }
 
-export function PayloadraApp({
+export function ExhibitApp({
   controller,
   devtoolsTheme = FALLBACK_DEVTOOLS_THEME_SOURCE,
   exportEvidence,
@@ -1099,7 +1099,7 @@ export function PayloadraApp({
   controller: SessionController;
   devtoolsTheme?: DevtoolsThemeSource;
   exportEvidence?: (format: EvidenceExportFormat) => Promise<void>;
-  settings?: PayloadraSettingsService;
+  settings?: ExhibitSettingsService;
 }>) {
   return (
     <AppErrorBoundary

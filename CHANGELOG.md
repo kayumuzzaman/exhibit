@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to Payloadra are recorded here. This project follows
+All notable changes to Exhibit are recorded here. This project follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
@@ -31,7 +31,7 @@ as a release until owner acceptance is complete.
 - A toolbar popup. Chrome offers no API for opening DevTools from an extension,
   so clicking the icon previously did nothing at all; the popup now explains
   where the panel lives, and when DevTools is already open on the tab it offers
-  a button that switches straight to the Payloadra panel (Chrome 140+, which is
+  a button that switches straight to the Exhibit panel (Chrome 140+, which is
   where `ExtensionPanel.show` arrived).
 
 ### Fixed
@@ -86,7 +86,7 @@ as a release until owner acceptance is complete.
   recording's recovered stopped timestamp is persisted so repeated reloads stay
   stable.
 - Optional-host documentation now states that Chrome grants persistent,
-  origin-wide access even though Payloadra's collector use is inspected-tab
+  origin-wide access even though Exhibit's collector use is inspected-tab
   scoped.
 - Static assets are captured under the production contract while the API-only
   choice remains a display filter, matching capture, recovery, and export.

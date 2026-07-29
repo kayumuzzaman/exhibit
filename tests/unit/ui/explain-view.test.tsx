@@ -60,7 +60,7 @@ describe('ExplainView', () => {
 
     expect(
       screen.getByRole('heading', {
-        name: /After Save profile, Payloadra observed a Server Action that succeeded with HTTP 200 in 184 ms; classification confidence is confirmed/i,
+        name: /After Save profile, Exhibit observed a Server Action that succeeded with HTTP 200 in 184 ms; classification confidence is confirmed/i,
       }),
     ).toBeVisible();
     expect(screen.getByText('40f3a8b1')).toBeVisible();

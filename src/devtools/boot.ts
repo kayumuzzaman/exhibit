@@ -89,7 +89,7 @@ function registerFocusChannel(
 
 export function bootDevtools(dependencies: BootDevtoolsDependencies = {}): void {
   const panels = dependencies.panels ?? chrome.devtools.panels;
-  panels.create('Payloadra', 'icon/16.png', 'panel.html', (created) => {
+  panels.create('Exhibit', 'icon/16.png', 'panel.html', (created) => {
     const panel = created as DevtoolsPanel | null | undefined;
     const show = panel?.show;
     if (typeof show !== 'function') return;

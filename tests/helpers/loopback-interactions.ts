@@ -19,7 +19,7 @@ export type LoopbackInteractionSource = InteractionSource &
 function readInteraction(message: unknown): InteractionEvent | null {
   if (message === null || typeof message !== 'object') return null;
   const envelope = message as { type?: unknown; event?: unknown };
-  if (envelope.type !== 'payloadra:interaction') return null;
+  if (envelope.type !== 'exhibit:interaction') return null;
   const event = envelope.event;
   if (event === null || typeof event !== 'object') return null;
   const candidate = event as Partial<InteractionEvent>;
@@ -46,7 +46,7 @@ export function createLoopbackInteractionSource(): LoopbackInteractionSource {
   let boundTabId: string | null = null;
 
   const port: RuntimePortLike = {
-    name: 'payloadra:content',
+    name: 'exhibit:content',
     onMessage: { addListener() {}, removeListener() {} },
     onDisconnect: { addListener() {}, removeListener() {} },
     postMessage(message) {

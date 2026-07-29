@@ -450,7 +450,7 @@ function redactPathname(pathname: string, context: TraversalContext): string {
 export function redactUrl(input: string, config: RedactionConfig): string {
   try {
     const context = traversalContext(config);
-    const url = new URL(input, 'https://payloadra.invalid');
+    const url = new URL(input, 'https://exhibit.invalid');
     const absolute = /^[A-Za-z][A-Za-z0-9+.-]*:/u.test(input) || input.startsWith('//');
     if (!SAFE_CAPTURE_URL_PROTOCOLS.has(url.protocol)) return REDACTED;
     if (url.username !== '') url.username = REDACTED;
@@ -592,7 +592,7 @@ function redactBodyText(
 }
 
 /**
- * Trusted DTO boundary. `body` must come from Payloadra normalization, not an
+ * Trusted DTO boundary. `body` must come from Exhibit normalization, not an
  * arbitrary page object or Proxy. Violations fail closed, but JavaScript Proxy
  * reflection can execute traps before reporting failure.
  */

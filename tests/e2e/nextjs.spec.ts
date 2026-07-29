@@ -2,27 +2,27 @@ import { expect, test } from './extension.fixture';
 
 test.describe('Next.js evidence', () => {
   test('classifies a real Server Action without inventing a function name', async ({
-    payloadra,
+    exhibit,
   }) => {
-    await payloadra.startRecording();
-    await payloadra.openNextFixture();
-    await payloadra.triggerInNextFixture('#next-save-action');
+    await exhibit.startRecording();
+    await exhibit.openNextFixture();
+    await exhibit.triggerInNextFixture('#next-save-action');
 
-    await expect(payloadra.nextFrame().locator('#next-state')).toHaveText('saved:Ada');
-    const actionRow = payloadra.requestRows().filter({ hasText: 'next-server-action' });
+    await expect(exhibit.nextFrame().locator('#next-state')).toHaveText('saved:Ada');
+    const actionRow = exhibit.requestRows().filter({ hasText: 'next-server-action' });
     await expect(actionRow).toHaveCount(1);
 
     await actionRow.click();
-    await expect(payloadra.explainHeading()).toContainText('Server Action');
-    await expect(payloadra.detailWorkspace()).not.toContainText('saveProfile');
+    await expect(exhibit.explainHeading()).toContainText('Server Action');
+    await expect(exhibit.detailWorkspace()).not.toContainText('saveProfile');
 
-    await payloadra.openInspect();
-    await payloadra.openEvidenceTab('Request');
-    const detail = payloadra.detailWorkspace();
+    await exhibit.openInspect();
+    await exhibit.openEvidenceTab('Request');
+    const detail = exhibit.detailWorkspace();
     await expect(detail).toContainText('next-action');
 
-    const actionId = await payloadra.page.evaluate(() => {
-      const snapshot = globalThis.payloadraHarness?.controller.getSnapshot();
+    const actionId = await exhibit.page.evaluate(() => {
+      const snapshot = globalThis.exhibitHarness?.controller.getSnapshot();
       const request = snapshot?.requests.find(
         (candidate) => candidate.classification?.kind === 'next-server-action',
       );
@@ -37,38 +37,38 @@ test.describe('Next.js evidence', () => {
   });
 
   test('captures a failing Server Action as evidence', async ({
-    payloadra,
+    exhibit,
     allowedConsoleErrors,
   }) => {
     allowedConsoleErrors.push(/fixture action failure/u, /Server Action/u, /500/u);
-    await payloadra.startRecording();
-    await payloadra.openNextFixture();
-    await payloadra.triggerInNextFixture('#next-failing-action');
+    await exhibit.startRecording();
+    await exhibit.openNextFixture();
+    await exhibit.triggerInNextFixture('#next-failing-action');
 
-    await expect(payloadra.nextFrame().locator('#next-state')).toHaveText(
+    await expect(exhibit.nextFrame().locator('#next-state')).toHaveText(
       'action-failed',
     );
-    await expect(payloadra.requestRows()).not.toHaveCount(0);
+    await expect(exhibit.requestRows()).not.toHaveCount(0);
   });
 
   test('classifies the Next API route and the RSC navigation payload', async ({
-    payloadra,
+    exhibit,
   }) => {
-    await payloadra.startRecording();
-    await payloadra.openNextFixture();
-    await payloadra.triggerInNextFixture('#next-api-route');
+    await exhibit.startRecording();
+    await exhibit.openNextFixture();
+    await exhibit.triggerInNextFixture('#next-api-route');
 
-    await expect(payloadra.nextFrame().locator('#next-state')).toHaveText('api-loaded');
-    await expect(payloadra.rowFor('/next/api/profile')).toContainText('next-api');
+    await expect(exhibit.nextFrame().locator('#next-state')).toHaveText('api-loaded');
+    await expect(exhibit.rowFor('/next/api/profile')).toContainText('next-api');
 
-    await payloadra.triggerInNextFixture('#next-rsc-link');
-    await expect(payloadra.nextFrame().locator('#rsc-content')).toBeVisible();
-    await payloadra.settle();
+    await exhibit.triggerInNextFixture('#next-rsc-link');
+    await expect(exhibit.nextFrame().locator('#rsc-content')).toBeVisible();
+    await exhibit.settle();
 
-    await expect(payloadra.rowFor('_rsc=').first()).toContainText('rsc');
-    await payloadra.openRequest('_rsc=');
-    await payloadra.openInspect();
-    await payloadra.openEvidenceTab('Response');
-    await expect(payloadra.detailWorkspace()).toContainText('Flight');
+    await expect(exhibit.rowFor('_rsc=').first()).toContainText('rsc');
+    await exhibit.openRequest('_rsc=');
+    await exhibit.openInspect();
+    await exhibit.openEvidenceTab('Response');
+    await expect(exhibit.detailWorkspace()).toContainText('Flight');
   });
 });

@@ -1,4 +1,4 @@
-# Payloadra Implementation Plan
+# Exhibit Implementation Plan
 
 > **Audit note — 2026-07-29:** This file is the historical red/green execution
 > plan. Its unchecked boxes were never maintained as a completion ledger. Use
@@ -7,7 +7,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Build and package Payloadra, a privacy-first Chrome DevTools network explainer with ≥90% coverage in all four metrics and automatic browser E2E tests.
+**Goal:** Build and package Exhibit, a privacy-first Chrome DevTools network explainer with ≥90% coverage in all four metrics and automatic browser E2E tests.
 
 **Architecture:** A WXT Manifest V3 extension hosts a React panel. Chrome APIs are isolated behind typed ports; an immutable normalization → redaction → classification → correlation pipeline feeds bounded local repositories and a reducer-driven UI.
 
@@ -36,7 +36,7 @@
 entrypoints/
   background.ts                 tab-scoped interaction relay and script injection
   devtools.html                 DevTools bootstrap document
-  devtools/main.ts              creates Payloadra panel
+  devtools/main.ts              creates Exhibit panel
   interaction.ts                dynamically injected unlisted interaction script
   panel.html                    panel document
   panel/main.tsx                React bootstrap
@@ -167,7 +167,7 @@ Expected: PASS; `.output/chrome-mv3/manifest.json` names `devtools.html`, contai
 
 ```bash
 git add package.json pnpm-lock.yaml tsconfig.json wxt.config.ts vitest.config.ts playwright.config.ts eslint.config.js .prettierrc.json .gitignore entrypoints src/domain src/ports tests/unit
-git commit -m "build: scaffold Payloadra MV3 foundation"
+git commit -m "build: scaffold Exhibit MV3 foundation"
 ```
 
 ## Task 2: Redaction-First Privacy Boundary
@@ -436,7 +436,7 @@ Measure serialized UTF-8 bytes once per record, reject any single record above t
 
 - [ ] **Step 4: Implement repositories**
 
-Use `chrome.storage.session` with a 100 ms debounced snapshot for ephemeral mode. Use IndexedDB database `payloadra`, version 1, with `sessions` and `settings` stores for persistent mode. Validate loaded schema before hydration; corruption yields an empty recoverable session without deleting evidence automatically.
+Use `chrome.storage.session` with a 100 ms debounced snapshot for ephemeral mode. Use IndexedDB database `exhibit`, version 1, with `sessions` and `settings` stores for persistent mode. Validate loaded schema before hydration; corruption yields an empty recoverable session without deleting evidence automatically.
 
 - [ ] **Step 5: Implement lifecycle serialization**
 
@@ -493,11 +493,11 @@ Expected: FAIL with missing bridge and correlator.
 
 - [ ] **Step 3: Implement optional permission and injection flow**
 
-The Start click derives only `origin/*`, rejects `chrome:`, `file:`, and extension pages, requests optional permission, then asks the background worker to inject `/interaction.js` into the inspected `tabId`. Background ports use `payloadra:<tabId>` and validate every sender tab.
+The Start click derives only `origin/*`, rejects `chrome:`, `file:`, and extension pages, requests optional permission, then asks the background worker to inject `/interaction.js` into the inspected `tabId`. Background ports use `exhibit:<tabId>` and validate every sender tab.
 
 - [ ] **Step 4: Implement privacy-safe event capture**
 
-Use capture-phase listeners for click and submit, `popstate`, `hashchange`, and patched `history.pushState/replaceState`. Never read input values. Guard duplicate injection with `globalThis.__payloadraInteractionBridgeV1`; Stop removes listeners and restores history methods.
+Use capture-phase listeners for click and submit, `popstate`, `hashchange`, and patched `history.pushState/replaceState`. Never read input values. Guard duplicate injection with `globalThis.__exhibitInteractionBridgeV1`; Stop removes listeners and restores history methods.
 
 - [ ] **Step 5: Implement deterministic correlation**
 
@@ -617,7 +617,7 @@ API-only is the default. Normalize search text with locale-independent lowercase
 
 - [ ] **Step 4: Implement safe deterministic exports**
 
-cURL uses POSIX single-quote escaping, drops authorization/cookie headers regardless of settings, and includes only captured redacted text bodies. HAR output is valid 1.2 with `_payloadra` metadata. Markdown reports sort groups and calls by timestamp and include failures, slow calls, repeated calls, evidence, and truncation notices.
+cURL uses POSIX single-quote escaping, drops authorization/cookie headers regardless of settings, and includes only captured redacted text bodies. HAR output is valid 1.2 with `_exhibit` metadata. Markdown reports sort groups and calls by timestamp and include failures, slow calls, repeated calls, evidence, and truncation notices.
 
 - [ ] **Step 5: Implement confirmation-ready adapters**
 
@@ -780,17 +780,17 @@ git commit -m "feat: add Explain and Inspect workspaces"
 - [ ] **Step 1: Write failing end-to-end scenarios**
 
 ```ts
-test('records, explains, inspects, filters, compares, and exports one workflow', async ({ payloadra, fixture }) => {
-  await payloadra.startRecording();
+test('records, explains, inspects, filters, compares, and exports one workflow', async ({ exhibit, fixture }) => {
+  await exhibit.startRecording();
   await fixture.saveProfile({ name: 'Ada' });
-  await payloadra.selectInteraction('Save profile');
-  await expect(payloadra.requestRows()).toHaveCount(3);
-  await payloadra.openRequest('POST /api/profile');
-  await expect(payloadra.explainHeading()).toContainText('Save profile triggered');
-  await payloadra.openInspect();
-  await expect(payloadra.responseBody()).toContainText('Ada');
-  await payloadra.exportHar();
-  expect(await payloadra.downloadedHar()).toMatchObject({ log: { version: '1.2' } });
+  await exhibit.selectInteraction('Save profile');
+  await expect(exhibit.requestRows()).toHaveCount(3);
+  await exhibit.openRequest('POST /api/profile');
+  await expect(exhibit.explainHeading()).toContainText('Save profile triggered');
+  await exhibit.openInspect();
+  await expect(exhibit.responseBody()).toContainText('Ada');
+  await exhibit.exportHar();
+  expect(await exhibit.downloadedHar()).toMatchObject({ log: { version: '1.2' } });
 });
 ```
 
@@ -839,7 +839,7 @@ git commit -m "test: add automatic extension end-to-end coverage"
 
 **Interfaces:**
 - Produces: `pnpm verify` as the single release gate.
-- Produces: `.output/payloadra-<version>-chrome.zip` and verification evidence.
+- Produces: `.output/exhibit-<version>-chrome.zip` and verification evidence.
 
 - [ ] **Step 1: Run the full gate and record every failure**
 
@@ -892,5 +892,5 @@ Run a specification-compliance review followed by a code-quality/security review
 
 ```bash
 git add README.md CHANGELOG.md LICENSE docs scripts package.json pnpm-lock.yaml src tests
-git commit -m "release: complete Payloadra v1"
+git commit -m "release: complete Exhibit v1"
 ```

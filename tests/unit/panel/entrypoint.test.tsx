@@ -142,7 +142,7 @@ describe('panel production entrypoint', () => {
     await user.selectOptions(screen.getByRole('combobox', { name: 'Theme' }), 'light');
 
     expect(chromeApi.localSet).toHaveBeenCalledWith({
-      'payloadra:settings:v1': {
+      'exhibit:settings:v1': {
         version: 1,
         theme: 'light',
         customFieldNames: ['Private Note'],
@@ -207,7 +207,7 @@ describe('panel boot failures', () => {
 
     const notice = await screen.findByRole('alert');
     expect(notice).toHaveTextContent(
-      'Payloadra could not start in this DevTools window.',
+      'Exhibit could not start in this DevTools window.',
     );
     expect(document.body.textContent).not.toContain('secret');
   });

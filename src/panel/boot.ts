@@ -1,11 +1,11 @@
 import { createElement, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 
-import { PayloadraApp } from '../app/app';
+import { ExhibitApp } from '../app/app';
 import type { EvidenceExportFormat } from '../components/export-dialog';
 import type { DevtoolsThemeSource } from '../devtools/theme';
 import type { SessionController } from '../features/session/session-controller';
-import type { PayloadraSettingsService } from '../features/settings/payloadra-settings';
+import type { ExhibitSettingsService } from '../features/settings/exhibit-settings';
 
 export interface PanelDocument {
   querySelector(selectors: string): Element | null;
@@ -23,16 +23,16 @@ export function bootPanel(
   makeRoot: RootFactory = createRoot,
   exportEvidence?: (format: EvidenceExportFormat) => Promise<void>,
   devtoolsTheme?: DevtoolsThemeSource,
-  settings?: PayloadraSettingsService,
+  settings?: ExhibitSettingsService,
 ): void {
   const container = documentRoot.querySelector('#root');
 
   if (container === null) {
-    throw new Error('Payloadra panel root is unavailable.');
+    throw new Error('Exhibit panel root is unavailable.');
   }
 
   makeRoot(container).render(
-    createElement(PayloadraApp, {
+    createElement(ExhibitApp, {
       controller,
       ...(exportEvidence === undefined ? {} : { exportEvidence }),
       ...(devtoolsTheme === undefined ? {} : { devtoolsTheme }),

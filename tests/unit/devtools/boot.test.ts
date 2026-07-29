@@ -55,13 +55,13 @@ class FakeFocusPort implements FocusPort {
 }
 
 describe('bootDevtools', () => {
-  it('creates the Payloadra DevTools panel with bundled assets', () => {
+  it('creates the Exhibit DevTools panel with bundled assets', () => {
     const { panels, calls } = recordingPanels();
 
     bootDevtools({ panels });
 
     expect(calls).toHaveLength(1);
-    expect(calls[0]?.slice(0, 3)).toEqual(['Payloadra', 'icon/16.png', 'panel.html']);
+    expect(calls[0]?.slice(0, 3)).toEqual(['Exhibit', 'icon/16.png', 'panel.html']);
     expect(() => calls[0]?.[3]({})).not.toThrow();
   });
 
@@ -86,7 +86,7 @@ describe('bootDevtools', () => {
 
     bootDevtools({ panels, connect: () => port, tabId: 1, schedule: () => undefined });
     calls[0]?.[3]({ show });
-    port.emit({ type: 'payloadra:start-interactions' });
+    port.emit({ type: 'exhibit:start-interactions' });
     port.emit(null);
     port.emit('show');
 

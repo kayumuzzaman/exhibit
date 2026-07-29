@@ -2,7 +2,7 @@ import type { BodyContent, RequestTiming } from './model';
 import type { SanitizedCapturedRequest, SanitizedRecordingSession } from './sanitized';
 import { sortedSafeHeaders } from './curl';
 
-const CREATOR = Object.freeze({ name: 'Payloadra', version: '0.1.0' });
+const CREATOR = Object.freeze({ name: 'Exhibit', version: '0.1.0' });
 
 function compareText(left: string, right: string): number {
   return left < right ? -1 : left > right ? 1 : 0;
@@ -83,7 +83,7 @@ function postData(body: BodyContent | undefined) {
   return {
     mimeType: body.mimeType ?? 'text/plain',
     text: body.text,
-    _payloadra: bodyMetadata(body),
+    _exhibit: bodyMetadata(body),
   };
 }
 
@@ -92,7 +92,7 @@ function responseContent(body: BodyContent) {
     size: nonNegative(body.size),
     mimeType: body.mimeType ?? 'application/octet-stream',
     ...(textualBody(body) ? { text: body.text } : {}),
-    _payloadra: bodyMetadata(body),
+    _exhibit: bodyMetadata(body),
   };
 }
 
@@ -128,7 +128,7 @@ function entry(request: SanitizedCapturedRequest) {
     },
     cache: {},
     timings: harTimings(request.timing),
-    _payloadra: {
+    _exhibit: {
       sanitized: true,
       requestId: request.id,
       cache: request.evidence.fromCache === true,
@@ -172,7 +172,7 @@ export function toSanitizedHar(session: SanitizedRecordingSession): string {
       version: '1.2',
       creator: CREATOR,
       entries: sortedRequests(session.requests).map(entry),
-      _payloadra: {
+      _exhibit: {
         sanitized: true,
         sessionId: session.id,
         origin: session.origin,

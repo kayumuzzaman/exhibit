@@ -16,24 +16,24 @@ import {
 } from '../fixtures/generic/server';
 import { startNextFixture, type NextFixture } from '../fixtures/next-app-server';
 import { EXTENSION_DIR, HARNESS_DIR } from './global-setup';
-import { PayloadraDriver } from './devtools-driver';
+import { ExhibitDriver } from './devtools-driver';
 
 export { FIXTURE_PROFILE, FIXTURE_SECRETS } from '../fixtures/generic/server';
 
-export type PayloadraFixtures = {
+export type ExhibitFixtures = {
   panel: Page;
-  payloadra: PayloadraDriver;
+  exhibit: ExhibitDriver;
   consoleErrors: string[];
   allowedConsoleErrors: RegExp[];
 };
 
-export type PayloadraWorkerFixtures = {
+export type ExhibitWorkerFixtures = {
   generic: FixtureServer;
   thirdParty: FixtureServer;
   next: NextFixture;
 };
 
-export const test = base.extend<PayloadraFixtures, PayloadraWorkerFixtures>({
+export const test = base.extend<ExhibitFixtures, ExhibitWorkerFixtures>({
   next: [
     async ({}, use) => {
       const server = await startNextFixture();
@@ -87,8 +87,8 @@ export const test = base.extend<PayloadraFixtures, PayloadraWorkerFixtures>({
     expect(unexpected, 'panel produced unexpected console output').toEqual([]);
   },
 
-  payloadra: async ({ panel }, use) => {
-    const driver = new PayloadraDriver(panel);
+  exhibit: async ({ panel }, use) => {
+    const driver = new ExhibitDriver(panel);
     await driver.ready();
     await use(driver);
   },
@@ -108,7 +108,7 @@ export type ExtensionContext = Readonly<{
 export async function withExtension<T>(
   run: (context: ExtensionContext) => Promise<T>,
 ): Promise<T> {
-  const userDataDir = await mkdtemp(join(tmpdir(), 'payloadra-e2e-'));
+  const userDataDir = await mkdtemp(join(tmpdir(), 'exhibit-e2e-'));
   const context = await chromium.launchPersistentContext(userDataDir, {
     channel: 'chromium',
     args: [

@@ -236,7 +236,7 @@ describe('toSanitizedHar', () => {
     expect(toQaReport(session)).not.toContain('secret-original');
   });
 
-  it('emits deterministic HAR 1.2 entries with sanitized Payloadra metadata', () => {
+  it('emits deterministic HAR 1.2 entries with sanitized Exhibit metadata', () => {
     const later = rawRequest('later', {
       startedAt: 1_700_000_002_000,
       response: {
@@ -277,17 +277,17 @@ describe('toSanitizedHar', () => {
           };
           response: {
             headers: Array<{ name: string; value: string }>;
-            content: { text?: string; _payloadra: { state: string } };
+            content: { text?: string; _exhibit: { state: string } };
           };
-          _payloadra: { sanitized: boolean };
+          _exhibit: { sanitized: boolean };
         }>;
-        _payloadra: { sanitized: boolean; evictedCount: number };
+        _exhibit: { sanitized: boolean; evictedCount: number };
       };
     };
 
     expect(first).toBe(second);
     expect(har.log.version).toBe('1.2');
-    expect(har.log._payloadra).toMatchObject({
+    expect(har.log._exhibit).toMatchObject({
       sanitized: true,
       evictedCount: 2,
     });
@@ -309,10 +309,10 @@ describe('toSanitizedHar', () => {
     ]);
     expect(har.log.entries[0]?.response.content).toMatchObject({
       text: 'captured response',
-      _payloadra: { state: 'truncated' },
+      _exhibit: { state: 'truncated' },
     });
     expect(har.log.entries[1]?.response.content).not.toHaveProperty('text');
-    expect(har.log.entries[1]?._payloadra.sanitized).toBe(true);
+    expect(har.log.entries[1]?._exhibit.sanitized).toBe(true);
     expect(first).not.toMatch(/secret-original|authorization/i);
   });
 
@@ -504,7 +504,7 @@ describe('downloadText', () => {
       createObjectURL: (blob: Blob) => {
         artifact = blob;
         events.push('create');
-        return 'blob:payloadra';
+        return 'blob:exhibit';
       },
       revokeObjectURL: (url: string) => events.push(`revoke:${url}`),
     });
@@ -517,10 +517,10 @@ describe('downloadText', () => {
       'append',
       'click',
       'remove',
-      'revoke:blob:payloadra',
+      'revoke:blob:exhibit',
     ]);
     expect(anchor).toMatchObject({
-      href: 'blob:payloadra',
+      href: 'blob:exhibit',
       download: 'report.md',
       hidden: true,
     });
@@ -536,14 +536,14 @@ describe('downloadText', () => {
       },
     } as unknown as Document);
     vi.stubGlobal('URL', {
-      createObjectURL: () => 'blob:payloadra',
+      createObjectURL: () => 'blob:exhibit',
       revokeObjectURL: (url: string) => revoked.push(url),
     });
 
     expect(() => downloadText('report.md', 'text/markdown', 'safe')).toThrow(
       'DOM unavailable',
     );
-    expect(revoked).toEqual(['blob:payloadra']);
+    expect(revoked).toEqual(['blob:exhibit']);
   });
 });
 

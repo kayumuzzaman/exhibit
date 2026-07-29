@@ -9,17 +9,17 @@ import {
   recoverSessionIdFromLocator,
 } from './schema';
 
-const PAYLOADRA_DATABASE = 'payloadra';
-const PAYLOADRA_DATABASE_VERSION = 1;
+const EXHIBIT_DATABASE = 'exhibit';
+const EXHIBIT_DATABASE_VERSION = 1;
 const SESSION_STORE = 'sessions';
 const SETTINGS_STORE = 'settings';
 
-export function openPayloadraDatabase(
+export function openExhibitDatabase(
   factory: IDBFactory,
-  databaseName = PAYLOADRA_DATABASE,
+  databaseName = EXHIBIT_DATABASE,
 ): Promise<IDBDatabase> {
   return new Promise<IDBDatabase>((resolve, reject) => {
-    const request = factory.open(databaseName, PAYLOADRA_DATABASE_VERSION);
+    const request = factory.open(databaseName, EXHIBIT_DATABASE_VERSION);
     let settled = false;
     request.onupgradeneeded = () => {
       const database = request.result;
@@ -94,12 +94,12 @@ export function createIndexedDbSessionRepository(
   factory: IDBFactory,
   options: IndexedDbSessionRepositoryOptions = {},
 ): SessionRepository {
-  const databaseName = options.databaseName ?? PAYLOADRA_DATABASE;
+  const databaseName = options.databaseName ?? EXHIBIT_DATABASE;
   const debounceMs = options.debounceMs ?? 100;
   if (!Number.isFinite(debounceMs) || debounceMs < 0) {
     throw new RangeError('debounceMs must be a finite non-negative number.');
   }
-  const database = openPayloadraDatabase(factory, databaseName);
+  const database = openExhibitDatabase(factory, databaseName);
   const knownTabs = new Map<string, string>();
   /**
    * Every accepted request asks the controller to persist the whole session, so

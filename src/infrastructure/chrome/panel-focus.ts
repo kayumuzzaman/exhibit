@@ -3,7 +3,7 @@ import type { RuntimePortLike, RuntimeSenderLike } from './interaction-bridge';
 /**
  * Chrome offers no API for opening the DevTools window, so the toolbar action
  * cannot summon the panel on its own. What it can do is switch DevTools to the
- * Payloadra tab when the window is already open, through `ExtensionPanel.show`.
+ * Exhibit tab when the window is already open, through `ExtensionPanel.show`.
  *
  * The DevTools page holds the only reference that can do it, so it registers a
  * port here keyed by the tab it inspects. A registered port therefore means two
@@ -11,10 +11,10 @@ import type { RuntimePortLike, RuntimeSenderLike } from './interaction-bridge';
  * the panel. Chrome below 140 has no `show`, so it never registers, and the
  * popup falls back to telling the reader what to click.
  */
-export const PANEL_FOCUS_PORT_PREFIX = 'payloadra:panel-focus:';
-export const PANEL_FOCUS_SHOW = 'payloadra:show-panel';
-export const PANEL_FOCUS_STATUS_MESSAGE = 'payloadra:panel-focus-status';
-export const PANEL_FOCUS_REQUEST_MESSAGE = 'payloadra:panel-focus-request';
+export const PANEL_FOCUS_PORT_PREFIX = 'exhibit:panel-focus:';
+export const PANEL_FOCUS_SHOW = 'exhibit:show-panel';
+export const PANEL_FOCUS_STATUS_MESSAGE = 'exhibit:panel-focus-status';
+export const PANEL_FOCUS_REQUEST_MESSAGE = 'exhibit:panel-focus-request';
 
 export type PanelFocusStatus = Readonly<{ available: boolean }>;
 export type PanelFocusOutcome = Readonly<{

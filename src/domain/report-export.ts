@@ -178,7 +178,7 @@ export function toQaReport(session: SanitizedRecordingSession): string {
       groupTime(left, byId) - groupTime(right, byId) || compareText(left.id, right.id),
   );
   const lines = [
-    '# Payloadra QA Report',
+    '# Exhibit QA Report',
     '',
     '## Environment',
     '',

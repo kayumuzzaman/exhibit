@@ -1,4 +1,4 @@
-# Payloadra compatibility floor
+# Exhibit compatibility floor
 
 **Reviewed:** 2026-07-29
 

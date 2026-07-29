@@ -39,8 +39,8 @@ export function createSessionStorageRepository(
   options: SessionStorageRepositoryOptions = {},
 ): SessionRepository {
   const debounceMs = options.debounceMs ?? 100;
-  const keyPrefix = options.keyPrefix ?? 'payloadra:session:';
-  const currentKeyPrefix = options.currentKeyPrefix ?? 'payloadra:current:';
+  const keyPrefix = options.keyPrefix ?? 'exhibit:session:';
+  const currentKeyPrefix = options.currentKeyPrefix ?? 'exhibit:current:';
   if (!Number.isFinite(debounceMs) || debounceMs < 0) {
     throw new RangeError('debounceMs must be a finite non-negative number.');
   }

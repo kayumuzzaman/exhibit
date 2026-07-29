@@ -32,7 +32,7 @@ export function AppProvider({
 function useServices(): AppServices {
   const services = useContext(AppContext);
   if (services === null) {
-    throw new Error('Payloadra app services are unavailable.');
+    throw new Error('Exhibit app services are unavailable.');
   }
   return services;
 }

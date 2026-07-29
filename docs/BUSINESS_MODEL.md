@@ -1,4 +1,4 @@
-# Payloadra business model
+# Exhibit business model
 
 **Status:** Strategy hypotheses; no commercial model approved
 
@@ -6,12 +6,12 @@
 
 ## Current commercial state
 
-Payloadra is private, unreleased, and `UNLICENSED`. Its current proprietary
+Exhibit is private, unreleased, and `UNLICENSED`. Its current proprietary
 notice grants no distribution rights. There is no approved price, billing
 system, sales motion, public support channel, legal owner identity, or Chrome
 Web Store publisher account in this repository.
 
-This means Payloadra is currently an engineering asset, not a sellable product.
+This means Exhibit is currently an engineering asset, not a sellable product.
 
 ## Customer map
 
@@ -28,7 +28,7 @@ tests support it.
 
 ## Competitive economics
 
-Payloadra competes first with “free and already open”: Chrome DevTools. Mature
+Exhibit competes first with “free and already open”: Chrome DevTools. Mature
 tools then add broader interception, screen recording, collaboration,
 integrations, or traffic modification. A price cannot be justified by capture,
 filtering, timing, cURL, or sanitized HAR alone.
@@ -44,7 +44,7 @@ Willingness to pay must come from measurable savings in:
 Risks that can erase that value:
 
 - the optional origin permission is persistent and origin-wide even though
-  Payloadra activates its collector only in the inspected tab;
+  Exhibit activates its collector only in the inspected tab;
 - users may reject that grant, so the network-only workflow must remain useful;
 - “local-only” reduces exposure but also removes the sharing and integration
   convenience mature competitors sell;
@@ -136,7 +136,7 @@ Candidate channels:
 - partnerships or direct outreach to teams with local-only requirements;
 - open technical documentation about capture and redaction limits.
 
-Avoid claims that Payloadra replaces Chrome Network, sees server behavior, or
+Avoid claims that Exhibit replaces Chrome Network, sees server behavior, or
 is the first privacy-safe debugger.
 
 ## Operating costs

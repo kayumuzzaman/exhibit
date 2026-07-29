@@ -1,4 +1,4 @@
-# Payloadra competitive landscape
+# Exhibit competitive landscape
 
 **Research date:** 2026-07-29
 
@@ -12,13 +12,13 @@ research date. “Inference” means the reviewed official material did not
 advertise an equivalent capability; it is not proof that no such capability
 exists.
 
-Payloadra is currently unreleased and has no approved price. Comparison reflects
+Exhibit is currently unreleased and has no approved price. Comparison reflects
 the repository's current implementation and verification evidence, not a
 published product claim.
 
 ## Summary
 
-Payloadra is weaker than mature alternatives in breadth, distribution,
+Exhibit is weaker than mature alternatives in breadth, distribution,
 collaboration, manipulation, and ecosystem maturity. Its defensible focus is
 narrower: local, evidence-led request explanations for QA/support users
 debugging modern browser and Next.js workflows without a proxy, account, site
@@ -31,13 +31,13 @@ timing, cURL, and sanitized HAR are table stakes.
 The comparison that actually decides adoption is against Chrome's own Network
 panel, because it is already installed and already open on the same tab. That
 one is worked through in detail under
-[Payloadra versus the Network panel](#payloadra-versus-the-network-panel-in-detail):
+[Exhibit versus the Network panel](#exhibit-versus-the-network-panel-in-detail):
 same capture, different job. The Network panel is better for debugging;
-Payloadra is better for evidence that leaves the browser.
+Exhibit is better for evidence that leaves the browser.
 
 ## Comparison matrix
 
-| Capability                                         | Payloadra        | Chrome DevTools Network             | Requestly                                         | Jam                                       | HTTP Toolkit                     | Proxyman                                    |
+| Capability                                         | Exhibit          | Chrome DevTools Network             | Requestly                                         | Jam                                       | HTTP Toolkit                     | Proxyman                                    |
 | -------------------------------------------------- | ---------------- | ----------------------------------- | ------------------------------------------------- | ----------------------------------------- | -------------------------------- | ------------------------------------------- |
 | Browser request inspection                         | Yes              | Yes                                 | Yes                                               | Yes                                       | Yes                              | Yes                                         |
 | Works without proxy/certificate setup              | Yes              | Yes                                 | Browser extension path                            | Yes                                       | No for intercepted HTTPS clients | No for intercepted HTTPS clients            |
@@ -67,7 +67,7 @@ Sources:
 - [Network features reference](https://developer.chrome.com/docs/devtools/network/reference/)
 - [DevTools Network extension API](https://developer.chrome.com/docs/extensions/reference/api/devtools/network)
 
-Payloadra loses:
+Exhibit loses:
 
 - extra installation and a second mental model;
 - narrower raw debugging and performance controls;
@@ -75,7 +75,7 @@ Payloadra loses:
 - no request blocking, overrides, throttling, HAR import, or broad copy formats;
 - an unreleased package cannot match native availability or trust.
 
-Payloadra wins:
+Exhibit wins:
 
 - redaction applies before product storage and display, not only export;
 - interaction grouping, explanations, confidence, and evidence ledger;
@@ -86,11 +86,11 @@ Payloadra wins:
 Inference: reviewed Chrome documentation does not describe an equivalent
 evidence-backed plain-language or interaction-correlation workflow.
 
-#### Payloadra versus the Network panel in detail
+#### Exhibit versus the Network panel in detail
 
 The Network panel is the only competitor that is already installed, already
 trusted, and already open on the same tab. It is therefore the comparison that
-decides whether Payloadra is worth a second panel at all. Payloadra numbers below
+decides whether Exhibit is worth a second panel at all. Exhibit numbers below
 are read from this repository; Network panel behaviour is from the reference
 above, re-checked on 2026-07-29.
 
@@ -105,11 +105,11 @@ headers from that HAR by default. Neither requires a proxy, a certificate, an
 SDK, or a change to the site.
 
 For the plain question "what did this page just send, and what came back", they
-answer at the same level. Payloadra is not competing on capture.
+answer at the same level. Exhibit is not competing on capture.
 
 ##### Where they differ
 
-| Dimension              | Chrome DevTools Network                                               | Payloadra                                                                                                              |
+| Dimension              | Chrome DevTools Network                                               | Exhibit                                                                                                                |
 | ---------------------- | --------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
 | Redaction boundary     | Sanitizes the HAR export; the panel itself shows real values          | Redacts before storage, display, clipboard, cURL, HAR, and report                                                      |
 | Unsanitized escape     | A setting re-enables full headers in the export                       | None; there is no switch that exports raw credentials                                                                  |
@@ -134,18 +134,18 @@ answer at the same level. Payloadra is not competing on capture.
 requiring control or breadth: reproducing a failure under throttling, blocking a
 request to test a fallback, overriding a response to isolate a bug, replaying
 against a modified payload, importing a HAR somebody sent you, or working past
-Payloadra's caps on a heavy page. It is also the right tool when you need the
-literal unmodified header values, because Payloadra will not show them to you.
+Exhibit's caps on a heavy page. It is also the right tool when you need the
+literal unmodified header values, because Exhibit will not show them to you.
 
-**Use Payloadra when the job is to hand evidence to someone else.** Its
+**Use Exhibit when the job is to hand evidence to someone else.** Its
 advantage is not seeing more, it is what survives leaving the browser. Three
 situations where it is the better instrument:
 
 1. **A QA or support person is producing a report for an engineer.** "The Save
-   button triggered three calls, this one returned 500" is a Payloadra output;
+   button triggered three calls, this one returned 500" is an Exhibit output;
    assembling it from the Network panel means reading rows and writing prose.
 2. **The evidence leaves the machine.** Attaching a Network HAR sanitizes three
-   header names. Payloadra applies redaction to query tokens, credential-shaped
+   header names. Exhibit applies redaction to query tokens, credential-shaped
    body fields, and known token formats as well, before the data reaches storage
    or the screen — so a screenshot of the panel is also safe to attach.
 3. **The application is Next.js.** Server Actions, RSC navigations, and Flight
@@ -153,10 +153,10 @@ situations where it is the better instrument:
 
 ##### The honest limitation
 
-Payloadra is a **narrower** tool that is **safer to quote**. It is not a Network
+Exhibit is a **narrower** tool that is **safer to quote**. It is not a Network
 panel replacement and should never be positioned as one — a developer debugging
 their own application on their own machine is usually better served by the
-built-in panel. Payloadra earns its place when the request evidence has to
+built-in panel. Exhibit earns its place when the request evidence has to
 travel: to a ticket, to a colleague, to a customer thread. That is a real job,
 but it is a smaller job than the Network panel's.
 
@@ -179,7 +179,7 @@ Sources:
 - [Record bug reports](https://interceptordocs.requestly.com/sessions/record-bug-reports)
 - [Public pricing](https://requestly.com/pricing/)
 
-Payloadra loses:
+Exhibit loses:
 
 - no traffic mutation, mocking, redirects, replay, or API client;
 - no screen, mouse, or console replay;
@@ -187,7 +187,7 @@ Payloadra loses:
 - no shared workspaces or online session handoff;
 - much smaller platform and organizational feature set.
 
-Payloadra wins:
+Exhibit wins:
 
 - deliberately read-only forensic scope;
 - no account, rule sync, server, or online-save path;
@@ -198,7 +198,7 @@ Payloadra wins:
 
 Privacy is not an absolute differentiator: Requestly documents drafts stored
 temporarily in browser LocalStorage, followed by a cloud save/share action, and
-says request headers are not stored. Payloadra's sharper claim is that its
+says request headers are not stored. Exhibit's sharper claim is that its
 product has no remote save/share path and keeps sanitized headers inspectable.
 
 Pricing note: Requestly's public page showed Free at $0 and API Client Pro at
@@ -222,7 +222,7 @@ Sources:
 - [Jam MCP](https://jam.dev/docs/jam-mcp)
 - [Pricing](https://jam.dev/pricing)
 
-Payloadra loses:
+Exhibit loses:
 
 - no screenshot/video/audio or instant replay;
 - no console capture, annotations, comments, or recording links;
@@ -230,7 +230,7 @@ Payloadra loses:
 - no collaboration, private folders, SSO, audit logs, or customer capture;
 - much weaker first-time and non-technical bug-report workflow.
 
-Payloadra wins:
+Exhibit wins:
 
 - no account, cloud artifact, or remote service;
 - deeper raw request/body/timing evidence inside DevTools;
@@ -256,7 +256,7 @@ Sources:
 - [Pricing and feature tiers](https://httptoolkit.com/pricing/)
 - [Open-source repository](https://github.com/httptoolkit/httptoolkit)
 
-Payloadra loses:
+Exhibit loses:
 
 - browser-only visibility;
 - cannot observe backend, mobile, native, Docker, or arbitrary client traffic;
@@ -264,7 +264,7 @@ Payloadra loses:
 - narrower protocol and content breadth;
 - smaller open-source ecosystem and maturity.
 
-Payloadra wins:
+Exhibit wins:
 
 - no proxy, certificate, network configuration, or separate capture profile;
 - operates in the already inspected DevTools tab;
@@ -290,7 +290,7 @@ Sources:
 - [Downloads](https://proxyman.com/download)
 - [Privacy](https://proxyman.com/privacy)
 
-Payloadra loses:
+Exhibit loses:
 
 - platform and client reach;
 - traffic modification, diff, scripting, and mobile tooling;
@@ -298,7 +298,7 @@ Payloadra loses:
 - agent/MCP traffic-control workflow;
 - online-log sharing, team workspaces, synced rules, accounts, and SSO.
 
-Payloadra wins:
+Exhibit wins:
 
 - zero proxy or root-certificate setup;
 - less invasive, current-tab DevTools workflow;
@@ -318,20 +318,20 @@ Sources:
 - [Next.js debugging](https://nextjs.org/docs/app/guides/debugging)
 - [React Developer Tools](https://react.dev/learn/react-developer-tools)
 
-Payloadra loses:
+Exhibit loses:
 
 - with repo and local runtime access, framework tools can expose server logs,
   source locations, and function names that browser evidence cannot prove;
 - no component tree or render profiler.
 
-Payloadra wins:
+Exhibit wins:
 
 - black-box use on authorized deployed pages without repository access or site
   changes;
 - generic REST/GraphQL/form support beyond Next.js;
 - explicit browser request and export evidence.
 
-## Where Payloadra is materially worse
+## Where Exhibit is materially worse
 
 1. **Release and trust:** no public distribution, licence, support identity,
    installed-Chrome acceptance, user base, or compatibility history.
@@ -347,7 +347,7 @@ Payloadra wins:
 7. **Ecosystem:** Chrome-only and especially optimized for Next.js; mature tools
    cover more environments.
 
-## Where Payloadra is materially better
+## Where Exhibit is materially better
 
 1. **Local-only product boundary:** no account, backend, telemetry, or remote
    save path in the extension.

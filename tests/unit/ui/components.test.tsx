@@ -287,7 +287,7 @@ describe('application services provider', () => {
     }
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
 
-    expect(() => render(<Orphan />)).toThrow('Payloadra app services are unavailable.');
+    expect(() => render(<Orphan />)).toThrow('Exhibit app services are unavailable.');
 
     consoleError.mockRestore();
   });

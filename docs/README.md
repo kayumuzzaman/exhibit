@@ -1,13 +1,13 @@
-# Payloadra user guide
+# Exhibit user guide
 
-Payloadra is a Chrome DevTools panel that records browser-visible network
+Exhibit is a Chrome DevTools panel that records browser-visible network
 requests, explains what each one did in plain language, and lets you inspect the
 sanitized evidence. Everything stays on the machine: the extension has no
 backend, sends no telemetry, and declares no required host permissions.
 Optional access is requested for the inspected page's origin only when
 interaction grouping starts. Chrome grants that origin access to the extension,
 not just one tab, and keeps the grant until the user revokes it or uninstalls
-the extension; Payloadra uses it only for the active inspected tab.
+the extension; Exhibit uses it only for the active inspected tab.
 
 ## Install the unpacked extension
 
@@ -20,7 +20,7 @@ the extension; Payloadra uses it only for the active inspected tab.
 
 2. Open `chrome://extensions` and enable **Developer mode**.
 3. Choose **Load unpacked** and select `.output/chrome-mv3`.
-4. Open DevTools on any regular web page. A **Payloadra** panel appears beside
+4. Open DevTools on any regular web page. A **Exhibit** panel appears beside
    Elements, Console, and Network.
 
 Chrome 120 or newer is required. Chrome pages (`chrome://`, `edge://`,
@@ -40,7 +40,7 @@ ledger.
 Recording also asks for interaction access to the inspected page's origin. If
 Chrome declines, the panel keeps recording network evidence and says that
 interaction grouping is unavailable. Chrome's grant is origin-wide and
-persistent, while Payloadra's active collector remains scoped to the inspected
+persistent, while Exhibit's active collector remains scoped to the inspected
 tab and recording lease.
 
 ## Read the evidence
@@ -55,7 +55,7 @@ Select a request to open the detail workspace. It has two views:
   function name;
 - the submitted field names (never their values) and the returned shape;
 - related calls, redirects, repeats, cache hits, and service-worker delivery;
-- a **Why Payloadra says this** disclosure listing the underlying facts.
+- a **Why Exhibit says this** disclosure listing the underlying facts.
 
 **Inspect** shows the developer evidence in tabs: Overview, Request, Response,
 Timing, Initiator, and Evidence. Bodies render as **Structured**, **Text**, or

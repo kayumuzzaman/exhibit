@@ -11,7 +11,7 @@ export default defineUnlistedScript(() => {
     window: window as unknown as CollectorEventHub,
     connect: () =>
       chrome.runtime.connect({
-        name: 'payloadra:content',
+        name: 'exhibit:content',
       }) as unknown as RuntimePortLike,
     currentUrl: () => location.href,
     now: Date.now,

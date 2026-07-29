@@ -1,336 +1,328 @@
 import { expect, test, FIXTURE_PROFILE } from './extension.fixture';
 
 test.describe('recording workflow', () => {
-  test('records, explains, inspects, and exports one workflow', async ({
-    payloadra,
-  }) => {
-    await payloadra.startRecording();
-    await payloadra.trigger('save-profile');
-    await payloadra.trigger('load-profile');
-    await payloadra.trigger('graphql');
+  test('records, explains, inspects, and exports one workflow', async ({ exhibit }) => {
+    await exhibit.startRecording();
+    await exhibit.trigger('save-profile');
+    await exhibit.trigger('load-profile');
+    await exhibit.trigger('graphql');
 
-    await expect(payloadra.requestRows()).toHaveCount(3);
+    await expect(exhibit.requestRows()).toHaveCount(3);
 
-    await payloadra.openRequest('/api/profile');
-    await expect(payloadra.explainHeading()).toContainText(
-      'After Save profile, Payloadra observed',
+    await exhibit.openRequest('/api/profile');
+    await expect(exhibit.explainHeading()).toContainText(
+      'After Save profile, Exhibit observed',
     );
 
-    await payloadra.openInspect();
-    await payloadra.openEvidenceTab('Response');
-    await expect(payloadra.responseBody().first()).toContainText(
+    await exhibit.openInspect();
+    await exhibit.openEvidenceTab('Response');
+    await expect(exhibit.responseBody().first()).toContainText(
       FIXTURE_PROFILE.displayName,
     );
 
-    await payloadra.stopRecording();
-    const har = await payloadra.exportEvidence();
+    await exhibit.stopRecording();
+    const har = await exhibit.exportEvidence();
     expect(JSON.parse(har)).toMatchObject({ log: { version: '1.2' } });
 
-    const report = await payloadra.exportEvidence('markdown');
-    expect(report).toContain('Payloadra');
+    const report = await exhibit.exportEvidence('markdown');
+    expect(report).toContain('Exhibit');
   });
 
   test('fills the panel height with the workspace when no notice is shown', async ({
-    payloadra,
+    exhibit,
   }) => {
-    const shell = await payloadra.page.locator('.app-shell').boundingBox();
-    const workspace = await payloadra.page.locator('.workspace').boundingBox();
+    const shell = await exhibit.page.locator('.app-shell').boundingBox();
+    const workspace = await exhibit.page.locator('.workspace').boundingBox();
 
     expect(shell).not.toBeNull();
     expect(workspace).not.toBeNull();
     expect(workspace!.y + workspace!.height).toBeCloseTo(shell!.y + shell!.height, 0);
   });
 
-  test('keeps the ledger empty until recording starts', async ({ payloadra }) => {
-    await payloadra.trigger('load-profile');
+  test('keeps the ledger empty until recording starts', async ({ exhibit }) => {
+    await exhibit.trigger('load-profile');
 
-    await expect(payloadra.requestRows()).toHaveCount(0);
+    await expect(exhibit.requestRows()).toHaveCount(0);
     await expect(
-      payloadra.page.locator('[data-empty-kind="not-recording"]'),
+      exhibit.page.locator('[data-empty-kind="not-recording"]'),
     ).toBeVisible();
   });
 
   test('clears every captured request and returns to the empty state', async ({
-    payloadra,
+    exhibit,
   }) => {
-    await payloadra.startRecording();
-    await payloadra.trigger('load-profile');
-    await expect(payloadra.requestRows()).toHaveCount(1);
+    await exhibit.startRecording();
+    await exhibit.trigger('load-profile');
+    await expect(exhibit.requestRows()).toHaveCount(1);
 
-    await payloadra.clearEvidence();
+    await exhibit.clearEvidence();
 
-    await expect(payloadra.page.locator('[data-empty-kind]')).toBeVisible();
+    await expect(exhibit.page.locator('[data-empty-kind]')).toBeVisible();
     await expect(
-      payloadra.page.getByRole('button', { name: 'Start recording' }),
+      exhibit.page.getByRole('button', { name: 'Start recording' }),
     ).toBeVisible();
   });
 
   test('hides non-API traffic under the default API-only filter', async ({
-    payloadra,
+    exhibit,
   }) => {
-    await payloadra.startRecording();
-    await payloadra.trigger('binary');
-    await payloadra.trigger('load-profile');
+    await exhibit.startRecording();
+    await exhibit.trigger('binary');
+    await exhibit.trigger('load-profile');
 
-    await expect(payloadra.requestRows()).toHaveCount(1);
+    await expect(exhibit.requestRows()).toHaveCount(1);
 
-    await payloadra.setApiOnly(false);
-    await expect(payloadra.requestRows()).toHaveCount(2);
-    await expect(payloadra.rowFor('/api/binary')).toHaveCount(1);
+    await exhibit.setApiOnly(false);
+    await expect(exhibit.requestRows()).toHaveCount(2);
+    await expect(exhibit.rowFor('/api/binary')).toHaveCount(1);
   });
 
   test('filters failures, slow calls, and cache hits, then resets', async ({
-    payloadra,
+    exhibit,
     allowedConsoleErrors,
   }) => {
     allowedConsoleErrors.push(/500 \(Internal Server Error\)/u);
-    await payloadra.startRecording();
-    await payloadra.trigger('load-profile');
-    await payloadra.trigger('failing');
-    await payloadra.trigger('slow');
-    await payloadra.trigger('cacheable');
+    await exhibit.startRecording();
+    await exhibit.trigger('load-profile');
+    await exhibit.trigger('failing');
+    await exhibit.trigger('slow');
+    await exhibit.trigger('cacheable');
 
-    await payloadra.toggleQuickFilter('Failures');
-    await expect(payloadra.rowFor('/api/error')).toHaveCount(1);
-    await expect(payloadra.rowFor('/api/slow')).toHaveCount(0);
-    await payloadra.toggleQuickFilter('Failures');
+    await exhibit.toggleQuickFilter('Failures');
+    await expect(exhibit.rowFor('/api/error')).toHaveCount(1);
+    await expect(exhibit.rowFor('/api/slow')).toHaveCount(0);
+    await exhibit.toggleQuickFilter('Failures');
 
-    await payloadra.toggleQuickFilter('Slow calls');
-    await expect(payloadra.rowFor('/api/slow')).toHaveCount(1);
-    await expect(payloadra.rowFor('/api/error')).toHaveCount(0);
-    await payloadra.toggleQuickFilter('Slow calls');
+    await exhibit.toggleQuickFilter('Slow calls');
+    await expect(exhibit.rowFor('/api/slow')).toHaveCount(1);
+    await expect(exhibit.rowFor('/api/error')).toHaveCount(0);
+    await exhibit.toggleQuickFilter('Slow calls');
 
-    await payloadra.toggleQuickFilter('Cache hits');
-    await expect(payloadra.rowFor('/api/cacheable')).toHaveCount(1);
+    await exhibit.toggleQuickFilter('Cache hits');
+    await expect(exhibit.rowFor('/api/cacheable')).toHaveCount(1);
 
-    await payloadra.resetFilters();
-    await expect(payloadra.rowFor('/api/error')).toHaveCount(1);
-    await expect(payloadra.rowFor('/api/slow')).toHaveCount(1);
+    await exhibit.resetFilters();
+    await expect(exhibit.rowFor('/api/error')).toHaveCount(1);
+    await expect(exhibit.rowFor('/api/slow')).toHaveCount(1);
   });
 
   test('intersects method, domain, protocol, outcome, and cache facets', async ({
-    payloadra,
+    exhibit,
     allowedConsoleErrors,
   }) => {
     allowedConsoleErrors.push(/500 \(Internal Server Error\)/u);
-    await payloadra.startRecording();
-    await payloadra.trigger('load-profile');
-    await payloadra.trigger('save-profile');
-    await payloadra.trigger('failing');
-    await payloadra.trigger('graphql');
+    await exhibit.startRecording();
+    await exhibit.trigger('load-profile');
+    await exhibit.trigger('save-profile');
+    await exhibit.trigger('failing');
+    await exhibit.trigger('graphql');
 
-    const domain = new URL(payloadra.page.url()).hostname;
-    await payloadra.setFacetFilter('Method', 'POST');
-    await payloadra.setFacetFilter('Domain', domain);
-    await payloadra.setFacetFilter('Protocol', 'graphql');
-    await payloadra.setFacetFilter('Outcome', 'success');
-    await payloadra.setFacetFilter('Cache', 'miss');
+    const domain = new URL(exhibit.page.url()).hostname;
+    await exhibit.setFacetFilter('Method', 'POST');
+    await exhibit.setFacetFilter('Domain', domain);
+    await exhibit.setFacetFilter('Protocol', 'graphql');
+    await exhibit.setFacetFilter('Outcome', 'success');
+    await exhibit.setFacetFilter('Cache', 'miss');
 
-    await expect(payloadra.requestRows()).toHaveCount(1);
-    await expect(payloadra.rowFor('/graphql')).toHaveCount(1);
+    await expect(exhibit.requestRows()).toHaveCount(1);
+    await expect(exhibit.rowFor('/graphql')).toHaveCount(1);
 
-    await payloadra.resetFilters();
-    await expect(payloadra.requestRows()).toHaveCount(4);
+    await exhibit.resetFilters();
+    await expect(exhibit.requestRows()).toHaveCount(4);
   });
 
-  test('searches the ledger by route text', async ({ payloadra }) => {
-    await payloadra.startRecording();
-    await payloadra.trigger('load-profile');
-    await payloadra.trigger('graphql');
+  test('searches the ledger by route text', async ({ exhibit }) => {
+    await exhibit.startRecording();
+    await exhibit.trigger('load-profile');
+    await exhibit.trigger('graphql');
 
-    await payloadra.search('graphql');
-    await expect(payloadra.requestRows()).toHaveCount(1);
-    await expect(payloadra.rowFor('/graphql')).toHaveCount(1);
+    await exhibit.search('graphql');
+    await expect(exhibit.requestRows()).toHaveCount(1);
+    await expect(exhibit.rowFor('/graphql')).toHaveCount(1);
 
-    await payloadra.search('no-such-route');
-    await expect(
-      payloadra.page.locator('[data-empty-kind="no-matches"]'),
-    ).toBeVisible();
+    await exhibit.search('no-such-route');
+    await expect(exhibit.page.locator('[data-empty-kind="no-matches"]')).toBeVisible();
   });
 
   test('groups requests after the trusted interaction they correlate with', async ({
-    payloadra,
+    exhibit,
   }) => {
-    await payloadra.startRecording();
-    await payloadra.trigger('save-profile');
-    await payloadra.trigger('graphql');
+    await exhibit.startRecording();
+    await exhibit.trigger('save-profile');
+    await exhibit.trigger('graphql');
 
-    await expect(payloadra.requestRows()).toHaveCount(2);
-    await payloadra.page
+    await expect(exhibit.requestRows()).toHaveCount(2);
+    await exhibit.page
       .getByRole('button', {
         name: 'Save profile · Click · Trusted · 1 request',
       })
       .click();
-    await expect(payloadra.requestRows()).toHaveCount(1);
-    await payloadra.page
+    await expect(exhibit.requestRows()).toHaveCount(1);
+    await exhibit.page
       .getByRole('button', { name: 'All interactions · 2 requests' })
       .click();
-    await expect(payloadra.requestRows()).toHaveCount(2);
+    await expect(exhibit.requestRows()).toHaveCount(2);
 
-    await payloadra.openRequest('/api/profile');
-    await expect(payloadra.explainHeading()).toContainText(
-      'After Save profile, Payloadra observed',
+    await exhibit.openRequest('/api/profile');
+    await expect(exhibit.explainHeading()).toContainText(
+      'After Save profile, Exhibit observed',
     );
-    await expect(payloadra.explainHeading()).toContainText('succeeded with HTTP 200');
+    await expect(exhibit.explainHeading()).toContainText('succeeded with HTTP 200');
 
-    await payloadra.openInspect();
-    await payloadra.openEvidenceTab('Initiator');
-    await expect(payloadra.detailWorkspace()).toContainText('click');
+    await exhibit.openInspect();
+    await exhibit.openEvidenceTab('Initiator');
+    await expect(exhibit.detailWorkspace()).toContainText('click');
   });
 
   test('reports redirect, repeat, cache, and service-worker evidence', async ({
-    payloadra,
+    exhibit,
   }) => {
-    await payloadra.registerServiceWorker();
-    await payloadra.startRecording();
-    await payloadra.trigger('redirect');
-    await payloadra.trigger('repeated');
-    await payloadra.trigger('cacheable');
-    await payloadra.trigger('service-worker-data');
-    await payloadra.trigger('service-worker-data');
+    await exhibit.registerServiceWorker();
+    await exhibit.startRecording();
+    await exhibit.trigger('redirect');
+    await exhibit.trigger('repeated');
+    await exhibit.trigger('cacheable');
+    await exhibit.trigger('service-worker-data');
+    await exhibit.trigger('service-worker-data');
 
-    await payloadra.openRequest('/api/redirect');
-    await expect(payloadra.explainHeading()).toContainText('Payloadra observed');
-    await payloadra.openInspect();
-    await payloadra.openEvidenceTab('Evidence');
-    await expect(payloadra.detailWorkspace()).toContainText('redirect target');
+    await exhibit.openRequest('/api/redirect');
+    await expect(exhibit.explainHeading()).toContainText('Exhibit observed');
+    await exhibit.openInspect();
+    await exhibit.openEvidenceTab('Evidence');
+    await expect(exhibit.detailWorkspace()).toContainText('redirect target');
 
-    await payloadra.setApiOnly(false);
-    await expect(payloadra.rowFor('/api/service-worker-data').last()).toContainText(
+    await exhibit.setApiOnly(false);
+    await expect(exhibit.rowFor('/api/service-worker-data').last()).toContainText(
       'Service worker',
     );
-    await expect(payloadra.rowFor('/api/profile')).toHaveCount(2);
+    await expect(exhibit.rowFor('/api/profile')).toHaveCount(2);
 
-    await payloadra.unregisterServiceWorker();
+    await exhibit.unregisterServiceWorker();
   });
 
-  test('compares a repeated call against its previous capture', async ({
-    payloadra,
-  }) => {
-    await payloadra.startRecording();
-    await payloadra.trigger('repeated');
+  test('compares a repeated call against its previous capture', async ({ exhibit }) => {
+    await exhibit.startRecording();
+    await exhibit.trigger('repeated');
 
-    await expect(payloadra.rowFor('/api/profile')).toHaveCount(2);
-    await payloadra.rowFor('/api/profile').last().click();
-    await payloadra.openInspect();
-    await payloadra.showComparison();
+    await expect(exhibit.rowFor('/api/profile')).toHaveCount(2);
+    await exhibit.rowFor('/api/profile').last().click();
+    await exhibit.openInspect();
+    await exhibit.showComparison();
 
-    await expect(payloadra.comparison()).toBeVisible();
-    await expect(payloadra.comparison()).toContainText('Status');
+    await expect(exhibit.comparison()).toBeVisible();
+    await expect(exhibit.comparison()).toContainText('Status');
   });
 
   test('renders streamed, binary, truncated, and partially decoded bodies', async ({
-    payloadra,
+    exhibit,
   }) => {
-    await payloadra.startRecording();
-    await payloadra.setApiOnly(false);
-    await payloadra.trigger('stream');
-    await payloadra.trigger('binary');
-    await payloadra.trigger('large');
-    await payloadra.trigger('flight-partial');
+    await exhibit.startRecording();
+    await exhibit.setApiOnly(false);
+    await exhibit.trigger('stream');
+    await exhibit.trigger('binary');
+    await exhibit.trigger('large');
+    await exhibit.trigger('flight-partial');
 
-    await payloadra.openRequest('/api/stream');
-    await payloadra.openInspect();
-    await payloadra.openEvidenceTab('Response');
-    await expect(payloadra.detailWorkspace()).toContainText('Streamed body');
+    await exhibit.openRequest('/api/stream');
+    await exhibit.openInspect();
+    await exhibit.openEvidenceTab('Response');
+    await expect(exhibit.detailWorkspace()).toContainText('Streamed body');
 
-    await payloadra.openRequest('/api/binary');
-    await payloadra.openEvidenceTab('Response');
-    await expect(payloadra.detailWorkspace()).toContainText('Binary body');
+    await exhibit.openRequest('/api/binary');
+    await exhibit.openEvidenceTab('Response');
+    await expect(exhibit.detailWorkspace()).toContainText('Binary body');
 
-    await payloadra.openRequest('/api/large');
-    await payloadra.openEvidenceTab('Response');
-    await expect(payloadra.detailWorkspace()).toContainText('Truncated');
+    await exhibit.openRequest('/api/large');
+    await exhibit.openEvidenceTab('Response');
+    await expect(exhibit.detailWorkspace()).toContainText('Truncated');
 
-    await payloadra.openRequest('/api/flight-partial');
-    await payloadra.openEvidenceTab('Response');
-    await expect(payloadra.detailWorkspace()).toContainText('partially decoded');
-    await payloadra.page.getByRole('tab', { name: 'Raw protocol' }).click();
-    await expect(payloadra.responseBody().first()).toContainText('ProfilePage');
+    await exhibit.openRequest('/api/flight-partial');
+    await exhibit.openEvidenceTab('Response');
+    await expect(exhibit.detailWorkspace()).toContainText('partially decoded');
+    await exhibit.page.getByRole('tab', { name: 'Raw protocol' }).click();
+    await expect(exhibit.responseBody().first()).toContainText('ProfilePage');
   });
 
   test('records a cancelled call as a failed request without a response', async ({
-    payloadra,
+    exhibit,
   }) => {
-    await payloadra.startRecording();
-    await payloadra.trigger('cancelled');
-    await payloadra.setApiOnly(false);
+    await exhibit.startRecording();
+    await exhibit.trigger('cancelled');
+    await exhibit.setApiOnly(false);
 
-    await expect(payloadra.rowFor('/api/hang')).toContainText('ERR');
+    await expect(exhibit.rowFor('/api/hang')).toContainText('ERR');
   });
 
   test('keeps a blocked cross-origin call visible as evidence', async ({
-    payloadra,
+    exhibit,
     thirdParty,
     allowedConsoleErrors,
   }) => {
     allowedConsoleErrors.push(/CORS policy/u, /Failed to load resource/u);
-    await payloadra.startRecording();
-    await payloadra.triggerBlockedCrossOrigin(thirdParty.origin);
-    await payloadra.setApiOnly(false);
+    await exhibit.startRecording();
+    await exhibit.triggerBlockedCrossOrigin(thirdParty.origin);
+    await exhibit.setApiOnly(false);
 
-    await expect(payloadra.rowFor('/api/profile')).toContainText('ERR');
+    await expect(exhibit.rowFor('/api/profile')).toContainText('ERR');
   });
 
   test('copies a safe cURL command and announces the outcome', async ({
-    payloadra,
+    exhibit,
     context,
   }) => {
     await context.grantPermissions(['clipboard-read', 'clipboard-write']);
-    await payloadra.startRecording();
-    await payloadra.trigger('secret');
-    await payloadra.setApiOnly(false);
+    await exhibit.startRecording();
+    await exhibit.trigger('secret');
+    await exhibit.setApiOnly(false);
 
-    await payloadra.openRequest('/api/secret');
-    await payloadra.openInspect();
-    await payloadra.copySafeCurl();
+    await exhibit.openRequest('/api/secret');
+    await exhibit.openInspect();
+    await exhibit.copySafeCurl();
 
-    await expect(payloadra.copyResult()).toContainText('Safe cURL copied.');
-    const clipboard = await payloadra.page.evaluate(() =>
-      navigator.clipboard.readText(),
-    );
+    await expect(exhibit.copyResult()).toContainText('Safe cURL copied.');
+    const clipboard = await exhibit.page.evaluate(() => navigator.clipboard.readText());
     expect(clipboard).toContain('curl');
-    expect(clipboard).not.toContain('payloadra.e2e.authorization.canary');
+    expect(clipboard).not.toContain('exhibit.e2e.authorization.canary');
   });
 
   test('supports keyboard navigation across rows and evidence tabs', async ({
-    payloadra,
+    exhibit,
   }) => {
-    await payloadra.startRecording();
-    await payloadra.trigger('load-profile');
-    await payloadra.trigger('graphql');
+    await exhibit.startRecording();
+    await exhibit.trigger('load-profile');
+    await exhibit.trigger('graphql');
 
-    await payloadra.requestRows().first().focus();
-    await payloadra.page.keyboard.press('ArrowDown');
-    await payloadra.page.keyboard.press('Enter');
-    await expect(payloadra.detailWorkspace()).toContainText('/graphql');
+    await exhibit.requestRows().first().focus();
+    await exhibit.page.keyboard.press('ArrowDown');
+    await exhibit.page.keyboard.press('Enter');
+    await expect(exhibit.detailWorkspace()).toContainText('/graphql');
 
-    await payloadra.openInspect();
-    await payloadra.page.getByRole('tab', { name: 'Overview', exact: true }).focus();
-    await payloadra.page.keyboard.press('ArrowRight');
+    await exhibit.openInspect();
+    await exhibit.page.getByRole('tab', { name: 'Overview', exact: true }).focus();
+    await exhibit.page.keyboard.press('ArrowRight');
     await expect(
-      payloadra.page.getByRole('tab', { name: 'Request', exact: true }),
+      exhibit.page.getByRole('tab', { name: 'Request', exact: true }),
     ).toHaveAttribute('aria-selected', 'true');
   });
 
   test('keeps selection and inspector state across responsive layouts', async ({
-    payloadra,
+    exhibit,
   }) => {
-    await payloadra.startRecording();
-    await payloadra.trigger('load-profile');
-    await payloadra.openRequest('/api/profile');
-    await payloadra.openInspect();
-    await payloadra.openEvidenceTab('Timing');
-    await expect(payloadra.detailWorkspace()).toContainText('/api/profile');
+    await exhibit.startRecording();
+    await exhibit.trigger('load-profile');
+    await exhibit.openRequest('/api/profile');
+    await exhibit.openInspect();
+    await exhibit.openEvidenceTab('Timing');
+    await expect(exhibit.detailWorkspace()).toContainText('/api/profile');
 
-    await payloadra.page.setViewportSize({ width: 900, height: 844 });
+    await exhibit.page.setViewportSize({ width: 900, height: 844 });
     await expect(
-      payloadra.page.getByRole('tab', { name: 'Inspect', exact: true }),
+      exhibit.page.getByRole('tab', { name: 'Inspect', exact: true }),
     ).toHaveAttribute('aria-selected', 'true');
     await expect(
-      payloadra.page.getByRole('tab', { name: 'Timing', exact: true }),
+      exhibit.page.getByRole('tab', { name: 'Timing', exact: true }),
     ).toHaveAttribute('aria-selected', 'true');
-    const evidenceTabs = payloadra.page.getByRole('tablist', {
+    const evidenceTabs = exhibit.page.getByRole('tablist', {
       name: 'Inspect request evidence',
     });
     const evidenceWidth = await evidenceTabs.evaluate((node) => ({
@@ -339,9 +331,9 @@ test.describe('recording workflow', () => {
     }));
     expect(evidenceWidth.scroll).toBeLessThanOrEqual(evidenceWidth.client);
 
-    await payloadra.page.setViewportSize({ width: 390, height: 844 });
-    await expect(payloadra.detailWorkspace()).toContainText('/api/profile');
-    await payloadra.page.getByRole('button', { name: 'Back to requests' }).click();
-    await expect(payloadra.requestRows()).toHaveCount(1);
+    await exhibit.page.setViewportSize({ width: 390, height: 844 });
+    await expect(exhibit.detailWorkspace()).toContainText('/api/profile');
+    await exhibit.page.getByRole('button', { name: 'Back to requests' }).click();
+    await expect(exhibit.requestRows()).toHaveCount(1);
   });
 });

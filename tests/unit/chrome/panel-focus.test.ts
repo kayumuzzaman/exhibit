@@ -66,7 +66,7 @@ function coordinator() {
 
 describe('panel focus port registration', () => {
   it('leaves a port it does not own for another coordinator to claim', () => {
-    const port = new FakePort('payloadra:content');
+    const port = new FakePort('exhibit:content');
 
     expect(coordinator().acceptPort(port)).toBe(false);
     expect(port.disconnected).toBe(false);
@@ -168,7 +168,7 @@ describe('panel focus messages', () => {
   it('ignores a message that is not part of this channel', () => {
     expect(
       coordinator().handleMessage(
-        { type: 'payloadra:start-interactions' },
+        { type: 'exhibit:start-interactions' },
         panelSender(),
       ),
     ).toBeNull();
