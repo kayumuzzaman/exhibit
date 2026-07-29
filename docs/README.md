@@ -125,4 +125,6 @@ their stored analysis is discarded and recomputed rather than trusted.
 - [Architecture](./ARCHITECTURE.md)
 - [Capture limits](./CAPTURE_LIMITS.md)
 - [Verification](./VERIFICATION.md)
+- [Release checklist](./RELEASE_CHECKLIST.md)
+- [Compatibility floor](./COMPATIBILITY.md)
 - [Chrome Web Store listing](./CHROME_WEB_STORE.md)

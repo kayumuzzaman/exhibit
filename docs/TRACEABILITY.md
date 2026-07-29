@@ -50,24 +50,28 @@ Status meanings:
 
 ## Global constraints
 
-| Constraint                               | Status   | Evidence                                                                                                                                              |
-| ---------------------------------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Local-only, no product telemetry/backend | Complete | No application network client; package audit rejects unapproved network-destination URLs and remote/inline scripts                                    |
-| No required host access                  | Complete | Manifest has optional per-origin access only; Chrome's grant persists until revoked, while package audit verifies required host permissions are empty |
-| Redaction before trusted surfaces        | Complete | Sanitized domain type and boundary suites; fail-closed fallback tests                                                                                 |
-| Bounded storage and expensive work       | Complete | 500 request/8 MiB session cap, body caps, traversal guards, lazy work, and near-cap Flight/capture/search performance budgets                         |
-| Chrome 120+ compatibility target         | Blocked  | Callback seams are automated, but Chrome 120 plus current-stable installed-browser/OS matrix has not been recorded                                    |
-| No publication without authorization     | Complete | Repository remains private and `UNLICENSED`; no upload or store action performed                                                                      |
+| Constraint                               | Status   | Evidence                                                                                                                                                   |
+| ---------------------------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Local-only, no product telemetry/backend | Complete | No application network client; package audit rejects unapproved network-destination URLs and remote/inline scripts                                         |
+| No required host access                  | Complete | Manifest has optional per-origin access only; Chrome's grant persists until revoked, while package audit verifies required host permissions are empty      |
+| Redaction before trusted surfaces        | Complete | Sanitized domain type and boundary suites; fail-closed fallback tests                                                                                      |
+| Bounded storage and expensive work       | Complete | 500 request/8 MiB session cap, body caps, traversal guards, lazy work, and near-cap Flight/capture/search performance budgets                              |
+| Chrome 120+ compatibility target         | Blocked  | Every API and platform feature is audited against the floor in [COMPATIBILITY.md](./COMPATIBILITY.md); the installed-browser/OS matrix is still unrecorded |
+| No publication without authorization     | Complete | Repository remains private and `UNLICENSED`; no upload or store action performed                                                                           |
 
 ## Release blockers
 
 1. Complete the manual installed-Google-Chrome DevTools checklist.
 2. Record the claimed Chrome/operating-system compatibility matrix or narrow
-   the support statement.
+   the support statement to the one drafted in
+   [COMPATIBILITY.md](./COMPATIBILITY.md).
 3. Name the legal owner and public privacy/security/support contacts, then
    choose distribution and licence terms.
 4. Review final Chrome Web Store disclosures against the publisher form and
    package behavior.
+
+Each blocker is broken into an ordered action in
+[RELEASE_CHECKLIST.md](./RELEASE_CHECKLIST.md). None of them is a code change.
 
 See [roadmap](./ROADMAP.md), [verification](./VERIFICATION.md), and the
 [independent UX critique](../.impeccable/critique/2026-07-28T18-45-20Z__src-app-app-tsx.md).

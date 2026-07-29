@@ -74,6 +74,8 @@ server-to-server traffic and never guesses a server function name. See
 - [Capture limits](./docs/CAPTURE_LIMITS.md)
 - [Verification](./docs/VERIFICATION.md)
 - [Chrome Web Store listing](./docs/CHROME_WEB_STORE.md)
+- [Release checklist](./docs/RELEASE_CHECKLIST.md)
+- [Compatibility floor](./docs/COMPATIBILITY.md)
 - [Changelog](./CHANGELOG.md)
 
 ## Licence

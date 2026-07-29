@@ -44,6 +44,18 @@ review the final disclosure form against current Chrome Web Store policy.
 > Payloadra reports only what the browser can prove. It cannot see
 > server-to-server traffic, and it never guesses a server function name.
 
+## Single purpose
+
+The dashboard requires one narrow purpose. Payloadra's:
+
+> Payloadra records the network requests a page makes while the user is
+> recording in DevTools, and presents them as redacted, explained evidence that
+> the user can inspect and export locally.
+
+Every permission below serves that purpose. The extension has no second
+function: it does not modify traffic, does not sync, and does not communicate
+with any server.
+
 ## Permission justifications
 
 - **storage** — Keeps the memory-retained session plus theme and custom
@@ -104,13 +116,15 @@ Also supply a 128 x 128 store icon (`public/icon/128.png`) and, optionally, a
 1400 x 560 marquee tile. The generated screenshots contain only fixture data:
 no real credentials, no customer data, and no third-party branding.
 
+## Privacy policy URL
+
+The form requires a reachable URL, not a repository file.
+[PRIVACY.md](./PRIVACY.md) holds publishable text but needs an effective date, a
+monitored contact, and somewhere to be hosted for as long as the item is listed.
+
 ## Release checklist
 
-1. `pnpm release:artifact`
-2. Confirm `.output/payloadra-0.1.0-chrome.zip` exists.
-3. Confirm the package audit reported zero unapproved network-destination URLs and exactly
-   `["scripting","storage"]`.
-4. Record the browser smoke result in [VERIFICATION.md](./VERIFICATION.md).
-5. Choose and add a licence before uploading.
-6. Resolve the owner, privacy, security, and support contacts.
-7. Review every data-use answer against the final publisher form.
+The ordered, current version lives in
+[RELEASE_CHECKLIST.md](./RELEASE_CHECKLIST.md), together with the compatibility
+position from [COMPATIBILITY.md](./COMPATIBILITY.md) and everything still
+awaiting an owner decision.
