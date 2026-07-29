@@ -32,7 +32,7 @@ Environment: macOS 26.5.2 (arm64), Node v26.5.0, pnpm 10.33.2, WXT 0.21.2,
 Playwright 1.62.0, Chromium 151.0.7922.34, Google Chrome 150.0.7871.187
 installed.
 
-Candidate commit: `c40abf5`, the committed tree carrying the fixes and audit
+Candidate commit: `9414d52`, the committed tree carrying the fixes and audit
 documents described in the unreleased changelog. The gate ran against that
 exact tree with no uncommitted changes, so this is reproducible pre-release
 evidence; it is still not a signed release record, because the manual installed
@@ -43,20 +43,20 @@ Chrome checklist below has not been completed.
 | `pnpm format:check`       | pass                                                                             |
 | `pnpm lint`               | pass, 0 warnings                                                                 |
 | `pnpm typecheck`          | pass                                                                             |
-| `pnpm test:coverage`      | pass — 49 files, 990 tests                                                       |
-| Coverage — statements     | 95.71%                                                                           |
+| `pnpm test:coverage`      | pass — 49 files, 992 tests                                                       |
+| Coverage — statements     | 95.74%                                                                           |
 | Coverage — branches       | 93.30%                                                                           |
-| Coverage — functions      | 97.32%                                                                           |
+| Coverage — functions      | 97.33%                                                                           |
 | Coverage — lines          | 96.66%                                                                           |
 | `pnpm build`              | pass — 523.8 kB unpacked                                                         |
 | `pnpm audit:package`      | pass — 0 unapproved network-destination URLs, 0 remote scripts, 0 inline scripts |
 | Manifest permissions      | `["scripting","storage"]`; required host permissions `[]`                        |
 | `pnpm audit:dependencies` | pass — 0 known vulnerabilities                                                   |
-| `pnpm test:e2e`           | pass — 41 tests                                                                  |
-| `pnpm zip`                | pass — `.output/payloadra-0.1.0-chrome.zip`, 225,870 bytes                       |
+| `pnpm test:e2e`           | pass — 43 tests                                                                  |
+| `pnpm zip`                | pass — `.output/payloadra-0.1.0-chrome.zip`, 225,588 bytes                       |
 
 Artifact SHA-256:
-`fef20c14fb3c07df6e0966333f8e433ac7620b68927c4b048308e65a25ee3274`.
+`74d83c91b39f3477667cb75cc49f0f9c7af85c8496de433dc08b16e05eb5f2d2`.
 
 ## Recorded run — 2026-07-26
 

@@ -46,7 +46,7 @@ Status meanings:
 |   5 | Session limits prevent unbounded growth                            | Complete | Request/body/session caps, eviction, performance, schema, and dense-session recovery tests                  |
 |   6 | Core workflow is keyboard accessible and responsive                | Partial  | Automated axe, keyboard, focus, and state-preserving responsive suites pass; installed Chrome smoke remains |
 |   7 | Production package loads in Chrome with documented permissions     | Blocked  | Package and manifest audits pass in Playwright Chromium; installed Google Chrome DevTools smoke is pending  |
-|   8 | All quality gates pass, including four-metric 90% coverage and E2E | Complete | Fresh record: 990 tests, all coverage metrics above 90%, 41 E2E tests, and clean package/dependency audits  |
+|   8 | All quality gates pass, including four-metric 90% coverage and E2E | Complete | Fresh record: 992 tests, all coverage metrics above 90%, 43 E2E tests, and clean package/dependency audits  |
 
 ## Global constraints
 
