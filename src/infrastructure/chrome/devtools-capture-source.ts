@@ -267,7 +267,7 @@ function getHar(
 
     try {
       dependencies.network.getHAR((har) => {
-        let hasRuntimeError = false;
+        let hasRuntimeError: boolean;
         try {
           hasRuntimeError = dependencies.runtime?.lastError !== undefined;
         } catch {
@@ -349,6 +349,8 @@ export function chromeCaptureSource(
   let pollTimer: ReturnType<typeof setTimeout> | null = null;
   let ingestionTail = Promise.resolve();
   let reconciliationInFlight: Promise<void> | null = null;
+  let activeContentRetrievals = 0;
+  const contentWaiters: Array<() => void> = [];
 
   function emit(event: CaptureEvent): void {
     for (const listener of listeners) {
@@ -428,15 +430,33 @@ export function chromeCaptureSource(
     };
   }
 
-  async function ingest(
+  async function boundedContentFor(
+    entry: FinishedRequestLike,
+  ): Promise<RetrievedContent> {
+    if (activeContentRetrievals < contentConcurrency) {
+      activeContentRetrievals += 1;
+    } else {
+      await new Promise<void>((resolve) => {
+        contentWaiters.push(resolve);
+      });
+    }
+    try {
+      return await contentFor(entry);
+    } finally {
+      const next = contentWaiters.shift();
+      if (next === undefined) {
+        activeContentRetrievals -= 1;
+      } else {
+        next();
+      }
+    }
+  }
+
+  function emitCandidates(
     candidates: readonly Readonly<{ entry: FinishedRequestLike; key: string }>[],
+    contents: readonly RetrievedContent[],
     expectedGeneration: number,
-  ): Promise<void> {
-    const contents = await mapConcurrent(
-      candidates,
-      contentConcurrency,
-      async ({ entry }) => contentFor(entry),
-    );
+  ): void {
     if (!active || generation !== expectedGeneration) return;
     for (const [index, candidate] of candidates.entries()) {
       if (!active || generation !== expectedGeneration) return;
@@ -452,6 +472,18 @@ export function chromeCaptureSource(
         },
       });
     }
+  }
+
+  async function ingest(
+    candidates: readonly Readonly<{ entry: FinishedRequestLike; key: string }>[],
+    expectedGeneration: number,
+  ): Promise<void> {
+    const contents = await mapConcurrent(
+      candidates,
+      contentConcurrency,
+      async ({ entry }) => boundedContentFor(entry),
+    );
+    emitCandidates(candidates, contents, expectedGeneration);
   }
 
   function selectEvent(entry: FinishedRequestLike): readonly {
@@ -491,9 +523,14 @@ export function chromeCaptureSource(
   const finishedListener = (request: FinishedRequestLike): void => {
     if (!active) return;
     const expectedGeneration = generation;
+    const candidates = selectEvent(request);
+    if (candidates.length === 0) return;
+    const contents = mapConcurrent(candidates, contentConcurrency, async ({ entry }) =>
+      boundedContentFor(entry),
+    );
+    void contents.catch(() => undefined);
     void enqueue(async () => {
-      if (!active || generation !== expectedGeneration) return;
-      await ingest(selectEvent(request), expectedGeneration);
+      emitCandidates(candidates, await contents, expectedGeneration);
     });
   };
 

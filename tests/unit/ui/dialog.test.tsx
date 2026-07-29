@@ -50,10 +50,10 @@ describe('command dialogs', () => {
     expect(
       screen.getByText(/authorization and cookies are always removed/i),
     ).toBeVisible();
-    expect(screen.getByRole('button', { name: 'Cancel export' })).toHaveFocus();
+    expect(screen.getByRole('radio', { name: 'Sanitized HAR 1.2' })).toHaveFocus();
 
     await user.tab({ shift: true });
-    expect(screen.getByRole('button', { name: 'Export sanitized file' })).toHaveFocus();
+    expect(screen.getByRole('button', { name: 'Export sanitized HAR' })).toHaveFocus();
     await user.keyboard('{Escape}');
     expect(dialog).not.toBeInTheDocument();
     expect(trigger).toHaveFocus();
@@ -73,9 +73,9 @@ describe('command dialogs', () => {
       screen.getByRole('dialog', { name: 'Export sanitized evidence' }),
     ).toBeVisible();
 
-    await user.click(screen.getByRole('button', { name: 'Export sanitized file' }));
+    await user.click(screen.getByRole('button', { name: 'Export sanitized HAR' }));
     expect(await screen.findByRole('status')).toHaveTextContent(
-      'Sanitized evidence exported.',
+      'Sanitized HAR exported.',
     );
     expect(trigger).toHaveFocus();
   });
@@ -87,7 +87,7 @@ describe('command dialogs', () => {
       <PayloadraApp controller={controllerFake()} exportEvidence={exportEvidence} />,
     );
     await user.click(screen.getByRole('button', { name: 'Export evidence' }));
-    await user.click(screen.getByRole('button', { name: 'Export sanitized file' }));
+    await user.click(screen.getByRole('button', { name: 'Export sanitized HAR' }));
 
     expect(await screen.findByRole('alert')).toHaveTextContent(
       /export failed.*try again/i,

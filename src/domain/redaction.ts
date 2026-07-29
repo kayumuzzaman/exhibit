@@ -1,3 +1,4 @@
+import { withRecoveredAnalysis } from './analysis';
 import type {
   BodyContent,
   CapturedRequest,
@@ -98,12 +99,11 @@ const VALUE_PATTERNS = [
   /\bAIza[A-Za-z0-9_-]{20,}\b/u,
   /\b(?:gh[pousr]|github_pat)_[A-Za-z0-9_]{20,}\b/iu,
   /\b(?:api[_ -]?key|token|secret|password|passwd|passphrase|credentials?|csrf|xsrf|session(?:[_ -]?(?:id|token|key|secret|cookie))?)[ \t]*[:=][ \t]*[^\s,;&]+/iu,
-  // `Basic dXNlcjpwYXNz` decodes straight back to user:password. The length
-  // floor keeps prose such as "basic plan" out of the match.
-  /\bbasic[ \t]+[A-Za-z0-9+/]{16,}={0,2}/iu,
   // Markup-delimited credentials, which the `key=value` rule cannot see.
   /<[ \t]*(?:password|passwd|passphrase|token|secret|credentials?|api[_ -]?key)\b[^>]*>[^<]+/iu,
 ] as const;
+const BASIC_CANDIDATE_PATTERN =
+  /\bbasic[ \t]+([A-Za-z0-9+/]+={0,2})(?=$|[^A-Za-z0-9+/=])/giu;
 const JWT_CANDIDATE_PATTERN =
   /(?:^|[^A-Za-z0-9_-])([A-Za-z0-9_-]{2,})\.([A-Za-z0-9_-]{2,})\.([A-Za-z0-9_-]*)(?=$|[^A-Za-z0-9_-])/gu;
 
@@ -268,10 +268,29 @@ function containsValidatedJwt(value: string): boolean {
   return false;
 }
 
+function containsBasicCredential(value: string): boolean {
+  BASIC_CANDIDATE_PATTERN.lastIndex = 0;
+  for (const match of value.matchAll(BASIC_CANDIDATE_PATTERN)) {
+    const encoded = match[1]!;
+    if (encoded.length % 4 === 1) continue;
+    try {
+      const padded = encoded.padEnd(
+        encoded.length + ((4 - (encoded.length % 4)) % 4),
+        '=',
+      );
+      if (atob(padded).includes(':')) return true;
+    } catch {
+      // Malformed base64 is not a syntactically valid Basic credential.
+    }
+  }
+  return false;
+}
+
 function redactValuePatterns(value: string, context: TraversalContext): string {
   if (!context.scanValuePatterns) return value;
   if (value.length > MAX_PATTERN_SCAN_CHARACTERS) return REDACTED;
   return VALUE_PATTERNS.some((pattern) => pattern.test(value)) ||
+    containsBasicCredential(value) ||
     containsValidatedJwt(value)
     ? REDACTED
     : value;
@@ -876,7 +895,9 @@ function recoveredRequestId(): string {
 /**
  * Recovery boundary for stored schema data. Legacy IDs and analysis may have
  * been produced before current privacy guarantees, so IDs are reissued and
- * analysis is discarded instead of being trusted or cast.
+ * stored analysis is discarded rather than trusted or cast. Analysis is then
+ * recomputed from the sanitized evidence, because the ledger's API-first
+ * default would otherwise hide every recovered request as unknown traffic.
  */
 export function redactRecoveredSession(
   session: RecordingSession,
@@ -924,12 +945,12 @@ export function redactRecoveredSession(
     code: warning.code,
     message: SAFE_WARNING_MESSAGES[warning.code],
   }));
-  return {
+  return withRecoveredAnalysis({
     ...session,
     requests,
     interactions,
     requestBytes: [],
     byteCount: 0,
     warnings,
-  } as unknown as SanitizedRecordingSession;
+  } as unknown as SanitizedRecordingSession);
 }

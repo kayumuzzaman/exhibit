@@ -202,6 +202,31 @@ describe('chrome.storage.session repository', () => {
     expect(Object.isFrozen(recovered)).toBe(true);
   });
 
+  it('flushes a pending browser-session snapshot before its debounce expires', async () => {
+    const area = new FakeStorageArea();
+    const repository = createSessionStorageRepository(area, { debounceMs: 10_000 });
+    const saving = repository.save(recordedSession());
+
+    await repository.flush();
+    await saving;
+
+    expect(area.setCalls).toHaveLength(1);
+  });
+
+  it('reports an invalid pending browser-session snapshot through flush', async () => {
+    const repository = createSessionStorageRepository(new FakeStorageArea(), {
+      debounceMs: 10_000,
+    });
+    const invalid = {
+      ...recordedSession('invalid-flush'),
+      origin: 'x'.repeat(MAX_STORAGE_BYTES + 1),
+    };
+    const saving = expect(repository.save(invalid)).rejects.toThrow(RangeError);
+
+    await expect(repository.flush()).rejects.toThrow(RangeError);
+    await saving;
+  });
+
   it.each([Number.NaN, Number.POSITIVE_INFINITY, -1])(
     'rejects an unsafe debounce value: %s',
     (debounceMs) => {
@@ -293,7 +318,7 @@ describe('chrome.storage.session repository', () => {
     );
   });
 
-  it('retains a stale locator and returns null when its snapshot is missing', async () => {
+  it('retains a stale locator and reports recoverable state when its snapshot is missing', async () => {
     const area = new FakeStorageArea();
     const locatorKey = 'payloadra:current:tab-5';
     const locator = {
@@ -305,7 +330,11 @@ describe('chrome.storage.session repository', () => {
 
     const recovered = await createSessionStorageRepository(area).loadCurrent('tab-5');
 
-    expect(recovered).toBeNull();
+    expect(recovered).toMatchObject({
+      id: 'missing-session',
+      tabId: 'tab-5',
+      warnings: [expect.objectContaining({ code: 'corrupt-session' })],
+    });
     expect(area.values.get(locatorKey)).toEqual(locator);
   });
 
@@ -339,6 +368,28 @@ describe('chrome.storage.session repository', () => {
         recovered.warnings.some(({ code }) => code === 'corrupt-session'),
     ).toBe(true);
     expect(area.values.get(locatorKey)).toEqual(corrupt);
+  });
+
+  it('warns for a malformed current locator and clears its referenced raw record', async () => {
+    const area = new FakeStorageArea();
+    const locatorKey = 'payloadra:current:tab-5';
+    const sessionKey = 'payloadra:session:raw-corrupt';
+    area.values.set(locatorKey, {
+      version: 2,
+      tabId: 'tab-5',
+      sessionId: 'raw-corrupt',
+    });
+    area.values.set(sessionKey, { invalid: true });
+    const repository = createSessionStorageRepository(area);
+
+    const recovered = await repository.loadCurrent('tab-5');
+
+    expect(recovered?.warnings).toContainEqual(
+      expect.objectContaining({ code: 'corrupt-session' }),
+    );
+    await repository.clearCurrent?.('tab-5');
+    expect(area.values.has(locatorKey)).toBe(false);
+    expect(area.values.has(sessionKey)).toBe(false);
   });
 
   it('uses the latest save sequence when sessions for one tab coalesce', async () => {
@@ -445,6 +496,41 @@ describe('chrome.storage.session repository', () => {
 });
 
 describe('IndexedDB repository', () => {
+  it('returns no current session for a fresh database', async () => {
+    const repository = createIndexedDbSessionRepository(new IDBFactory());
+
+    await expect(repository.loadCurrent('fresh-tab')).resolves.toBeNull();
+  });
+
+  it('flushes a pending local snapshot before its debounce expires', async () => {
+    const factory = new IDBFactory();
+    const repository = createIndexedDbSessionRepository(factory, {
+      debounceMs: 10_000,
+    });
+    const saving = repository.save(recordedSession('flush-idb', 'persistent'));
+
+    await repository.flush();
+    await saving;
+
+    const recovered =
+      await createIndexedDbSessionRepository(factory).loadCurrent('tab-5');
+    expect(recovered?.id).toBe('flush-idb');
+  });
+
+  it('reports an invalid pending local snapshot through flush', async () => {
+    const repository = createIndexedDbSessionRepository(new IDBFactory(), {
+      debounceMs: 10_000,
+    });
+    const invalid = {
+      ...recordedSession('invalid-idb-flush', 'persistent'),
+      origin: 'x'.repeat(MAX_STORAGE_BYTES + 1),
+    };
+    const saving = expect(repository.save(invalid)).rejects.toThrow(RangeError);
+
+    await expect(repository.flush()).rejects.toThrow(RangeError);
+    await saving;
+  });
+
   it('creates v1 sessions/settings stores and supports clone-faithful CRUD', async () => {
     const factory = new IDBFactory();
     const repository = createIndexedDbSessionRepository(factory);
@@ -549,7 +635,11 @@ describe('IndexedDB repository', () => {
     database.close();
 
     const repository = createIndexedDbSessionRepository(factory);
-    expect(await repository.loadCurrent('tab-5')).toBeNull();
+    expect(await repository.loadCurrent('tab-5')).toMatchObject({
+      id: 'missing-idb',
+      tabId: 'tab-5',
+      warnings: [expect.objectContaining({ code: 'corrupt-session' })],
+    });
 
     const reopened = await openPayloadraDatabase(factory);
     const request = reopened
@@ -564,7 +654,7 @@ describe('IndexedDB repository', () => {
     reopened.close();
   });
 
-  it('retains a corrupt IndexedDB locator and returns null', async () => {
+  it('retains a corrupt IndexedDB locator and reports recoverable state', async () => {
     const factory = new IDBFactory();
     const database = await openPayloadraDatabase(factory);
     const transaction = database.transaction('settings', 'readwrite');
@@ -578,7 +668,46 @@ describe('IndexedDB repository', () => {
     database.close();
 
     const repository = createIndexedDbSessionRepository(factory);
-    expect(await repository.loadCurrent('tab-5')).toBeNull();
+    expect(await repository.loadCurrent('tab-5')).toMatchObject({
+      tabId: 'tab-5',
+      warnings: [expect.objectContaining({ code: 'corrupt-session' })],
+    });
+  });
+
+  it('warns for a malformed IndexedDB locator and clears its referenced raw record', async () => {
+    const factory = new IDBFactory();
+    const database = await openPayloadraDatabase(factory);
+    const transaction = database.transaction(['sessions', 'settings'], 'readwrite');
+    transaction
+      .objectStore('settings')
+      .put({ version: 2, tabId: 'tab-5', sessionId: 'raw-corrupt' }, 'current:tab-5');
+    transaction.objectStore('sessions').put({ invalid: true }, 'raw-corrupt');
+    await new Promise<void>((resolve, reject) => {
+      transaction.oncomplete = () => resolve();
+      transaction.onerror = () => reject(transaction.error);
+    });
+    database.close();
+    const repository = createIndexedDbSessionRepository(factory);
+
+    const recovered = await repository.loadCurrent('tab-5');
+
+    expect(recovered?.warnings).toContainEqual(
+      expect.objectContaining({ code: 'corrupt-session' }),
+    );
+    await repository.clearCurrent?.('tab-5');
+    expect(await repository.load('raw-corrupt')).toBeNull();
+    const reopened = await openPayloadraDatabase(factory);
+    const locator = reopened
+      .transaction('settings')
+      .objectStore('settings')
+      .get('current:tab-5');
+    expect(
+      await new Promise<unknown>((resolve, reject) => {
+        locator.onsuccess = () => resolve(locator.result);
+        locator.onerror = () => reject(locator.error);
+      }),
+    ).toBeUndefined();
+    reopened.close();
   });
 
   it('clears missing and corrupt exact sessions without touching unrelated data', async () => {
@@ -1034,6 +1163,53 @@ describe('stored session schema validation', () => {
     ['forged byte count', ['session', 'byteCount'], 1],
   ];
 
+  it('round-trips a max-count session with dense valid headers', () => {
+    const requestHeaders = Array.from({ length: 35 }, (_, index) => ({
+      name: `x-request-${index}`,
+      value: `request-value-${index}`,
+    }));
+    const responseHeaders = Array.from({ length: 35 }, (_, index) => ({
+      name: `x-response-${index}`,
+      value: `response-value-${index}`,
+    }));
+    const session = freezeSession({
+      ...recordedSession('dense-session'),
+      requests: Array.from({ length: 500 }, (_, index) =>
+        redactRequest(
+          requestWith({
+            id: `dense-request-${index}`,
+            url: `https://app.test/dense/${index}`,
+            requestHeaders,
+            responseHeaders,
+          }),
+          DEFAULT_REDACTION_CONFIG,
+        ),
+      ),
+    });
+
+    expect(session.requests).toHaveLength(500);
+    expect(session.requests.length).toBeLessThanOrEqual(session.limits.maxRequests);
+    expect(session.byteCount).toBeLessThanOrEqual(session.limits.maxBytes);
+
+    const stored = encodeStoredSession(session);
+    const storedBytes = new TextEncoder().encode(JSON.stringify(stored)).byteLength;
+    expect(storedBytes).toBeLessThanOrEqual(MAX_STORAGE_BYTES);
+
+    const recovered = decodeStoredSession(stored, session.id);
+
+    expect(recovered.warnings).not.toContainEqual(
+      expect.objectContaining({ code: 'corrupt-session' }),
+    );
+    expect(recovered.requests).toHaveLength(500);
+    expect(
+      recovered.requests.every(
+        (request) =>
+          request.request.headers.length === 35 &&
+          request.response.headers.length === 35,
+      ),
+    ).toBe(true);
+  });
+
   it.each(corruptCases)(
     'fails closed for %s without throwing',
     (_name, path, value) => {
@@ -1085,6 +1261,17 @@ describe('stored session schema validation', () => {
       padding: 'x'.repeat(MAX_STORAGE_BYTES + 1),
     };
     expect(decodeStoredSession(oversized, 'large').warnings[0]?.code).toBe(
+      'corrupt-session',
+    );
+  });
+
+  it('fails closed on a compact envelope with an excessive node count', () => {
+    const nodeDense = {
+      version: 1,
+      padding: Array.from({ length: 51 }, () => Array(10_000).fill(0)),
+    };
+
+    expect(decodeStoredSession(nodeDense, 'node-dense').warnings[0]?.code).toBe(
       'corrupt-session',
     );
   });

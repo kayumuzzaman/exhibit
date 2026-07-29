@@ -116,6 +116,43 @@ function secretObservation(): CaptureObservation {
 }
 
 describe('recording pipeline', () => {
+  it('updates custom redaction names while stopped and rejects mid-capture changes', async () => {
+    const capture = new ManualCapture();
+    const sink = new MemorySink();
+    const pipeline = createRecordingPipeline({
+      capture,
+      controller: sink,
+    });
+    const customConfig = {
+      ...DEFAULT_REDACTION_CONFIG,
+      fieldNames: [...DEFAULT_REDACTION_CONFIG.fieldNames, 'Private Note'],
+    };
+
+    pipeline.setRedactionConfig(customConfig);
+    await pipeline.start(1_000);
+    expect(() => pipeline.setRedactionConfig(DEFAULT_REDACTION_CONFIG)).toThrow(
+      'Redaction settings cannot change while recording.',
+    );
+    capture.emit({
+      type: 'observation',
+      observation: observation({
+        request: {
+          method: 'POST',
+          url: 'https://app.test/save',
+          headers: [],
+          postData: {
+            mimeType: 'application/json',
+            text: '{"privateNote":"violet-owl-742","safe":"visible"}',
+          },
+        },
+      }),
+    });
+    await pipeline.stop(2_000);
+
+    expect(JSON.stringify(sink.accepted)).not.toContain('violet-owl-742');
+    expect(JSON.stringify(sink.accepted)).toContain('[REDACTED]');
+  });
+
   it('composes with the real session controller contract', async () => {
     const capture = new ManualCapture();
     let saved = freezeSession(
@@ -137,6 +174,7 @@ describe('recording pipeline', () => {
       async save(session) {
         saved = session;
       },
+      async flush() {},
       async clear() {},
     };
     const controller = createSessionController({

@@ -345,6 +345,50 @@ describe('Chrome DevTools capture source', () => {
     ]);
   });
 
+  it('drains stalled live content in bounded waves without duplicates or reordering', async () => {
+    vi.useFakeTimers();
+    const network = new FakeNetwork();
+    const live = Array.from({ length: 8 }, (_unused, index) => ({
+      ...entry(`live-${index}`, 1_000 + index),
+      getContent() {},
+    }));
+    const seen: string[] = [];
+    const source = chromeCaptureSource(
+      { network },
+      {
+        contentConcurrency: 4,
+        contentTimeoutMs: 25,
+        pollIntervalMs: 1_000,
+      },
+    );
+    source.subscribe((event) => {
+      if (event.type === 'observation') {
+        seen.push(
+          (event.observation.entry as { request: { url: string } }).request.url,
+        );
+      }
+    });
+
+    await source.begin(1_000);
+    for (const request of live) network.emit(request);
+    network.entries = live;
+    const startedAt = Date.now();
+    let stoppedAfter = Number.POSITIVE_INFINITY;
+    const stopping = source.stop(2_000).then(() => {
+      stoppedAfter = Date.now() - startedAt;
+    });
+
+    await vi.advanceTimersByTimeAsync(200);
+    await stopping;
+
+    expect(stoppedAfter).toBe(50);
+    expect(seen).toEqual(
+      Array.from({ length: 8 }, (_unused, index) => {
+        return `https://app.test/live-${index}`;
+      }),
+    );
+  });
+
   it('uses recursive polling, pauses hidden, and reconciles immediately when shown', async () => {
     vi.useFakeTimers();
     const network = new FakeNetwork();

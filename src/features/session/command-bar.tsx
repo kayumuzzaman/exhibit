@@ -2,14 +2,16 @@ import type { RecordingPhase } from '../../domain/model';
 import { Button } from '../../components/button';
 import { Icon } from '../../components/icon';
 import { StatusPill } from '../../components/status-pill';
+import type { ThemeMode } from '../settings/payloadra-settings';
 
-export type ThemeMode = 'dark' | 'devtools' | 'light' | 'system';
+export type { ThemeMode } from '../settings/payloadra-settings';
 
 export function CommandBar({
   busy,
   onClear,
   onExport,
   onRecord,
+  onSettings,
   onTheme,
   origin,
   phase,
@@ -19,6 +21,7 @@ export function CommandBar({
   onClear(): void;
   onExport(): void;
   onRecord(): void;
+  onSettings(): void;
   onTheme(theme: ThemeMode): void;
   origin: string;
   phase: RecordingPhase;
@@ -64,8 +67,12 @@ export function CommandBar({
           <Icon name="export" />
           <span>Export</span>
         </Button>
-        <label className="theme-control">
+        <Button aria-label="Privacy settings" onClick={onSettings} tone="quiet">
           <Icon name="settings" />
+          <span>Settings</span>
+        </Button>
+        <label className="theme-control">
+          <Icon name="theme" />
           <span className="sr-only">Theme</span>
           <select
             aria-label="Theme"

@@ -136,6 +136,17 @@ export class PayloadraDriver {
     await this.page.getByRole('button', { name, exact: true }).click();
   }
 
+  async setFacetFilter(
+    name: 'Cache' | 'Domain' | 'Method' | 'Outcome' | 'Protocol',
+    value: string,
+  ): Promise<void> {
+    const facets = this.page.locator('.facet-filters');
+    if ((await facets.getAttribute('open')) === null) {
+      await facets.getByText('Evidence facets').click();
+    }
+    await this.page.getByRole('combobox', { name }).selectOption(value);
+  }
+
   async resetFilters(): Promise<void> {
     await this.page.getByRole('button', { name: 'Reset filters' }).click();
   }
@@ -182,13 +193,26 @@ export class PayloadraDriver {
     return this.page.getByRole('region', { name: 'Request comparison' });
   }
 
-  async exportEvidence(): Promise<string> {
+  async exportEvidence(format: 'har' | 'markdown' = 'har'): Promise<string> {
     const downloadPromise = this.page.waitForEvent('download');
     await this.page.getByRole('button', { name: 'Export evidence' }).click();
-    await this.page.getByRole('button', { name: 'Export sanitized file' }).click();
+    if (format === 'markdown') {
+      await this.page.getByRole('radio', { name: 'Markdown QA report' }).check();
+    }
+    await this.page
+      .getByRole('button', {
+        name: format === 'har' ? 'Export sanitized HAR' : 'Export Markdown report',
+      })
+      .click();
     const download = await downloadPromise;
     await download.path();
-    return this.page.evaluate(() => globalThis.payloadraHarness?.exportedHar() ?? '');
+    return this.page.evaluate(
+      (selectedFormat) =>
+        selectedFormat === 'har'
+          ? (globalThis.payloadraHarness?.exportedHar() ?? '')
+          : (globalThis.payloadraHarness?.exportedReport() ?? ''),
+      format,
+    );
   }
 
   async exportedReport(): Promise<string> {
@@ -204,11 +228,11 @@ export class PayloadraDriver {
   }
 
   async setRetention(retention: 'ephemeral' | 'persistent'): Promise<void> {
-    await this.page.evaluate(async (mode) => {
-      await globalThis.payloadraHarness?.setRetention(
-        mode as 'ephemeral' | 'persistent',
-      );
-    }, retention);
+    const control = this.page.getByRole('combobox', {
+      name: 'Evidence retention',
+    });
+    await control.selectOption(retention);
+    await expect(control).toHaveValue(retention);
   }
 
   async storedSessionText(): Promise<string> {

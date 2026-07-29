@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import type {
   CapturedRequest,
@@ -213,6 +213,32 @@ describe('SearchIndex', () => {
     expect(index.remove('early')).toBe(true);
     expect(index.remove('early')).toBe(false);
     expect(index.query('').map(({ id }) => id)).toEqual(['later-a', 'later-b']);
+  });
+
+  it('synchronizes only changed records and their sanitized interaction labels', () => {
+    const index = new SearchIndex();
+    const first = safeRequest('first', { url: 'https://api.test/first' });
+    const second = safeRequest('second', { url: 'https://api.test/second' });
+    const interaction = safeInteraction({
+      id: 'save',
+      tabId: 'tab-1',
+      kind: 'click',
+      occurredAt: 1,
+      trust: 'trusted',
+      target: { tag: 'button', text: 'Save profile' },
+    });
+    const add = vi.spyOn(index, 'add');
+
+    index.synchronize([first], new Map([['first', interaction]]));
+    index.synchronize([first], new Map([['first', interaction]]));
+
+    expect(add).toHaveBeenCalledTimes(1);
+    expect(index.query('Save profile').map(({ id }) => id)).toEqual(['first']);
+
+    index.synchronize([second]);
+
+    expect(index.query('first')).toEqual([]);
+    expect(index.query('second').map(({ id }) => id)).toEqual(['second']);
   });
 
   it('rejects raw request data at the index boundary during typecheck', () => {

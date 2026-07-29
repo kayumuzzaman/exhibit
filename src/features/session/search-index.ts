@@ -96,6 +96,13 @@ function compareRequests(
  */
 export class SearchIndex {
   readonly #entries = new Map<string, SearchEntry>();
+  readonly #sources = new Map<
+    string,
+    Readonly<{
+      interaction: SanitizedInteractionEvent | undefined;
+      request: SanitizedCapturedRequest;
+    }>
+  >();
 
   get size(): number {
     return this.#entries.size;
@@ -105,6 +112,7 @@ export class SearchIndex {
     request: SanitizedCapturedRequest,
     interaction?: SanitizedInteractionEvent,
   ): void {
+    this.#sources.set(request.id, { interaction, request });
     this.#entries.set(request.id, {
       request,
       text: searchableText(request, interaction),
@@ -112,7 +120,25 @@ export class SearchIndex {
   }
 
   remove(requestId: string): boolean {
+    this.#sources.delete(requestId);
     return this.#entries.delete(requestId);
+  }
+
+  synchronize(
+    requests: readonly SanitizedCapturedRequest[],
+    interactions: ReadonlyMap<string, SanitizedInteractionEvent> = new Map(),
+  ): void {
+    const nextIds = new Set(requests.map(({ id }) => id));
+    for (const requestId of this.#entries.keys()) {
+      if (!nextIds.has(requestId)) this.remove(requestId);
+    }
+    for (const request of requests) {
+      const interaction = interactions.get(request.id);
+      const previous = this.#sources.get(request.id);
+      if (previous?.request !== request || previous.interaction !== interaction) {
+        this.add(request, interaction);
+      }
+    }
   }
 
   query(value: string): SanitizedCapturedRequest[] {

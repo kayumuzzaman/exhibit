@@ -12,7 +12,9 @@ test.describe('recording workflow', () => {
     await expect(payloadra.requestRows()).toHaveCount(3);
 
     await payloadra.openRequest('/api/profile');
-    await expect(payloadra.explainHeading()).toContainText('Save profile triggered');
+    await expect(payloadra.explainHeading()).toContainText(
+      'After Save profile, Payloadra observed',
+    );
 
     await payloadra.openInspect();
     await payloadra.openEvidenceTab('Response');
@@ -24,7 +26,7 @@ test.describe('recording workflow', () => {
     const har = await payloadra.exportEvidence();
     expect(JSON.parse(har)).toMatchObject({ log: { version: '1.2' } });
 
-    const report = await payloadra.exportedReport();
+    const report = await payloadra.exportEvidence('markdown');
     expect(report).toContain('Payloadra');
   });
 
@@ -106,6 +108,31 @@ test.describe('recording workflow', () => {
     await expect(payloadra.rowFor('/api/slow')).toHaveCount(1);
   });
 
+  test('intersects method, domain, protocol, outcome, and cache facets', async ({
+    payloadra,
+    allowedConsoleErrors,
+  }) => {
+    allowedConsoleErrors.push(/500 \(Internal Server Error\)/u);
+    await payloadra.startRecording();
+    await payloadra.trigger('load-profile');
+    await payloadra.trigger('save-profile');
+    await payloadra.trigger('failing');
+    await payloadra.trigger('graphql');
+
+    const domain = new URL(payloadra.page.url()).hostname;
+    await payloadra.setFacetFilter('Method', 'POST');
+    await payloadra.setFacetFilter('Domain', domain);
+    await payloadra.setFacetFilter('Protocol', 'graphql');
+    await payloadra.setFacetFilter('Outcome', 'success');
+    await payloadra.setFacetFilter('Cache', 'miss');
+
+    await expect(payloadra.requestRows()).toHaveCount(1);
+    await expect(payloadra.rowFor('/graphql')).toHaveCount(1);
+
+    await payloadra.resetFilters();
+    await expect(payloadra.requestRows()).toHaveCount(4);
+  });
+
   test('searches the ledger by route text', async ({ payloadra }) => {
     await payloadra.startRecording();
     await payloadra.trigger('load-profile');
@@ -121,14 +148,29 @@ test.describe('recording workflow', () => {
     ).toBeVisible();
   });
 
-  test('groups correlated requests under the trusted interaction that caused them', async ({
+  test('groups requests after the trusted interaction they correlate with', async ({
     payloadra,
   }) => {
     await payloadra.startRecording();
     await payloadra.trigger('save-profile');
+    await payloadra.trigger('graphql');
+
+    await expect(payloadra.requestRows()).toHaveCount(2);
+    await payloadra.page
+      .getByRole('button', {
+        name: 'Save profile · Click · Trusted · 1 request',
+      })
+      .click();
+    await expect(payloadra.requestRows()).toHaveCount(1);
+    await payloadra.page
+      .getByRole('button', { name: 'All interactions · 2 requests' })
+      .click();
+    await expect(payloadra.requestRows()).toHaveCount(2);
 
     await payloadra.openRequest('/api/profile');
-    await expect(payloadra.explainHeading()).toContainText('Save profile triggered');
+    await expect(payloadra.explainHeading()).toContainText(
+      'After Save profile, Payloadra observed',
+    );
     await expect(payloadra.explainHeading()).toContainText('succeeded with HTTP 200');
 
     await payloadra.openInspect();
@@ -148,7 +190,7 @@ test.describe('recording workflow', () => {
     await payloadra.trigger('service-worker-data');
 
     await payloadra.openRequest('/api/redirect');
-    await expect(payloadra.explainHeading()).toContainText('triggered');
+    await expect(payloadra.explainHeading()).toContainText('Payloadra observed');
     await payloadra.openInspect();
     await payloadra.openEvidenceTab('Evidence');
     await expect(payloadra.detailWorkspace()).toContainText('redirect target');
@@ -271,13 +313,31 @@ test.describe('recording workflow', () => {
     ).toHaveAttribute('aria-selected', 'true');
   });
 
-  test('keeps the selected request when the layout switches to a narrow viewport', async ({
+  test('keeps selection and inspector state across responsive layouts', async ({
     payloadra,
   }) => {
     await payloadra.startRecording();
     await payloadra.trigger('load-profile');
     await payloadra.openRequest('/api/profile');
+    await payloadra.openInspect();
+    await payloadra.openEvidenceTab('Timing');
     await expect(payloadra.detailWorkspace()).toContainText('/api/profile');
+
+    await payloadra.page.setViewportSize({ width: 900, height: 844 });
+    await expect(
+      payloadra.page.getByRole('tab', { name: 'Inspect', exact: true }),
+    ).toHaveAttribute('aria-selected', 'true');
+    await expect(
+      payloadra.page.getByRole('tab', { name: 'Timing', exact: true }),
+    ).toHaveAttribute('aria-selected', 'true');
+    const evidenceTabs = payloadra.page.getByRole('tablist', {
+      name: 'Inspect request evidence',
+    });
+    const evidenceWidth = await evidenceTabs.evaluate((node) => ({
+      client: node.clientWidth,
+      scroll: node.scrollWidth,
+    }));
+    expect(evidenceWidth.scroll).toBeLessThanOrEqual(evidenceWidth.client);
 
     await payloadra.page.setViewportSize({ width: 390, height: 844 });
     await expect(payloadra.detailWorkspace()).toContainText('/api/profile');

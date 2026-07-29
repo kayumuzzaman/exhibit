@@ -33,7 +33,7 @@ export function Tabs<Id extends string>({
   }
 
   function moveFocus(event: KeyboardEvent<HTMLButtonElement>, index: number): void {
-    let next = index;
+    let next: number;
     if (event.key === 'ArrowRight' || event.key === 'ArrowDown') {
       next = (index + 1) % tabs.length;
     } else if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') {

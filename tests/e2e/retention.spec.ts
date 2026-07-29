@@ -28,6 +28,20 @@ test.describe('retention and recovery', () => {
 
     await expect(payloadra.requestRows()).toHaveCount(2);
     await expect(payloadra.rowFor('/graphql')).toHaveCount(1);
+    await expect(
+      payloadra.page.getByRole('button', { name: 'Start recording' }),
+    ).toBeVisible();
+    const firstStoppedAt = await payloadra.page.evaluate(
+      () => globalThis.payloadraHarness?.controller.getSnapshot().stoppedAt,
+    );
+
+    await payloadra.reload();
+
+    expect(
+      await payloadra.page.evaluate(
+        () => globalThis.payloadraHarness?.controller.getSnapshot().stoppedAt,
+      ),
+    ).toBe(firstStoppedAt);
   });
 
   test('clearing removes recovered evidence from every retention store', async ({

@@ -264,7 +264,7 @@ describe('application services provider', () => {
       const exportEvidence = useExportEvidence();
       const session = useSession();
       return (
-        <button onClick={() => void exportEvidence()} type="button">
+        <button onClick={() => void exportEvidence('har')} type="button">
           {session.origin}
         </button>
       );

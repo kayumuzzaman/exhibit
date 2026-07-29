@@ -30,7 +30,7 @@ test.describe('privacy boundaries', () => {
     await payloadra.stopRecording();
     const har = await payloadra.exportEvidence();
     assertNoSecrets('HAR export', har);
-    assertNoSecrets('QA report export', await payloadra.exportedReport());
+    assertNoSecrets('QA report export', await payloadra.exportEvidence('markdown'));
     assertNoSecrets('session storage', await payloadra.storedSessionText());
     assertNoSecrets('console output', consoleErrors.join('\n'));
   });

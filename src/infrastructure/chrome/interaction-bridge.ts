@@ -28,6 +28,7 @@ const MAX_EVENT_PATH = 32;
 const MAX_EVENT_ID_CODE_POINTS = 128;
 const MAX_TEXT_NODES = 256;
 const UNCLAIMED_LEASE_TTL_MS = 5_000;
+const ACTIVE_HEARTBEAT_MS = 20_000;
 const MAIN_TEARDOWN_FALLBACK_MS = 1_000;
 const TEXT_FORBIDDEN_SUBTREE_TAGS = new Set([
   'form',
@@ -577,7 +578,7 @@ export function createBackgroundInteractionCoordinator(
 
   function nextLeaseId(tabId: number): string {
     leaseSequence += 1;
-    let random = '';
+    let random: string;
     try {
       random = globalThis.crypto.randomUUID();
     } catch {
@@ -789,6 +790,16 @@ export function createBackgroundInteractionCoordinator(
     lease.port = port;
     const onMessage = (message: unknown): void => {
       const safe = cloneInboundRecord(message);
+      if (
+        safe !== null &&
+        hasExactKeys(safe, ['type']) &&
+        safe.type === 'payloadra:heartbeat' &&
+        sessions.get(tabId) === session &&
+        session.leases.get(leaseId)?.port === port
+      ) {
+        safePost(port, { type: 'payloadra:heartbeat-ack' });
+        return;
+      }
       if (
         safe !== null &&
         hasExactKeys(safe, ['type']) &&
@@ -1250,10 +1261,19 @@ export function createInteractionSource(runtime: PanelRuntimeLike): InteractionS
     readonly port: RuntimePortLike;
     readonly tabId: number;
     readonly leaseId: string;
+    heartbeat: ReturnType<typeof globalThis.setTimeout> | null;
   };
   let active: ActiveBinding | null = null;
   let generation = 0;
   const pending = new Set<Promise<InteractionStartResult>>();
+
+  function clearHeartbeat(binding: ActiveBinding): void {
+    if (binding.heartbeat === null) {
+      return;
+    }
+    globalThis.clearTimeout(binding.heartbeat);
+    binding.heartbeat = null;
+  }
 
   function closeActivePort(sendStop: boolean): void {
     const binding = active;
@@ -1261,10 +1281,38 @@ export function createInteractionSource(runtime: PanelRuntimeLike): InteractionS
       return;
     }
     active = null;
+    clearHeartbeat(binding);
     if (sendStop) {
       safePost(binding.port, { type: 'payloadra:stop' });
     }
     safeDisconnect(binding.port);
+  }
+
+  function scheduleHeartbeat(binding: ActiveBinding): void {
+    clearHeartbeat(binding);
+    const heartbeat = globalThis.setTimeout(() => {
+      if (active !== binding || binding.heartbeat !== heartbeat) {
+        return;
+      }
+      binding.heartbeat = null;
+      if (!safePost(binding.port, { type: 'payloadra:heartbeat' })) {
+        closeActivePort(false);
+        return;
+      }
+      scheduleHeartbeat(binding);
+    }, ACTIVE_HEARTBEAT_MS);
+    binding.heartbeat = heartbeat;
+    try {
+      if (
+        typeof heartbeat === 'object' &&
+        heartbeat !== null &&
+        typeof (heartbeat as { unref?: unknown }).unref === 'function'
+      ) {
+        (heartbeat as { unref(): void }).unref();
+      }
+    } catch {
+      // Browser timer handles are numbers; Node's unref is test-process hygiene.
+    }
   }
 
   async function release(
@@ -1352,6 +1400,7 @@ export function createInteractionSource(runtime: PanelRuntimeLike): InteractionS
             port,
             tabId: result.tabId,
             leaseId: result.leaseId,
+            heartbeat: null,
           };
           const onMessage = (message: unknown): void => {
             const safe = cloneInboundRecord(message);
@@ -1377,6 +1426,7 @@ export function createInteractionSource(runtime: PanelRuntimeLike): InteractionS
           };
           const onDisconnect = (): void => {
             if (active?.port === port) {
+              clearHeartbeat(active);
               active = null;
             }
             port.onMessage.removeListener(onMessage);
@@ -1384,6 +1434,7 @@ export function createInteractionSource(runtime: PanelRuntimeLike): InteractionS
           };
           port.onMessage.addListener(onMessage);
           port.onDisconnect.addListener(onDisconnect);
+          scheduleHeartbeat(active);
           return result;
         })
         .catch((): InteractionStartResult =>

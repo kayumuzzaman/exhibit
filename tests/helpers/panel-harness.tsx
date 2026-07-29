@@ -4,19 +4,29 @@ import { PayloadraApp } from '../../src/app/app';
 import type { RetentionMode } from '../../src/domain/model';
 import { toSanitizedHar } from '../../src/domain/har-export';
 import { toQaReport } from '../../src/domain/report-export';
-import { DEFAULT_REDACTION_CONFIG, redactSession } from '../../src/domain/redaction';
-import { createSession } from '../../src/domain/session';
+import { redactRecoveredSession, redactSession } from '../../src/domain/redaction';
+import { closeInterruptedSession, createSession } from '../../src/domain/session';
 import { createRecordingPipeline } from '../../src/features/capture/recording-pipeline';
 import {
   createSessionController,
   type SessionController,
 } from '../../src/features/session/session-controller';
+import {
+  buildRedactionConfig,
+  createPayloadraSettingsRepository,
+  DEFAULT_PAYLOADRA_SETTINGS,
+  normalizeCustomFieldNames,
+  type PayloadraSettings,
+  type PayloadraSettingsService,
+  type SettingsStorageArea,
+} from '../../src/features/settings/payloadra-settings';
 import { downloadText } from '../../src/infrastructure/downloads';
 import { createIndexedDbSessionRepository } from '../../src/infrastructure/storage/indexeddb-repository';
 import {
   createSessionStorageRepository,
   type StorageArea,
 } from '../../src/infrastructure/storage/session-storage-repository';
+import { recoveryForPage } from '../../src/panel/recovery';
 import type { SessionRepository } from '../../src/ports/session-repository';
 import { createLoopbackInteractionSource } from './loopback-interactions';
 import { createTestCapturePort, type TestCapturePort } from './test-capture-port';
@@ -63,6 +73,21 @@ function sessionStorageArea(): StorageArea {
   };
 }
 
+/** `chrome.storage.local` stand-in backed by the page's own localStorage. */
+function localSettingsArea(): SettingsStorageArea {
+  return {
+    async get(key) {
+      const raw = globalThis.localStorage.getItem(key);
+      return raw === null ? {} : { [key]: JSON.parse(raw) as unknown };
+    },
+    async set(items) {
+      for (const [key, value] of Object.entries(items)) {
+        globalThis.localStorage.setItem(key, JSON.stringify(value));
+      }
+    },
+  };
+}
+
 export type MountPanelHarnessOptions = Readonly<{
   container: Element;
   origin: string;
@@ -81,6 +106,11 @@ export async function mountPanelHarness(
   const inspectedTabId = options.tabId ?? 1;
   const tabId = String(inspectedTabId);
   const port = createTestCapturePort();
+  const settingsRepository = createPayloadraSettingsRepository(localSettingsArea());
+  let currentSettings = await settingsRepository
+    .load()
+    .catch(() => DEFAULT_PAYLOADRA_SETTINGS);
+  const initialRedactionConfig = buildRedactionConfig(currentSettings);
   const ephemeral: SessionRepository = createSessionStorageRepository(
     sessionStorageArea(),
     { debounceMs: 0 },
@@ -89,13 +119,28 @@ export async function mountPanelHarness(
   const restored =
     (await persistent.loadCurrent(tabId).catch(() => null)) ??
     (await ephemeral.loadCurrent(tabId).catch(() => null));
+  const matchingRecovery = recoveryForPage(restored, tabId, options.origin);
+  const corruptRecovery =
+    matchingRecovery?.warnings.some(({ code }) => code === 'corrupt-session') === true;
   const initialSession =
-    restored !== null && restored.origin === options.origin
-      ? restored
-      : redactSession(
+    matchingRecovery === null
+      ? redactSession(
           createSession(tabId, options.origin, Date.now()),
-          DEFAULT_REDACTION_CONFIG,
+          initialRedactionConfig,
+        )
+      : closeInterruptedSession(
+          redactRecoveredSession(matchingRecovery, initialRedactionConfig),
+          Date.now(),
         );
+  if (
+    matchingRecovery !== null &&
+    initialSession !== matchingRecovery &&
+    !corruptRecovery
+  ) {
+    const repository =
+      initialSession.retention === 'persistent' ? persistent : ephemeral;
+    await Promise.allSettled([repository.save(initialSession), repository.flush()]);
+  }
 
   const interactions = createLoopbackInteractionSource();
   let pipeline: ReturnType<typeof createRecordingPipeline> | null = null;
@@ -113,23 +158,76 @@ export async function mountPanelHarness(
       },
     },
   });
-  pipeline = createRecordingPipeline({ capture: port, controller, interactions });
+  pipeline = createRecordingPipeline({
+    capture: port,
+    controller,
+    interactions,
+    redactionConfig: initialRedactionConfig,
+  });
+
+  let settingsOperation = Promise.resolve();
+  function updateSettings(
+    update: (settings: PayloadraSettings) => PayloadraSettings,
+    apply?: (settings: PayloadraSettings) => void,
+  ): Promise<PayloadraSettings> {
+    const result = settingsOperation.then(async () => {
+      const saved = await settingsRepository.save(update(currentSettings));
+      apply?.(saved);
+      currentSettings = saved;
+      return saved;
+    });
+    settingsOperation = result.then(
+      () => undefined,
+      () => undefined,
+    );
+    return result;
+  }
+  const settingsService: PayloadraSettingsService = {
+    initial: currentSettings,
+    saveCustomFieldNames(customFieldNames) {
+      const snapshot = controller.getSnapshot();
+      if (
+        snapshot.phase !== 'stopped' ||
+        snapshot.requests.length > 0 ||
+        snapshot.interactions.length > 0
+      ) {
+        return Promise.reject(
+          new Error('Clear captured evidence before changing redaction settings.'),
+        );
+      }
+      return updateSettings(
+        (settings) => ({
+          ...settings,
+          customFieldNames: normalizeCustomFieldNames(customFieldNames),
+        }),
+        (settings) => pipeline?.setRedactionConfig(buildRedactionConfig(settings)),
+      );
+    },
+    saveTheme(theme) {
+      return updateSettings((settings) => ({ ...settings, theme }));
+    },
+  };
 
   let lastHar = '';
   let lastReport = '';
-  async function exportEvidence(): Promise<void> {
+  async function exportEvidence(format: 'har' | 'markdown'): Promise<void> {
     const snapshot = controller.getSnapshot();
     lastHar = toSanitizedHar(snapshot);
     lastReport = toQaReport(snapshot);
-    downloadText(
-      `payloadra-${snapshot.id.replace(/[^a-z0-9-]/giu, '-')}.har`,
-      'application/json',
-      lastHar,
-    );
+    const baseName = `payloadra-${snapshot.id.replace(/[^a-z0-9-]/giu, '-')}`;
+    if (format === 'markdown') {
+      downloadText(`${baseName}.md`, 'text/markdown', lastReport);
+      return;
+    }
+    downloadText(`${baseName}.har`, 'application/json', lastHar);
   }
 
   createRoot(options.container).render(
-    <PayloadraApp controller={controller} exportEvidence={exportEvidence} />,
+    <PayloadraApp
+      controller={controller}
+      exportEvidence={exportEvidence}
+      settings={settingsService}
+    />,
   );
 
   const harness: PanelHarness = {
@@ -137,6 +235,7 @@ export async function mountPanelHarness(
     port,
     async settle() {
       await port.settled();
+      await Promise.all([ephemeral.flush(), persistent.flush()]);
       await new Promise((done) => setTimeout(done, 60));
     },
     async setRetention(retention) {

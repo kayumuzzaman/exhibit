@@ -718,6 +718,21 @@ describe('background permission and injection flow', () => {
     ]);
   });
 
+  it('acknowledges exact heartbeats on an active DevTools lease', async () => {
+    const fixture = backgroundFixture();
+    const started = await startActiveBackground(fixture);
+    const devtools = new FakePort(devtoolsPortName(started), extensionSender());
+    expect(fixture.coordinator.acceptPort(devtools)).toBe(true);
+
+    devtools.emit({ type: 'payloadra:heartbeat' });
+    expect(devtools.sent).toEqual([{ type: 'payloadra:heartbeat-ack' }]);
+
+    devtools.emit({ type: 'payloadra:heartbeat', extra: true });
+    expect(devtools.sent).toEqual([{ type: 'payloadra:heartbeat-ack' }]);
+    expect(devtools.disconnected).toBe(false);
+    fixture.coordinator.stopAll();
+  });
+
   it('injects ISOLATED before MAIN and retires a partial collector on MAIN failure', async () => {
     const coordinatorRef: {
       current: ReturnType<typeof backgroundFixture>['coordinator'] | null;
@@ -1847,6 +1862,44 @@ describe('panel interaction source', () => {
     await source.stop();
     await source.stop();
     expect(runtime.connect).not.toHaveBeenCalled();
+  });
+
+  it('sends a bounded heartbeat while active and cancels it on Stop', async () => {
+    vi.useFakeTimers();
+    const port = new FakePort('payloadra:devtools:9');
+    const runtime = {
+      sendMessage: vi.fn(async () => ({
+        status: 'active',
+        tabId: 9,
+        origin: 'https://shop.test',
+        documentId: 'document-9',
+        leaseId: 'lease-heartbeat-9',
+      })),
+      connect: vi.fn(() => port),
+    };
+    const source = createInteractionSource(runtime);
+    try {
+      await source.start({ tabId: 9, url: 'https://shop.test' });
+
+      await vi.advanceTimersByTimeAsync(19_999);
+      expect(port.sent).toEqual([]);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(port.sent).toEqual([{ type: 'payloadra:heartbeat' }]);
+      await vi.advanceTimersByTimeAsync(20_000);
+      expect(port.sent).toEqual([
+        { type: 'payloadra:heartbeat' },
+        { type: 'payloadra:heartbeat' },
+      ]);
+
+      await source.stop();
+      expect(port.sent.at(-1)).toEqual({ type: 'payloadra:stop' });
+      const sentAfterStop = port.sent.length;
+      await vi.advanceTimersByTimeAsync(60_000);
+      expect(port.sent).toHaveLength(sentAfterStop);
+    } finally {
+      await source.stop();
+      vi.useRealTimers();
+    }
   });
 
   it('stops and disconnects an active port once and ignores malformed events', async () => {

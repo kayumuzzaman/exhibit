@@ -24,6 +24,7 @@ import type {
   SanitizedRecordingSession,
 } from '../../../src/domain/sanitized';
 import type { SessionController } from '../../../src/features/session/session-controller';
+import type { PayloadraSettingsService } from '../../../src/features/settings/payloadra-settings';
 import { requestWith, sanitizedRequestWith } from '../../helpers/request-factory';
 
 function sessionWith(
@@ -134,6 +135,117 @@ describe('PayloadraApp', () => {
       expect(screen.getByRole('button', { name: 'Start recording' })).toBeEnabled(),
     );
     expect(screen.getByRole('button', { name: 'Start recording' })).toHaveFocus();
+  });
+
+  it('changes evidence retention through the user-facing session control', async () => {
+    setViewport(1_024);
+    const user = userEvent.setup();
+    const controller = controllerFake();
+    controller.setRetention = vi.fn(async (retention) => {
+      controller.replace({ ...controller.getSnapshot(), retention });
+    });
+    render(<PayloadraApp controller={controller} />);
+    await user.click(screen.getByRole('button', { name: 'Open session rail' }));
+
+    const retention = screen.getByRole('combobox', {
+      name: 'Evidence retention',
+    });
+    expect(retention).toHaveValue('ephemeral');
+
+    await user.selectOptions(retention, 'persistent');
+
+    expect(controller.setRetention).toHaveBeenCalledWith('persistent');
+    expect(retention).toHaveValue('persistent');
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'Evidence retention changed to Local until Clear.',
+    );
+  });
+
+  it('keeps the previous retention and explains a failed migration', async () => {
+    setViewport(1_024);
+    const user = userEvent.setup();
+    const controller = controllerFake();
+    controller.setRetention = vi.fn(async () => undefined);
+    render(<PayloadraApp controller={controller} />);
+    await user.click(screen.getByRole('button', { name: 'Open session rail' }));
+
+    const retention = screen.getByRole('combobox', {
+      name: 'Evidence retention',
+    });
+    await user.selectOptions(retention, 'persistent');
+
+    expect(retention).toHaveValue('ephemeral');
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'Storage mode could not be changed. Existing evidence remains in Memory.',
+    );
+  });
+
+  it('edits and persists custom privacy fields from the command-bar settings', async () => {
+    const user = userEvent.setup();
+    const settings: PayloadraSettingsService = {
+      initial: { customFieldNames: ['Existing Field'], theme: 'dark' },
+      saveCustomFieldNames: vi.fn(async (customFieldNames) => ({
+        customFieldNames,
+        theme: 'dark' as const,
+      })),
+      saveTheme: vi.fn(async (theme) => ({
+        customFieldNames: ['Existing Field'],
+        theme,
+      })),
+    };
+    const { container } = render(
+      <PayloadraApp controller={controllerFake()} settings={settings} />,
+    );
+
+    expect(container.querySelector('.app-shell')).toHaveAttribute('data-theme', 'dark');
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Theme' }), 'light');
+    expect(settings.saveTheme).toHaveBeenCalledWith('light');
+
+    await user.click(screen.getByRole('button', { name: 'Privacy settings' }));
+    const dialog = screen.getByRole('dialog', {
+      name: 'Privacy and redaction settings',
+    });
+    const fieldNames = within(dialog).getByRole('textbox', {
+      name: 'Additional sensitive field names',
+    });
+    expect(fieldNames).toHaveValue('Existing Field');
+    await user.clear(fieldNames);
+    await user.type(fieldNames, 'Private Note,\nX-Customer-Key');
+    await user.click(
+      within(dialog).getByRole('button', { name: 'Save privacy settings' }),
+    );
+
+    expect(settings.saveCustomFieldNames).toHaveBeenCalledWith([
+      'Private Note',
+      'X-Customer-Key',
+    ]);
+    expect(
+      screen.queryByRole('dialog', { name: 'Privacy and redaction settings' }),
+    ).toBeNull();
+    expect(screen.getByRole('status')).toHaveTextContent('Privacy settings saved.');
+  });
+
+  it('requires stopped, cleared evidence before changing redaction fields', async () => {
+    const user = userEvent.setup();
+    render(
+      <PayloadraApp
+        controller={controllerFake(
+          sessionWith('recording', [sanitizedRequestWith({ id: 'retained' })]),
+        )}
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Privacy settings' }));
+    const dialog = screen.getByRole('dialog', {
+      name: 'Privacy and redaction settings',
+    });
+
+    expect(
+      within(dialog).getByText(/stop recording and clear the current evidence/i),
+    ).toBeVisible();
+    expect(
+      within(dialog).getByRole('button', { name: 'Save privacy settings' }),
+    ).toBeDisabled();
   });
 
   it('renders a semantic, responsive forensic workspace without serious axe findings', async () => {
@@ -282,7 +394,9 @@ describe('PayloadraApp', () => {
       screen.getByRole('tablist', { name: 'Request detail workspace' }),
     ).toBeVisible();
     expect(
-      screen.getByRole('heading', { name: /Save profile triggered a Server Action/i }),
+      screen.getByRole('heading', {
+        name: /After Save profile, Payloadra observed a Server Action/i,
+      }),
     ).toBeVisible();
     expect(screen.queryByText(/"saved"/)).not.toBeInTheDocument();
 
@@ -686,6 +800,118 @@ describe('PayloadraApp', () => {
     );
   });
 
+  it('exposes method, domain, protocol, outcome, and cache facets as intersections', async () => {
+    setViewport(1_440);
+    const user = userEvent.setup();
+    const matching = sanitizedRequestWith({
+      id: 'matching-graphql',
+      url: 'https://api.checkout.example/graphql',
+      method: 'POST',
+      responseStatus: 503,
+      fromCache: true,
+      classification: {
+        kind: 'graphql',
+        confidence: 'confirmed',
+        evidence: [],
+      },
+    });
+    const records = [
+      matching,
+      sanitizedRequestWith({
+        id: 'network-graphql',
+        url: 'https://api.checkout.example/graphql/network',
+        method: 'POST',
+        responseStatus: 503,
+        fromCache: false,
+        classification: {
+          kind: 'graphql',
+          confidence: 'confirmed',
+          evidence: [],
+        },
+      }),
+      sanitizedRequestWith({
+        id: 'other-domain',
+        url: 'https://other.example/graphql',
+        method: 'POST',
+        responseStatus: 503,
+        fromCache: true,
+        classification: {
+          kind: 'graphql',
+          confidence: 'confirmed',
+          evidence: [],
+        },
+      }),
+      sanitizedRequestWith({
+        id: 'get-graphql',
+        url: 'https://api.checkout.example/graphql/get',
+        method: 'GET',
+        responseStatus: 503,
+        fromCache: true,
+        classification: {
+          kind: 'graphql',
+          confidence: 'confirmed',
+          evidence: [],
+        },
+      }),
+      sanitizedRequestWith({
+        id: 'successful-graphql',
+        url: 'https://api.checkout.example/graphql/success',
+        method: 'POST',
+        responseStatus: 200,
+        fromCache: true,
+        classification: {
+          kind: 'graphql',
+          confidence: 'confirmed',
+          evidence: [],
+        },
+      }),
+      sanitizedRequestWith({
+        id: 'plain-api',
+        url: 'https://api.checkout.example/api/failure',
+        method: 'POST',
+        responseStatus: 503,
+        fromCache: true,
+        classification: {
+          kind: 'api',
+          confidence: 'confirmed',
+          evidence: [],
+        },
+      }),
+    ];
+    render(
+      <PayloadraApp controller={controllerFake(sessionWith('recording', records))} />,
+    );
+
+    await user.click(screen.getByText('Evidence facets'));
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Method' }), 'POST');
+    await user.selectOptions(
+      screen.getByRole('combobox', { name: 'Domain' }),
+      'api.checkout.example',
+    );
+    await user.selectOptions(
+      screen.getByRole('combobox', { name: 'Protocol' }),
+      'graphql',
+    );
+    await user.selectOptions(
+      screen.getByRole('combobox', { name: 'Outcome' }),
+      'failure',
+    );
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Cache' }), 'hit');
+
+    expect(screen.getAllByRole('row')).toHaveLength(2);
+    expect(
+      screen.getByRole('row', { name: /POST \/graphql graphql 503/i }),
+    ).toBeVisible();
+
+    await user.click(screen.getByRole('button', { name: 'Reset filters' }));
+    expect(screen.getByRole('combobox', { name: 'Method' })).toHaveValue('');
+    expect(screen.getByRole('combobox', { name: 'Domain' })).toHaveValue('');
+    expect(screen.getByRole('combobox', { name: 'Protocol' })).toHaveValue('');
+    expect(screen.getByRole('combobox', { name: 'Outcome' })).toHaveValue('');
+    expect(screen.getByRole('combobox', { name: 'Cache' })).toHaveValue('');
+    expect(screen.getAllByRole('row')).toHaveLength(records.length + 1);
+  });
+
   it('routes an API-only empty result with raw evidence to No matches', async () => {
     setViewport(1_440);
     const user = userEvent.setup();
@@ -759,7 +985,7 @@ describe('PayloadraApp', () => {
       'true',
     );
     expect(within(detail).getByRole('tab', { name: 'Inspect' })).toBeVisible();
-    expect(detail).toHaveTextContent(/browser triggered an API request/i);
+    expect(detail).toHaveTextContent(/Payloadra observed an API request/i);
     expect(container.querySelector('.detail-skeleton')).toBeNull();
   });
 
@@ -818,7 +1044,7 @@ describe('PayloadraApp dialog failures', () => {
     );
 
     await user.click(screen.getByRole('button', { name: 'Export evidence' }));
-    await user.click(screen.getByRole('button', { name: 'Export sanitized file' }));
+    await user.click(screen.getByRole('button', { name: 'Export sanitized HAR' }));
 
     const dialog = await screen.findByRole('dialog', {
       name: 'Export sanitized evidence',
@@ -915,6 +1141,31 @@ describe('PayloadraApp shell layout contract', () => {
 });
 
 describe('PayloadraApp failure reporting', () => {
+  it.each([
+    [
+      'corrupt-session' as const,
+      'Stored evidence could not be read. Original local data is retained. Clear evidence to remove it.',
+    ],
+    [
+      'persistence-disabled' as const,
+      'Local recovery is unavailable after a storage failure. New evidence remains in this open panel.',
+    ],
+    [
+      'migration-cleanup-failed' as const,
+      'Storage mode cleanup failed. Clear evidence to remove residual local data.',
+    ],
+  ])('surfaces the %s storage warning with recovery guidance', (code, message) => {
+    const degraded = {
+      ...sessionWith(),
+      warnings: [{ code, message: 'Untrusted storage detail must not render.' }],
+    };
+
+    render(<PayloadraApp controller={controllerFake(degraded)} />);
+
+    expect(screen.getByRole('alert')).toHaveTextContent(message);
+    expect(document.body.textContent).not.toContain('Untrusted storage detail');
+  });
+
   it('reports a stopped capture rather than claiming recording continues', () => {
     const degraded = redactSession(
       {
@@ -988,5 +1239,196 @@ describe('PayloadraApp drawer lifecycle', () => {
     expect(
       screen.getAllByRole('navigation', { name: 'Session workspace' }),
     ).toHaveLength(1);
+  });
+});
+
+describe('PayloadraApp approved v0.1 surfaces', () => {
+  it('shows interaction groups and filters the ledger by the selected group', async () => {
+    setViewport(1_440);
+    const user = userEvent.setup();
+    const attributed = requestWith({
+      id: 'save-request',
+      startedAt: 2_000,
+      url: 'https://checkout.example/api/save',
+      classification: { kind: 'api', confidence: 'confirmed', evidence: [] },
+    });
+    const unattributed = requestWith({
+      id: 'background-request',
+      startedAt: 9_000,
+      url: 'https://checkout.example/api/background',
+      classification: { kind: 'api', confidence: 'confirmed', evidence: [] },
+    });
+    const session = redactSession(
+      {
+        ...createSession('tab-9', 'https://checkout.example', 1_000),
+        phase: 'recording',
+        requests: [attributed, unattributed],
+        requestBytes: [32, 32],
+        interactions: [
+          {
+            id: 'save-click',
+            tabId: 'tab-9',
+            kind: 'click',
+            occurredAt: 1_990,
+            trust: 'trusted',
+            target: { tag: 'button', text: 'Save profile' },
+          },
+        ],
+      },
+      DEFAULT_REDACTION_CONFIG,
+    );
+    render(<PayloadraApp controller={controllerFake(session)} />);
+
+    await user.type(
+      screen.getByRole('searchbox', { name: 'Search requests' }),
+      'Save profile',
+    );
+    expect(screen.getByRole('row', { name: /api\/save/i })).toBeVisible();
+    expect(screen.queryByRole('row', { name: /api\/background/i })).toBeNull();
+    await user.clear(screen.getByRole('searchbox', { name: 'Search requests' }));
+
+    const saveGroup = screen.getByRole('button', {
+      name: 'Save profile · Click · Trusted · 1 request',
+    });
+    const unattributedGroup = screen.getByRole('button', {
+      name: 'Unattributed · No trusted interaction · 1 request',
+    });
+    expect(saveGroup).toHaveAttribute('aria-pressed', 'false');
+
+    await user.click(saveGroup);
+    expect(saveGroup).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('row', { name: /api\/save/i })).toBeVisible();
+    expect(screen.queryByRole('row', { name: /api\/background/i })).toBeNull();
+
+    await user.click(unattributedGroup);
+    expect(screen.getByRole('row', { name: /api\/background/i })).toBeVisible();
+    expect(screen.queryByRole('row', { name: /api\/save/i })).toBeNull();
+  });
+
+  it('clears stale detail and labels trust when a zero-request hint is selected', async () => {
+    setViewport(1_440);
+    const user = userEvent.setup();
+    const session = redactSession(
+      {
+        ...createSession('tab-9', 'https://checkout.example', 1_000),
+        phase: 'recording',
+        requests: [
+          requestWith({
+            id: 'background-request',
+            startedAt: 9_000,
+            url: 'https://checkout.example/api/background',
+            classification: {
+              kind: 'api',
+              confidence: 'confirmed',
+              evidence: [],
+            },
+          }),
+        ],
+        requestBytes: [32],
+        interactions: [
+          {
+            id: 'history-hint',
+            tabId: 'tab-9',
+            kind: 'history',
+            occurredAt: 1_500,
+            trust: 'untrusted-hint',
+            target: { tag: 'a', text: 'Account history' },
+          },
+        ],
+      },
+      DEFAULT_REDACTION_CONFIG,
+    );
+    render(<PayloadraApp controller={controllerFake(session)} />);
+
+    await user.click(screen.getByRole('row', { name: /api\/background/i }));
+    expect(screen.getByRole('region', { name: 'Request detail' })).toHaveTextContent(
+      '/api/background',
+    );
+
+    await user.click(
+      screen.getByRole('button', {
+        name: 'Account history · History · Untrusted hint · 0 requests',
+      }),
+    );
+
+    expect(screen.queryAllByRole('row')).toHaveLength(0);
+    expect(screen.getByRole('region', { name: 'Request detail' })).toHaveTextContent(
+      'No evidence selected',
+    );
+  });
+
+  it('exports the chosen format with redaction and item count visible', async () => {
+    setViewport(1_440);
+    const user = userEvent.setup();
+    const exportEvidence = vi.fn(async () => undefined);
+    render(
+      <PayloadraApp
+        controller={controllerFake(
+          sessionWith('stopped', [
+            sanitizedRequestWith({ id: 'one' }),
+            sanitizedRequestWith({ id: 'two' }),
+          ]),
+        )}
+        exportEvidence={exportEvidence}
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Export evidence' }));
+    const dialog = screen.getByRole('dialog', {
+      name: 'Export sanitized evidence',
+    });
+    expect(dialog).toHaveTextContent('Redaction');
+    expect(dialog).toHaveTextContent('Enforced');
+    expect(dialog).toHaveTextContent('2 requests');
+    expect(
+      within(dialog).getByRole('radio', { name: 'Sanitized HAR 1.2' }),
+    ).toBeChecked();
+
+    await user.click(within(dialog).getByRole('radio', { name: 'Markdown QA report' }));
+    expect(dialog).toHaveTextContent('Markdown (.md)');
+    await user.click(
+      within(dialog).getByRole('button', { name: 'Export Markdown report' }),
+    );
+
+    expect(exportEvidence).toHaveBeenCalledWith('markdown');
+  });
+
+  it('preserves Explain, Inspect, and evidence-tab state across layout remounts', async () => {
+    setViewport(1_440);
+    const user = userEvent.setup();
+    render(
+      <PayloadraApp
+        controller={controllerFake(
+          sessionWith('recording', [
+            sanitizedRequestWith({
+              id: 'timed',
+              url: 'https://checkout.example/api/timed',
+              classification: {
+                kind: 'api',
+                confidence: 'confirmed',
+                evidence: [],
+              },
+            }),
+          ]),
+        )}
+      />,
+    );
+
+    await user.click(screen.getByRole('row', { name: /timed/i }));
+    await user.click(screen.getByRole('tab', { name: 'Inspect' }));
+    await user.click(screen.getByRole('tab', { name: 'Timing' }));
+    expect(screen.getByRole('heading', { name: 'Phase breakdown' })).toBeVisible();
+
+    act(() => setViewport(900));
+
+    expect(screen.getByRole('tab', { name: 'Inspect' })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    );
+    expect(screen.getByRole('tab', { name: 'Timing' })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    );
+    expect(screen.getByRole('heading', { name: 'Phase breakdown' })).toBeVisible();
   });
 });

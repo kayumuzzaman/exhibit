@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { DEFAULT_REDACTION_CONFIG, redactSession } from '../../src/domain/redaction';
+import { decodeFlight } from '../../src/domain/react-flight';
 import { createSession, DEFAULT_LIMITS } from '../../src/domain/session';
 import {
   createRecordingPipeline,
@@ -24,6 +25,7 @@ import { observation } from '../helpers/har-factory';
 const REQUEST_COUNT = 500;
 const PIPELINE_BUDGET_MS = 500;
 const INDEX_BUDGET_MS = 250;
+const FLIGHT_BUDGET_MS = 500;
 /**
  * The persisted budget is deliberately close to the in-memory pipeline budget.
  * Storage writes are debounced, so a controller that waits for each write would
@@ -32,6 +34,7 @@ const INDEX_BUDGET_MS = 250;
  */
 const PERSISTED_BUDGET_MS = 2_000;
 const ATTEMPTS = 3;
+const PERSISTED_TEST_TIMEOUT_MS = PERSISTED_BUDGET_MS * ATTEMPTS + 2_000;
 
 /**
  * Wall-clock budgets measure the code, not the machine. Under a loaded release
@@ -113,6 +116,21 @@ function makeObservations(count: number): CaptureObservation[] {
   );
 }
 
+function largeFlightFixture(malformed: boolean): string {
+  return Array.from({ length: 1_000 }, (_, index) => {
+    const id = index.toString(16);
+    if (malformed) return `${id}:Z${'x'.repeat(430)}`;
+    return `${id}:${JSON.stringify({
+      component: `app/routes/fixture-${index}.tsx`,
+      props: {
+        content: 'x'.repeat(330),
+        index,
+        visible: index % 2 === 0,
+      },
+    })}`;
+  }).join('\n');
+}
+
 class MemoryStorageArea implements StorageArea {
   readonly values = new Map<string, unknown>();
   writes = 0;
@@ -192,44 +210,92 @@ describe('capture pipeline performance', () => {
     expect(session.requests.length).toBeLessThanOrEqual(DEFAULT_LIMITS.maxRequests);
     expect(session.byteCount).toBeLessThanOrEqual(DEFAULT_LIMITS.maxBytes);
   });
-});
 
-describe('persisted capture performance', () => {
-  it('captures 500 requests into a real repository-backed session within budget', async () => {
-    let area = new MemoryStorageArea();
-    let captured = 0;
+  it('decodes near-cap valid and malformed Flight fixtures within bounded output and time', async () => {
+    const valid = largeFlightFixture(false);
+    const malformed = largeFlightFixture(true);
+    const encoder = new TextEncoder();
+    const validBytes = encoder.encode(valid).byteLength;
+    const malformedBytes = encoder.encode(malformed).byteLength;
+    expect(validBytes).toBeGreaterThan(400 * 1_024);
+    expect(malformedBytes).toBeGreaterThan(400 * 1_024);
+    expect(validBytes).toBeLessThanOrEqual(DEFAULT_LIMITS.maxBodyBytes);
+    expect(malformedBytes).toBeLessThanOrEqual(DEFAULT_LIMITS.maxBodyBytes);
+
+    let validResult = decodeFlight('', { maxBytes: 1 });
+    let malformedResult = validResult;
     const elapsed = await fastest(async () => {
-      area = new MemoryStorageArea();
-      const capture = new ReplayCapture();
-      const controller = createSessionController({
-        initialSession: freezeSession(
-          redactSession(
-            {
-              ...createSession('tab-perf', 'https://app.test', 1_000),
-              phase: 'stopped',
-            },
-            DEFAULT_REDACTION_CONFIG,
-          ),
-        ),
-        repositories: {
-          ephemeral: createSessionStorageRepository(area),
-          persistent: createSessionStorageRepository(area),
-        },
-      });
-      const pipeline = createRecordingPipeline({ capture, controller });
-      const batch = makeObservations(REQUEST_COUNT);
-      await pipeline.start(1_000);
-
       const start = performance.now();
-      for (const item of batch) capture.emit(item);
-      await pipeline.stop(2_000);
-      captured = controller.getSnapshot().requests.length;
+      validResult = decodeFlight(valid, {
+        maxBytes: DEFAULT_LIMITS.maxBodyBytes,
+        maxRows: 1_000,
+        maxDepth: 20,
+      });
+      malformedResult = decodeFlight(malformed, {
+        maxBytes: DEFAULT_LIMITS.maxBodyBytes,
+        maxRows: 1_000,
+        maxDepth: 20,
+      });
       return performance.now() - start;
     });
 
-    expect(captured).toBe(REQUEST_COUNT);
-    // Coalescing is the point: a write per request would mean 500 here.
-    expect(area.writes).toBeLessThan(REQUEST_COUNT / 4);
-    expect(elapsed).toBeLessThan(PERSISTED_BUDGET_MS);
+    expect(validResult).toMatchObject({
+      status: 'decoded',
+      rawChunks: [],
+      warnings: [],
+    });
+    expect(validResult.chunks).toHaveLength(1_000);
+    expect(malformedResult.status).toBe('unsupported');
+    expect(malformedResult.chunks).toEqual([]);
+    expect(malformedResult.rawChunks).toHaveLength(1_000);
+    expect(malformedResult.warnings.length).toBeLessThanOrEqual(101);
+    expect(
+      malformedResult.rawChunks.reduce((sum, chunk) => sum + chunk.length, 0),
+    ).toBeLessThanOrEqual(malformed.length);
+    expect(elapsed).toBeLessThan(FLIGHT_BUDGET_MS);
   });
+});
+
+describe('persisted capture performance', () => {
+  it(
+    'captures 500 requests into a real repository-backed session within budget',
+    async () => {
+      let area = new MemoryStorageArea();
+      let captured = 0;
+      const elapsed = await fastest(async () => {
+        area = new MemoryStorageArea();
+        const capture = new ReplayCapture();
+        const controller = createSessionController({
+          initialSession: freezeSession(
+            redactSession(
+              {
+                ...createSession('tab-perf', 'https://app.test', 1_000),
+                phase: 'stopped',
+              },
+              DEFAULT_REDACTION_CONFIG,
+            ),
+          ),
+          repositories: {
+            ephemeral: createSessionStorageRepository(area),
+            persistent: createSessionStorageRepository(area),
+          },
+        });
+        const pipeline = createRecordingPipeline({ capture, controller });
+        const batch = makeObservations(REQUEST_COUNT);
+        await pipeline.start(1_000);
+
+        const start = performance.now();
+        for (const item of batch) capture.emit(item);
+        await pipeline.stop(2_000);
+        captured = controller.getSnapshot().requests.length;
+        return performance.now() - start;
+      });
+
+      expect(captured).toBe(REQUEST_COUNT);
+      // Coalescing is the point: a write per request would mean 500 here.
+      expect(area.writes).toBeLessThan(REQUEST_COUNT / 4);
+      expect(elapsed).toBeLessThan(PERSISTED_BUDGET_MS);
+    },
+    PERSISTED_TEST_TIMEOUT_MS,
+  );
 });

@@ -20,7 +20,7 @@ describe('explainRequest', () => {
     expect(explanation).toEqual({
       outcome: 'success',
       summary:
-        'Save profile triggered a Server Action request. It completed with HTTP 201 (success) in 48 ms.',
+        'Save profile was recorded as the initiator for a Server Action request. It completed with HTTP 201 (success) in 48 ms.',
       guidance: [],
       evidence: [
         'Initiator: Save profile.',
@@ -209,7 +209,7 @@ describe('explainRequest', () => {
     expect(explanation).toMatchObject({
       outcome: 'http-response',
       summary:
-        'The browser triggered an unknown request. It completed with HTTP 101 in 20 ms.',
+        'The browser recorded an unknown request. It completed with HTTP 101 in 20 ms.',
     });
   });
 

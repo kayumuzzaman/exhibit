@@ -96,7 +96,8 @@ export function createSessionController(
   const clock = dependencies.clock ?? Date.now;
   const listeners = new Set<() => void>();
   let snapshot = freezeSession(dependencies.initialSession);
-  let persistenceEnabled = true;
+  let recoveryLocked = snapshot.warnings.some(({ code }) => code === 'corrupt-session');
+  let persistenceEnabled = !recoveryLocked;
   let startInFlight: Promise<void> | null = null;
   let stopInFlight: Promise<void> | null = null;
   let clearInFlight: Promise<void> | null = null;
@@ -286,12 +287,14 @@ export function createSessionController(
         for (const repository of repositories) {
           try {
             await repository.clear(snapshot.id);
+            await repository.clearCurrent?.(snapshot.tabId);
           } catch (error) {
             clearErrors.push(error);
           }
         }
         replace(reduceSession(snapshot, { type: 'clear', at: clock() }));
         if (clearErrors.length === 0) {
+          recoveryLocked = false;
           persistenceEnabled = true;
         } else {
           persistenceEnabled = false;
@@ -311,6 +314,10 @@ export function createSessionController(
     setRetention(retention): Promise<void> {
       return queueOperation(async () => {
         if (retention === snapshot.retention) {
+          return;
+        }
+        if (recoveryLocked) {
+          warn(migrationWarning());
           return;
         }
         const previousRetention = snapshot.retention;

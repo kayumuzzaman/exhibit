@@ -1,10 +1,12 @@
 import type { SanitizedRecordingSession } from '../../domain/sanitized';
 import type { SessionRepository } from '../../ports/session-repository';
 import {
+  createCorruptSession,
   decodeSessionLocator,
   decodeStoredSession,
   encodeSessionLocator,
   encodeStoredSession,
+  recoverSessionIdFromLocator,
 } from './schema';
 
 export interface StorageArea {
@@ -103,6 +105,7 @@ export function createSessionStorageRepository(
     const items: Record<string, unknown> = {};
     const current = new Map<string, PendingWrite>();
     const writes: PendingWrite[] = [];
+    let encodingError: unknown;
     for (const [key, write] of captured) {
       // Encoding is deferred to the flush so a burst of saves for one session
       // encodes once instead of once per call. Encoding walks and clones the
@@ -112,6 +115,7 @@ export function createSessionStorageRepository(
       try {
         stored = encodeStoredSession(write.session);
       } catch (error) {
+        encodingError ??= error;
         for (const waiter of write.waiters) {
           waiter.reject(error);
         }
@@ -125,7 +129,9 @@ export function createSessionStorageRepository(
       }
     }
     if (writes.length === 0) {
-      return operation;
+      return operation.then(() => {
+        if (encodingError !== undefined) throw encodingError;
+      });
     }
     for (const write of current.values()) {
       items[currentKeyFor(write.tabId)] = encodeSessionLocator({
@@ -133,12 +139,16 @@ export function createSessionStorageRepository(
         tabId: write.tabId,
       });
     }
-    return settle(
+    const persistence = settle(
       writes,
       queueOperation(async () => {
         await area.set(items);
       }),
     );
+    if (encodingError === undefined) return persistence;
+    return persistence.then(() => {
+      throw encodingError;
+    });
   }
 
   return {
@@ -168,12 +178,17 @@ export function createSessionStorageRepository(
         }
         const locator = decodeSessionLocator(locatorValues[locatorKey], tabId);
         if (locator === null) {
-          return null;
+          const recoveredId =
+            recoverSessionIdFromLocator(locatorValues[locatorKey]) ??
+            `corrupt-current:${tabId}`;
+          knownTabs.set(recoveredId, tabId);
+          return createCorruptSession(recoveredId, tabId);
         }
         const sessionKey = keyFor(locator.sessionId);
         const sessionValues = await area.get(sessionKey);
         if (!(sessionKey in sessionValues)) {
-          return null;
+          knownTabs.set(locator.sessionId, tabId);
+          return createCorruptSession(locator.sessionId, tabId);
         }
         knownTabs.set(locator.sessionId, tabId);
         return decodeStoredSession(sessionValues[sessionKey], locator.sessionId, tabId);
@@ -201,10 +216,14 @@ export function createSessionStorageRepository(
         }
         if (timer === null) {
           timer = setTimeout(() => {
-            void flush();
+            void flush().catch(() => undefined);
           }, debounceMs);
         }
       });
+    },
+
+    flush(): Promise<void> {
+      return flush();
     },
 
     async clear(sessionId): Promise<void> {
@@ -231,6 +250,23 @@ export function createSessionStorageRepository(
         settle([canceled], result);
       }
       await result;
+    },
+
+    async clearCurrent(tabId): Promise<void> {
+      await flush().catch(() => undefined);
+      await queueOperation(async () => {
+        const locatorKey = currentKeyFor(tabId);
+        const values = await area.get(locatorKey);
+        if (!(locatorKey in values)) return;
+        const sessionId = recoverSessionIdFromLocator(values[locatorKey]);
+        if (sessionId === null) {
+          await area.remove(locatorKey);
+          return;
+        }
+        pending.delete(keyFor(sessionId));
+        knownTabs.delete(sessionId);
+        await area.remove([keyFor(sessionId), locatorKey]);
+      });
     },
   };
 }

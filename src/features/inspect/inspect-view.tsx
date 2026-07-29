@@ -16,7 +16,7 @@ import { HeaderList } from './header-list';
 import { RequestDiffView } from './request-diff';
 import { TimingWaterfall } from './timing-waterfall';
 
-type InspectTab =
+export type InspectTab =
   'overview' | 'request' | 'response' | 'timing' | 'initiator' | 'evidence';
 
 function route(value: string): string {
@@ -36,17 +36,21 @@ function interactionText(group: InteractionGroup | null): string {
 }
 
 export function InspectView({
+  activeTab,
   comparison,
   compareWith,
   copy,
   group = null,
+  onTabChange,
   relatedRequests = [],
   request,
 }: Readonly<{
+  activeTab?: InspectTab;
   comparison?: RequestDiff;
   compareWith?: SanitizedCapturedRequest;
   copy?: CopyFunction;
   group?: InteractionGroup | null;
+  onTabChange?: (tab: InspectTab) => void;
   relatedRequests?: readonly SanitizedCapturedRequest[];
   request: SanitizedCapturedRequest;
 }>) {
@@ -231,8 +235,10 @@ export function InspectView({
         </p>
       )}
       <Tabs
+        {...(activeTab === undefined ? {} : { activeId: activeTab })}
         defaultActiveId="overview"
         label="Inspect request evidence"
+        {...(onTabChange === undefined ? {} : { onChange: onTabChange })}
         tabs={tabs}
         variant="evidence"
       />

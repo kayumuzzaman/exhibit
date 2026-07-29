@@ -26,6 +26,11 @@ function interactionLabel(group: InteractionGroup | null): string {
   return group.event.kind === 'submit' ? 'Form submission' : 'Page interaction';
 }
 
+function observationLead(group: InteractionGroup | null): string {
+  if (group?.kind !== 'event') return 'Payloadra observed';
+  return `After ${interactionLabel(group)}, Payloadra observed`;
+}
+
 function outcome(status: number): string {
   if (status === 0) return 'did not produce an HTTP response';
   if (status >= 200 && status < 300) return `succeeded with HTTP ${status}`;
@@ -53,9 +58,8 @@ export function OutcomeSummary({
     <header className="outcome-summary">
       <p className="eyebrow">What happened</p>
       <h2>
-        {interactionLabel(group)} triggered {kind} that{' '}
-        {outcome(request.response.status)} in {duration} ms; classification confidence
-        is {confidence}.
+        {observationLead(group)} {kind} that {outcome(request.response.status)} in{' '}
+        {duration} ms; classification confidence is {confidence}.
       </h2>
       <div className="outcome-summary__facts">
         <span className={`confidence confidence--${confidence}`}>

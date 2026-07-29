@@ -10,10 +10,15 @@ type ThemeName = 'dark' | 'default';
 function installChrome(
   inspected: unknown,
   themeName: ThemeName = 'default',
+  storedSettings?: unknown,
 ): {
   emitTheme(theme: ThemeName): void;
+  localSet: ReturnType<typeof vi.fn>;
+  localSetAccessLevel: ReturnType<typeof vi.fn>;
 } {
   let themeHandler: ((theme: ThemeName) => void) | undefined;
+  const localSet = vi.fn(async () => undefined);
+  const localSetAccessLevel = vi.fn(async () => undefined);
   vi.stubGlobal('chrome', {
     devtools: {
       inspectedWindow: {
@@ -43,12 +48,20 @@ function installChrome(
         set: async () => undefined,
         remove: async () => undefined,
       },
+      local: {
+        get: async (key: string) =>
+          storedSettings === undefined ? {} : { [key]: storedSettings },
+        set: localSet,
+        setAccessLevel: localSetAccessLevel,
+      },
     },
   });
   return {
     emitTheme(theme) {
       themeHandler?.(theme);
     },
+    localSet,
+    localSetAccessLevel,
   };
 }
 
@@ -100,6 +113,44 @@ describe('panel production entrypoint', () => {
 
     act(() => chromeApi.emitTheme('dark'));
     expect(shell).toHaveAttribute('data-devtools-theme', 'dark');
+  });
+
+  it('loads local privacy settings before render and persists theme changes', async () => {
+    const user = userEvent.setup();
+    const chromeApi = installChrome(
+      { href: 'https://app.test/orders', origin: 'https://app.test' },
+      'default',
+      {
+        version: 1,
+        theme: 'dark',
+        customFieldNames: ['Private Note'],
+      },
+    );
+
+    await bootEntrypoint();
+    const settingsButton = await screen.findByRole('button', {
+      name: 'Privacy settings',
+    });
+
+    const shell = document.querySelector('.app-shell');
+    expect(shell).toHaveAttribute('data-theme', 'dark');
+    await user.click(settingsButton);
+    expect(
+      screen.getByRole('textbox', { name: 'Additional sensitive field names' }),
+    ).toHaveValue('Private Note');
+    await user.keyboard('{Escape}');
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Theme' }), 'light');
+
+    expect(chromeApi.localSet).toHaveBeenCalledWith({
+      'payloadra:settings:v1': {
+        version: 1,
+        theme: 'light',
+        customFieldNames: ['Private Note'],
+      },
+    });
+    expect(chromeApi.localSetAccessLevel).toHaveBeenCalledWith({
+      accessLevel: 'TRUSTED_CONTEXTS',
+    });
   });
 });
 

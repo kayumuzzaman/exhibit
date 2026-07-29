@@ -110,10 +110,11 @@ describe('application error boundary', () => {
     );
 
     await user.click(screen.getByRole('button', { name: 'Export evidence' }));
-    await user.click(screen.getByRole('button', { name: 'Export sanitized file' }));
+    await user.click(screen.getByRole('button', { name: 'Export sanitized HAR' }));
 
     expect(exportEvidence).toHaveBeenCalledTimes(1);
-    expect(await screen.findByText('Sanitized evidence exported.')).toBeInTheDocument();
+    expect(exportEvidence).toHaveBeenCalledWith('har');
+    expect(await screen.findByText('Sanitized HAR exported.')).toBeInTheDocument();
   });
 
   it('tolerates a missing export handler', async () => {
@@ -157,8 +158,8 @@ describe('recovery dialog dismissal', () => {
     );
 
     await user.click(screen.getByRole('button', { name: 'Export evidence' }));
-    await user.click(screen.getByRole('button', { name: 'Export sanitized file' }));
-    expect(await screen.findByText('Sanitized evidence exported.')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Export sanitized HAR' }));
+    expect(await screen.findByText('Sanitized HAR exported.')).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Export evidence' }));
     await user.keyboard('{Escape}');
@@ -199,7 +200,7 @@ describe('recovery failure reporting', () => {
     );
 
     await user.click(screen.getByRole('button', { name: 'Export evidence' }));
-    await user.click(screen.getByRole('button', { name: 'Export sanitized file' }));
+    await user.click(screen.getByRole('button', { name: 'Export sanitized HAR' }));
     expect(
       await screen.findByText(/Export failed\. Evidence remains sanitized/u),
     ).toBeInTheDocument();

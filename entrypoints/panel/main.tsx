@@ -1,10 +1,19 @@
-import { DEFAULT_REDACTION_CONFIG, redactSession } from '../../src/domain/redaction';
+import { redactRecoveredSession, redactSession } from '../../src/domain/redaction';
 import { toSanitizedHar } from '../../src/domain/har-export';
 import { safeInspectedOrigin } from '../../src/domain/inspected-page';
-import { createSession } from '../../src/domain/session';
+import { toQaReport } from '../../src/domain/report-export';
+import { closeInterruptedSession, createSession } from '../../src/domain/session';
 import { createDevtoolsThemeSource } from '../../src/devtools/theme';
 import { createRecordingPipeline } from '../../src/features/capture/recording-pipeline';
 import { createSessionController } from '../../src/features/session/session-controller';
+import {
+  buildRedactionConfig,
+  createPayloadraSettingsRepository,
+  DEFAULT_PAYLOADRA_SETTINGS,
+  normalizeCustomFieldNames,
+  type PayloadraSettings,
+  type PayloadraSettingsService,
+} from '../../src/features/settings/payloadra-settings';
 import { chromeCaptureSource } from '../../src/infrastructure/chrome/devtools-capture-source';
 import {
   createInteractionSource,
@@ -17,6 +26,8 @@ import {
   type StorageArea,
 } from '../../src/infrastructure/storage/session-storage-repository';
 import { bootPanel } from '../../src/panel/boot';
+import { PRODUCTION_CAPTURE_OPTIONS } from '../../src/panel/capture-policy';
+import { recoveryForPage } from '../../src/panel/recovery';
 import type { SessionRepository } from '../../src/ports/session-repository';
 import '../../src/styles/tokens.css';
 import '../../src/styles/reset.css';
@@ -58,6 +69,15 @@ function extensionSessionArea(): StorageArea {
   };
 }
 
+function extensionLocalSettingsArea() {
+  return {
+    get: (key: string) => chrome.storage.local.get(key),
+    set: (items: Record<string, unknown>) => chrome.storage.local.set(items),
+    setAccessLevel: (options: { accessLevel: 'TRUSTED_CONTEXTS' }) =>
+      chrome.storage.local.setAccessLevel(options),
+  };
+}
+
 function systemThemeFallback(): 'dark' | 'light' {
   return window.matchMedia?.('(prefers-color-scheme: dark)').matches === true
     ? 'dark'
@@ -72,19 +92,42 @@ async function startPanel(): Promise<void> {
   const inspectedTabId = chrome.devtools.inspectedWindow.tabId;
   const tabId = String(inspectedTabId);
   const page = await inspectedPage();
+  const settingsRepository = createPayloadraSettingsRepository(
+    extensionLocalSettingsArea(),
+  );
+  await settingsRepository.restrictToTrustedContexts().catch(() => undefined);
+  let currentSettings = await settingsRepository
+    .load()
+    .catch(() => DEFAULT_PAYLOADRA_SETTINGS);
+  const initialRedactionConfig = buildRedactionConfig(currentSettings);
   const ephemeral: SessionRepository =
     createSessionStorageRepository(extensionSessionArea());
   const persistent: SessionRepository = createIndexedDbSessionRepository(indexedDB);
   const recovered =
     (await persistent.loadCurrent(tabId).catch(() => null)) ??
     (await ephemeral.loadCurrent(tabId).catch(() => null));
+  const matchingRecovery = recoveryForPage(recovered, tabId, page.origin);
+  const corruptRecovery =
+    matchingRecovery?.warnings.some(({ code }) => code === 'corrupt-session') === true;
   const initialSession =
-    recovered !== null && recovered.origin === page.origin
-      ? recovered
-      : redactSession(
+    matchingRecovery === null
+      ? redactSession(
           createSession(tabId, page.origin, Date.now()),
-          DEFAULT_REDACTION_CONFIG,
+          initialRedactionConfig,
+        )
+      : closeInterruptedSession(
+          redactRecoveredSession(matchingRecovery, initialRedactionConfig),
+          Date.now(),
         );
+  if (
+    matchingRecovery !== null &&
+    initialSession !== matchingRecovery &&
+    !corruptRecovery
+  ) {
+    const repository =
+      initialSession.retention === 'persistent' ? persistent : ephemeral;
+    await Promise.allSettled([repository.save(initialSession), repository.flush()]);
+  }
   const capture = chromeCaptureSource({
     network: chrome.devtools.network,
     runtime: chrome.runtime,
@@ -101,6 +144,7 @@ async function startPanel(): Promise<void> {
       async start(startedAt) {
         const current = await inspectedPage();
         await pipeline?.start(startedAt, {
+          capture: PRODUCTION_CAPTURE_OPTIONS,
           interaction: { tabId: inspectedTabId, url: current.href },
         });
       },
@@ -109,7 +153,65 @@ async function startPanel(): Promise<void> {
       },
     },
   });
-  pipeline = createRecordingPipeline({ capture, controller, interactions });
+  pipeline = createRecordingPipeline({
+    capture,
+    controller,
+    interactions,
+    redactionConfig: initialRedactionConfig,
+  });
+  let settingsOperation = Promise.resolve();
+  function updateSettings(
+    update: (settings: PayloadraSettings) => PayloadraSettings,
+    apply?: (settings: PayloadraSettings) => void,
+  ): Promise<PayloadraSettings> {
+    const result = settingsOperation.then(async () => {
+      const saved = await settingsRepository.save(update(currentSettings));
+      apply?.(saved);
+      currentSettings = saved;
+      return saved;
+    });
+    settingsOperation = result.then(
+      () => undefined,
+      () => undefined,
+    );
+    return result;
+  }
+  const settingsService: PayloadraSettingsService = {
+    initial: currentSettings,
+    saveCustomFieldNames(customFieldNames) {
+      const snapshot = controller.getSnapshot();
+      if (
+        snapshot.phase !== 'stopped' ||
+        snapshot.requests.length > 0 ||
+        snapshot.interactions.length > 0
+      ) {
+        return Promise.reject(
+          new Error('Clear captured evidence before changing redaction settings.'),
+        );
+      }
+      return updateSettings(
+        (settings) => ({
+          ...settings,
+          customFieldNames: normalizeCustomFieldNames(customFieldNames),
+        }),
+        (settings) => pipeline?.setRedactionConfig(buildRedactionConfig(settings)),
+      );
+    },
+    saveTheme(theme) {
+      return updateSettings((settings) => ({ ...settings, theme }));
+    },
+  };
+
+  window.addEventListener(
+    'pagehide',
+    () => {
+      // Start pending writes while the document is still alive. Browsers do not
+      // guarantee that unload work finishes, so normal UI/test flows also await
+      // repository flushes explicitly.
+      void Promise.allSettled([ephemeral.flush(), persistent.flush()]);
+    },
+    { once: true },
+  );
 
   document.addEventListener('visibilitychange', () => {
     capture.visibility(document.visibilityState === 'visible');
@@ -119,14 +221,17 @@ async function startPanel(): Promise<void> {
     controller,
     document,
     undefined,
-    async () => {
-      downloadText(
-        `payloadra-${controller.getSnapshot().id.replace(/[^a-z0-9-]/giu, '-')}.har`,
-        'application/json',
-        toSanitizedHar(controller.getSnapshot()),
-      );
+    async (format) => {
+      const snapshot = controller.getSnapshot();
+      const baseName = `payloadra-${snapshot.id.replace(/[^a-z0-9-]/giu, '-')}`;
+      if (format === 'markdown') {
+        downloadText(`${baseName}.md`, 'text/markdown', toQaReport(snapshot));
+        return;
+      }
+      downloadText(`${baseName}.har`, 'application/json', toSanitizedHar(snapshot));
     },
     devtoolsTheme(),
+    settingsService,
   );
 }
 

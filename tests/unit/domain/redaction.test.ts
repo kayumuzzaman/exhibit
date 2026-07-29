@@ -137,6 +137,31 @@ describe('redactRequest', () => {
     expect(result.requests[1]?.evidence.redirectParentId).toBe(result.requests[0]?.id);
   });
 
+  it('recomputes analysis for recovered requests instead of leaving them unknown', () => {
+    const session: RecordingSession = {
+      ...createSession('tab-1', 'https://app.test', 1_000),
+      requests: [
+        {
+          ...requestFixture(),
+          classification: {
+            kind: 'stored-and-untrusted',
+            confidence: 'confirmed',
+            evidence: [],
+          },
+        } as CapturedRequest,
+      ],
+    };
+
+    const result = redactRecoveredSession(session, DEFAULT_REDACTION_CONFIG);
+    const recovered = result.requests[0];
+
+    // Stored analysis is never trusted, but discarding it outright leaves the
+    // ledger's API-first default with nothing to match.
+    expect(recovered?.classification?.kind).not.toBe('stored-and-untrusted');
+    expect(recovered?.classification?.kind).toBe('api');
+    expect(recovered?.explanation?.summary).toBeTruthy();
+  });
+
   it('reissues a non-opaque identifier before granting sanitized type', () => {
     const result = redactRequest(
       requestFixture({

@@ -14,6 +14,7 @@ import {
   type SessionLifecycle,
 } from '../../../src/features/session/session-controller';
 import { reduceSession } from '../../../src/features/session/session-reducer';
+import { createCorruptSession } from '../../../src/infrastructure/storage/schema';
 import type { SessionRepository } from '../../../src/ports/session-repository';
 import { sanitizedRequestWith as requestWith } from '../../helpers/request-factory';
 
@@ -50,6 +51,8 @@ class MemoryRepository implements SessionRepository {
     }
     this.value = structuredClone(session);
   }
+
+  async flush(): Promise<void> {}
 
   async clear(): Promise<void> {
     this.calls.push(`${this.name}:clear`);
@@ -115,6 +118,31 @@ function controllerFixture(
 }
 
 describe('session controller lifecycle', () => {
+  it('keeps corrupt raw evidence read-only until a successful Clear', async () => {
+    const ephemeral = new MemoryRepository('ephemeral');
+    const persistent = new MemoryRepository('persistent');
+    const controller = createSessionController({
+      initialSession: createCorruptSession('tab-5:corrupt', 'tab-5'),
+      repositories: { ephemeral, persistent },
+      clock: () => 2_000,
+    });
+
+    await controller.start();
+    await controller.accept(requestWith({ id: 'memory-only' }));
+    await controller.setRetention('persistent');
+
+    expect(ephemeral.calls).toEqual([]);
+    expect(persistent.calls).toEqual([]);
+    expect(controller.getSnapshot().retention).toBe('ephemeral');
+
+    await controller.clear();
+    expect(ephemeral.calls).toEqual(['ephemeral:clear']);
+    expect(persistent.calls).toEqual(['persistent:clear']);
+
+    await controller.start();
+    expect(ephemeral.calls).toContain('ephemeral:save:ephemeral');
+  });
+
   it('stores distinct fixed capture issues without caller text or raw identifiers', () => {
     const { controller } = controllerFixture();
 

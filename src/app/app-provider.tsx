@@ -7,10 +7,11 @@ import {
 
 import type { SanitizedRecordingSession } from '../domain/sanitized';
 import type { SessionController } from '../features/session/session-controller';
+import type { EvidenceExportFormat } from '../components/export-dialog';
 
 type AppServices = Readonly<{
   controller: SessionController;
-  exportEvidence(): Promise<void>;
+  exportEvidence(format: EvidenceExportFormat): Promise<void>;
 }>;
 
 const AppContext = createContext<AppServices | null>(null);
@@ -22,7 +23,7 @@ export function AppProvider({
 }: PropsWithChildren<
   Readonly<{
     controller: SessionController;
-    exportEvidence?: () => Promise<void>;
+    exportEvidence?: (format: EvidenceExportFormat) => Promise<void>;
   }>
 >) {
   return <AppContext value={{ controller, exportEvidence }}>{children}</AppContext>;
@@ -49,6 +50,6 @@ export function useSession(): SanitizedRecordingSession {
   );
 }
 
-export function useExportEvidence(): () => Promise<void> {
+export function useExportEvidence(): (format: EvidenceExportFormat) => Promise<void> {
   return useServices().exportEvidence;
 }

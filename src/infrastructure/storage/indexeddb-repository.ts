@@ -1,10 +1,12 @@
 import type { SanitizedRecordingSession } from '../../domain/sanitized';
 import type { SessionRepository } from '../../ports/session-repository';
 import {
+  createCorruptSession,
   decodeSessionLocator,
   decodeStoredSession,
   encodeSessionLocator,
   encodeStoredSession,
+  recoverSessionIdFromLocator,
 } from './schema';
 
 export const PAYLOADRA_DATABASE = 'payloadra';
@@ -138,26 +140,28 @@ export function createIndexedDbSessionRepository(
     );
   }
 
-  function flush(): Promise<unknown> {
+  async function flush(): Promise<void> {
     if (timer !== null) {
       clearTimeout(timer);
       timer = null;
     }
     if (pending.size === 0) {
-      return operation;
+      await operation;
+      return;
     }
     const captured = [...pending.values()];
     pending.clear();
-    let last: Promise<unknown> = operation;
+    const results: Promise<void>[] = [];
     for (const write of captured) {
       const result = queueOperation(() => saveAtomic(write));
       settle(write, result);
-      last = result.then(
-        () => undefined,
-        () => undefined,
-      );
+      results.push(result);
     }
-    return last;
+    const settled = await Promise.allSettled(results);
+    const failed = settled.find(
+      (result): result is PromiseRejectedResult => result.status === 'rejected',
+    );
+    if (failed !== undefined) throw failed.reason;
   }
 
   async function saveAtomic(write: PendingWrite): Promise<void> {
@@ -216,8 +220,17 @@ export function createIndexedDbSessionRepository(
             .objectStore(SETTINGS_STORE)
             .get(currentKey(tabId));
           locatorRequest.onsuccess = () => {
+            if (locatorRequest.result === undefined) {
+              result = null;
+              return;
+            }
             const locator = decodeSessionLocator(locatorRequest.result, tabId);
             if (locator === null) {
+              const recoveredId =
+                recoverSessionIdFromLocator(locatorRequest.result) ??
+                `corrupt-current:${tabId}`;
+              knownTabs.set(recoveredId, tabId);
+              result = createCorruptSession(recoveredId, tabId);
               return;
             }
             const sessionRequest = transaction
@@ -231,6 +244,9 @@ export function createIndexedDbSessionRepository(
                   locator.sessionId,
                   tabId,
                 );
+              } else {
+                knownTabs.set(locator.sessionId, tabId);
+                result = createCorruptSession(locator.sessionId, tabId);
               }
             };
           };
@@ -258,10 +274,14 @@ export function createIndexedDbSessionRepository(
         }
         if (timer === null) {
           timer = setTimeout(() => {
-            void flush();
+            void flush().catch(() => undefined);
           }, debounceMs);
         }
       });
+    },
+
+    async flush(): Promise<void> {
+      await flush();
     },
 
     async clear(sessionId): Promise<void> {
@@ -313,6 +333,35 @@ export function createIndexedDbSessionRepository(
         settle(canceled, result);
       }
       await result;
+    },
+
+    async clearCurrent(tabId): Promise<void> {
+      await flush().catch(() => undefined);
+      await queueOperation(async () => {
+        const opened = await database;
+        await new Promise<void>((resolve, reject) => {
+          const transaction = opened.transaction(
+            [SESSION_STORE, SETTINGS_STORE],
+            'readwrite',
+          );
+          const sessions = transaction.objectStore(SESSION_STORE);
+          const settings = transaction.objectStore(SETTINGS_STORE);
+          const locatorRequest = settings.get(currentKey(tabId));
+          locatorRequest.onsuccess = () => {
+            const sessionId = recoverSessionIdFromLocator(locatorRequest.result);
+            if (sessionId !== null) {
+              pending.delete(sessionId);
+              knownTabs.delete(sessionId);
+              sessions.delete(sessionId);
+            }
+            settings.delete(currentKey(tabId));
+          };
+          transaction.oncomplete = () => resolve();
+          transaction.onerror = () => reject(transaction.error);
+          transaction.onabort = () =>
+            reject(transaction.error ?? new Error('IndexedDB transaction aborted.'));
+        });
+      });
     },
   };
 }

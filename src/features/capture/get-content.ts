@@ -48,7 +48,7 @@ export function getRequestContent(
 
     try {
       request.getContent((content, encoding) => {
-        let hasRuntimeError = false;
+        let hasRuntimeError: boolean;
         try {
           hasRuntimeError = options.runtime?.lastError !== undefined;
         } catch {

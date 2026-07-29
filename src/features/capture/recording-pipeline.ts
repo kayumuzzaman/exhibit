@@ -80,6 +80,7 @@ export type RecordingStartOptions = Readonly<{
 }>;
 
 export interface RecordingPipeline {
+  setRedactionConfig(config: RedactionConfig): void;
   start(startedAt: number, options?: RecordingStartOptions): Promise<void>;
   stop(stoppedAt: number): Promise<void>;
   dispose(stoppedAt?: number): Promise<void>;
@@ -241,7 +242,11 @@ export function createRecordingPipelineStages(
 export function createRecordingPipeline(
   dependencies: RecordingPipelineDependencies,
 ): RecordingPipeline {
-  const stages = createRecordingPipelineStages(dependencies);
+  let redactionConfig = dependencies.redactionConfig ?? DEFAULT_REDACTION_CONFIG;
+  let stages = createRecordingPipelineStages({
+    ...dependencies,
+    redactionConfig,
+  });
   const idFactory =
     dependencies.idFactory ?? defaultIdFactory(dependencies.clock ?? Date.now);
   let active = false;
@@ -345,13 +350,12 @@ export function createRecordingPipeline(
     expectedGeneration: number,
   ): void {
     releaseInteractionSubscription();
-    const config = dependencies.redactionConfig ?? DEFAULT_REDACTION_CONFIG;
     try {
       unsubscribeInteractions = interactions.subscribe((event) => {
         if (!active || generation !== expectedGeneration) return;
         try {
           dependencies.controller.acceptInteraction(
-            redactInteractionEvent(event, config),
+            redactInteractionEvent(event, redactionConfig),
           );
         } catch {
           warn(fixedIssue('redaction-failed'));
@@ -396,6 +400,17 @@ export function createRecordingPipeline(
   }
 
   return {
+    setRedactionConfig(config): void {
+      if (active) {
+        throw new Error('Redaction settings cannot change while recording.');
+      }
+      redactionConfig = config;
+      stages = createRecordingPipelineStages({
+        ...dependencies,
+        redactionConfig,
+      });
+    },
+
     async start(startedAt, options = {}): Promise<void> {
       if (active) return;
       accepted.length = 0;

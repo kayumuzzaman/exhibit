@@ -2,6 +2,7 @@ import { Component, useState, type ReactNode } from 'react';
 
 import { Button } from '../components/button';
 import { Dialog } from '../components/dialog';
+import { ExportDialog, type EvidenceExportFormat } from '../components/export-dialog';
 import { Icon } from '../components/icon';
 import type { SessionController } from '../features/session/session-controller';
 
@@ -10,9 +11,10 @@ function RecoveryWorkspace({
   exportEvidence,
 }: Readonly<{
   controller: SessionController;
-  exportEvidence: () => Promise<void>;
+  exportEvidence: (format: EvidenceExportFormat) => Promise<void>;
 }>) {
   const [dialog, setDialog] = useState<'clear' | 'export' | null>(null);
+  const [exportFormat, setExportFormat] = useState<EvidenceExportFormat>('har');
   const [announcement, setAnnouncement] = useState('');
   const [failure, setFailure] = useState('');
 
@@ -34,9 +36,13 @@ function RecoveryWorkspace({
   async function exportSafe(): Promise<void> {
     setFailure('');
     try {
-      await exportEvidence();
+      await exportEvidence(exportFormat);
       setDialog(null);
-      setAnnouncement('Sanitized evidence exported.');
+      setAnnouncement(
+        exportFormat === 'har'
+          ? 'Sanitized HAR exported.'
+          : 'Markdown QA report exported.',
+      );
     } catch {
       setFailure('Export failed. Evidence remains sanitized and available.');
       setAnnouncement('Export failed.');
@@ -111,34 +117,18 @@ function RecoveryWorkspace({
         </Dialog>
       ) : null}
       {dialog === 'export' ? (
-        <Dialog
-          description="Authorization and cookies are always removed from exported evidence."
+        <ExportDialog
+          busy={false}
+          error={failure}
+          format={exportFormat}
           onClose={() => {
             setFailure('');
             setDialog(null);
           }}
-          title="Export sanitized evidence"
-        >
-          {failure === '' ? null : (
-            <p className="dialog__error" role="alert">
-              {failure}
-            </p>
-          )}
-          <div className="dialog__actions">
-            <Button
-              data-initial-focus=""
-              onClick={() => {
-                setFailure('');
-                setDialog(null);
-              }}
-            >
-              Cancel export
-            </Button>
-            <Button onClick={() => void exportSafe()} tone="primary">
-              Export sanitized file
-            </Button>
-          </div>
-        </Dialog>
+          onExport={() => void exportSafe()}
+          onFormatChange={setExportFormat}
+          requestCount={controller.getSnapshot().requests.length}
+        />
       ) : null}
     </main>
   );
@@ -147,7 +137,7 @@ function RecoveryWorkspace({
 type AppErrorBoundaryProps = Readonly<{
   children: ReactNode;
   controller: SessionController;
-  exportEvidence?: () => Promise<void>;
+  exportEvidence?: (format: EvidenceExportFormat) => Promise<void>;
 }>;
 
 type AppErrorBoundaryState = Readonly<{ failed: boolean }>;

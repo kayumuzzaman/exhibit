@@ -18,6 +18,18 @@ import { SessionRail } from '../../../src/features/session/session-rail';
 import { sanitizedRequestWith } from '../../helpers/request-factory';
 
 const NO_FILTERS = { cacheHits: false, failures: false, slowCalls: false } as const;
+const NO_FACETS = {
+  cache: '',
+  domain: '',
+  method: '',
+  outcome: '',
+  protocol: '',
+} as const;
+const NO_FACET_OPTIONS = {
+  domains: [],
+  methods: [],
+  protocols: [],
+} as const;
 
 function request(
   id: string,
@@ -40,6 +52,7 @@ describe('session rail', () => {
   it('toggles filters and closes the drawer through its own controls', async () => {
     const user = userEvent.setup();
     const onApiOnlyChange = vi.fn();
+    const onFacetFilterChange = vi.fn();
     const onQuickFilterChange = vi.fn();
     const onResetFilters = vi.fn();
     const onClose = vi.fn();
@@ -51,11 +64,20 @@ describe('session rail', () => {
     render(
       <SessionRail
         apiOnly={false}
+        facetFilters={NO_FACETS}
+        facetOptions={{ ...NO_FACET_OPTIONS, methods: ['POST'] }}
+        groups={[]}
         onApiOnlyChange={onApiOnlyChange}
         onClose={onClose}
+        onFacetFilterChange={onFacetFilterChange}
+        onGroupChange={vi.fn()}
         onQuickFilterChange={onQuickFilterChange}
         onResetFilters={onResetFilters}
+        onRetentionChange={vi.fn()}
         quickFilters={NO_FILTERS}
+        retentionBusy={false}
+        retentionError=""
+        selectedGroupId={null}
         session={session}
       />,
     );
@@ -65,6 +87,10 @@ describe('session rail', () => {
 
     await user.click(screen.getByRole('button', { name: 'Failures' }));
     expect(onQuickFilterChange).toHaveBeenCalledWith('failures', true);
+
+    await user.click(screen.getByText('Evidence facets'));
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Method' }), 'POST');
+    expect(onFacetFilterChange).toHaveBeenCalledWith('method', 'POST');
 
     await user.click(screen.getByRole('button', { name: 'Reset filters' }));
     expect(onResetFilters).toHaveBeenCalledTimes(1);
@@ -457,15 +483,27 @@ describe('remaining explain and rail branches', () => {
     render(
       <SessionRail
         apiOnly
+        facetFilters={NO_FACETS}
+        facetOptions={NO_FACET_OPTIONS}
+        groups={[]}
         onApiOnlyChange={vi.fn()}
+        onFacetFilterChange={vi.fn()}
+        onGroupChange={vi.fn()}
         onQuickFilterChange={vi.fn()}
         onResetFilters={vi.fn()}
+        onRetentionChange={vi.fn()}
         quickFilters={NO_FILTERS}
+        retentionBusy={false}
+        retentionError=""
+        selectedGroupId={null}
         session={session}
       />,
     );
 
     expect(screen.getByText('Local')).toBeVisible();
+    expect(screen.getByRole('combobox', { name: 'Evidence retention' })).toHaveValue(
+      'persistent',
+    );
   });
 });
 

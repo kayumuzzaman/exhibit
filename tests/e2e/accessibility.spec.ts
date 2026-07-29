@@ -1,5 +1,5 @@
 import { fileURLToPath } from 'node:url';
-import type { Page } from 'playwright/test';
+import type { Locator, Page } from 'playwright/test';
 
 import { expect, test } from './extension.fixture';
 import type { PayloadraDriver } from './devtools-driver';
@@ -48,6 +48,21 @@ async function populate(payloadra: PayloadraDriver): Promise<void> {
   await payloadra.trigger('slow');
 }
 
+async function expectTouchTargets(locator: Locator, label: string): Promise<void> {
+  const count = await locator.count();
+  expect(count, `${label} should expose at least one target`).toBeGreaterThan(0);
+  for (let index = 0; index < count; index += 1) {
+    const target = locator.nth(index);
+    await target.scrollIntoViewIfNeeded();
+    const box = await target.boundingBox();
+    expect(box, `${label} target ${index + 1} should be rendered`).not.toBeNull();
+    expect(box!.width, `${label} target ${index + 1} width`).toBeGreaterThanOrEqual(44);
+    expect(box!.height, `${label} target ${index + 1} height`).toBeGreaterThanOrEqual(
+      44,
+    );
+  }
+}
+
 test.describe('accessibility', () => {
   test('passes axe in the empty, recording, explain, and inspect states', async ({
     payloadra,
@@ -79,6 +94,59 @@ test.describe('accessibility', () => {
       payloadra.page.getByRole('dialog', { name: 'Session filters' }),
     ).toBeVisible();
     await scan(payloadra.page, 'session filters drawer');
+
+    const closeRail = payloadra.page.getByRole('button', {
+      name: 'Close session rail',
+    });
+    const closeRailBox = await closeRail.boundingBox();
+    expect(closeRailBox).not.toBeNull();
+    expect(closeRailBox!.width).toBeGreaterThanOrEqual(44);
+    expect(closeRailBox!.height).toBeGreaterThanOrEqual(44);
+    await closeRail.click();
+
+    await payloadra.page.getByRole('button', { name: 'Export evidence' }).click();
+    const exportActions = payloadra.page.locator('.dialog__actions .button');
+    await expect(exportActions).toHaveCount(2);
+    for (const action of await exportActions.all()) {
+      const box = await action.boundingBox();
+      expect(box).not.toBeNull();
+      expect(box!.width).toBeGreaterThanOrEqual(44);
+      expect(box!.height).toBeGreaterThanOrEqual(44);
+    }
+  });
+
+  test('keeps phone controls and evidence rows at least 44 CSS pixels', async ({
+    payloadra,
+  }) => {
+    await populate(payloadra);
+    await payloadra.page.setViewportSize({ width: 390, height: 844 });
+
+    await expectTouchTargets(
+      payloadra.page.locator(
+        '.command-bar .button, .command-bar .theme-control, .ledger-search input, .ledger-search .button',
+      ),
+      'phone command and search',
+    );
+    await expectTouchTargets(payloadra.requestRows(), 'phone request row');
+
+    await payloadra.page.getByRole('button', { name: 'Open session rail' }).click();
+    const drawer = payloadra.page.getByRole('dialog', { name: 'Session filters' });
+    await drawer.locator('.facet-filters summary').click();
+    await expectTouchTargets(
+      drawer.locator(
+        '.session-rail__heading .button, .retention-control select, .rail-check, .quick-filter-chip, .facet-filters summary, .facet-filter-grid select, .rail-reset, .interaction-group',
+      ),
+      'phone filter drawer',
+    );
+
+    await drawer.getByRole('button', { name: 'Close session rail' }).click();
+    await payloadra.openRequest('/api/profile');
+    await payloadra.openInspect();
+    await payloadra.openEvidenceTab('Response');
+    await expectTouchTargets(
+      payloadra.detailWorkspace().locator('.tabs__tab:visible, .copy-button:visible'),
+      'phone evidence controls',
+    );
   });
 
   test('restores focus to the trigger after a dialog closes', async ({ payloadra }) => {

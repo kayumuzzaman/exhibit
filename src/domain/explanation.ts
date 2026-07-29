@@ -125,7 +125,9 @@ export function explainRequest(
   const trigger = initiator || 'The browser';
   const result = outcome(request.response.status);
   const summary = [
-    `${trigger} triggered ${protocol.article} ${protocol.label} request.`,
+    initiator === undefined || initiator.length === 0
+      ? `The browser recorded ${protocol.article} ${protocol.label} request.`
+      : `${trigger} was recorded as the initiator for ${protocol.article} ${protocol.label} request.`,
     outcomeSentence(request.response.status, request.timing.totalMs, result),
   ];
   const guidance: string[] = [];

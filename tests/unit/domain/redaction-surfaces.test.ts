@@ -13,6 +13,7 @@ import type { BodyContent } from '../../../src/domain/model';
 const STRIPE_KEY = 'sk_live_51H8xAbCdEfGhIjKlMnOp';
 const JWT = 'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0In0.abcdefghijklmnop';
 const BASIC = 'dXNlcjpzM2NyZXRQYXNzd29yZA==';
+const SHORT_BASIC = 'dTpw';
 const AWS_SECRET = 'wJalrXUtnFEMIK7MDENGbPxRfiCY';
 
 function body(mimeType: string | undefined, text: string): BodyContent {
@@ -83,6 +84,11 @@ const CASES: ReadonlyArray<readonly [string, Record<string, unknown>, string]> =
     'an HTTP Basic value under a non-standard header',
     { requestHeaders: [{ name: 'X-Proxy-Auth', value: `Basic ${BASIC}` }] },
     BASIC,
+  ],
+  [
+    'a short HTTP Basic value under a non-sensitive custom header',
+    { requestHeaders: [{ name: 'X-Upstream', value: `Basic ${SHORT_BASIC}` }] },
+    SHORT_BASIC,
   ],
   [
     'an Authentication header',

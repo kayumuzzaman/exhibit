@@ -34,7 +34,10 @@ export const MAX_STORAGE_BYTES = 10 * 1024 * 1024;
 export const MAX_STORED_REQUESTS = 10_000;
 const MAX_INTERACTIONS = 10_000;
 const MAX_VALIDATION_DEPTH = 32;
-const MAX_VALIDATION_NODES = 100_000;
+// Dense, valid 500-request sessions exceed the old 100k-node guard. Keep enough
+// headroom for them without traversing millions of attacker-controlled values
+// before the serialized-byte check runs.
+const MAX_VALIDATION_NODES = 500_000;
 const MAX_OBJECT_KEYS = 64;
 const MAX_STRING_LENGTH = 1024 * 1024;
 const MAX_DESCRIPTOR_CODE_POINTS = 80;
@@ -714,4 +717,25 @@ export function decodeSessionLocator(
     return null;
   }
   return cloned.value as StoredSessionLocator;
+}
+
+/**
+ * Recovery-only locator read. It accepts only an own data string and never
+ * invokes accessors. This lets explicit Clear remove a raw record referenced by
+ * a malformed envelope without trusting the envelope for normal hydration.
+ */
+export function recoverSessionIdFromLocator(value: unknown): string | null {
+  if (value === null || typeof value !== 'object') return null;
+  try {
+    const descriptor = Object.getOwnPropertyDescriptor(value, 'sessionId');
+    const sessionId =
+      descriptor !== undefined && 'value' in descriptor ? descriptor.value : undefined;
+    return typeof sessionId === 'string' &&
+      sessionId.length > 0 &&
+      sessionId.length <= MAX_STRING_LENGTH
+      ? sessionId
+      : null;
+  } catch {
+    return null;
+  }
 }
