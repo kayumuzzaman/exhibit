@@ -28,6 +28,13 @@ The strongest potential differentiator is **time-bounded interaction
 correlation plus conservative Next.js/RSC evidence**. Capture, filtering,
 timing, cURL, and sanitized HAR are table stakes.
 
+The comparison that actually decides adoption is against Chrome's own Network
+panel, because it is already installed and already open on the same tab. That
+one is worked through in detail under
+[Payloadra versus the Network panel](#payloadra-versus-the-network-panel-in-detail):
+same capture, different job. The Network panel is better for debugging;
+Payloadra is better for evidence that leaves the browser.
+
 ## Comparison matrix
 
 | Capability                                         | Payloadra        | Chrome DevTools Network             | Requestly                                         | Jam                                       | HTTP Toolkit                     | Proxyman                                    |
@@ -78,6 +85,83 @@ Payloadra wins:
 
 Inference: reviewed Chrome documentation does not describe an equivalent
 evidence-backed plain-language or interaction-correlation workflow.
+
+#### Payloadra versus the Network panel in detail
+
+The Network panel is the only competitor that is already installed, already
+trusted, and already open on the same tab. It is therefore the comparison that
+decides whether Payloadra is worth a second panel at all. Payloadra numbers below
+are read from this repository; Network panel behaviour is from the reference
+above, re-checked on 2026-07-29.
+
+##### Where they are the same
+
+Both record only while they are watching, both are scoped to one inspected tab,
+and neither sees server-to-server traffic. Both list requests with method, route,
+status, and duration; both filter and search; both show initiator and a timing
+breakdown; both expose request and response headers and bodies; both copy a
+request as cURL; both export HAR 1.2. Both redact `Authorization` and cookie
+headers from that HAR by default. Neither requires a proxy, a certificate, an
+SDK, or a change to the site.
+
+For the plain question "what did this page just send, and what came back", they
+answer at the same level. Payloadra is not competing on capture.
+
+##### Where they differ
+
+| Dimension              | Chrome DevTools Network                                               | Payloadra                                                                                                              |
+| ---------------------- | --------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| Redaction boundary     | Sanitizes the HAR export; the panel itself shows real values          | Redacts before storage, display, clipboard, cURL, HAR, and report                                                      |
+| Unsanitized escape     | A setting re-enables full headers in the export                       | None; there is no switch that exports raw credentials                                                                  |
+| Organizing model       | A chronological request table                                         | Interaction groups — requests attributed to the click, submit, or navigation before them                               |
+| Attribution basis      | Initiator chain from the engine                                       | A 5-second temporal window, labelled trusted, untrusted hint, or unattributed                                          |
+| Interpretation         | Raw protocol facts; the reader supplies meaning                       | One-sentence explanation per request with stated confidence and linked evidence                                        |
+| Protocol semantics     | Generic HTTP, plus fetch/XHR typing                                   | Classifies `api`, `fetch-xhr`, `form`, `graphql`, `next-api`, `next-server-action`, `rsc`, `ssr`, `static`, `document` |
+| React Flight / RSC     | Raw payload bytes                                                     | Partial Flight decoding with an explicit decode reason and a raw fallback                                              |
+| Body views             | Preview, Response, and framework-agnostic formatting                  | Structured, Text, and Raw protocol modes                                                                               |
+| Traffic control        | Throttling, request blocking, local overrides for content and headers | None — observation only, by design                                                                                     |
+| Copy formats           | cURL, PowerShell, fetch, Node.js fetch                                | Safe cURL only                                                                                                         |
+| HAR import             | Yes                                                                   | No                                                                                                                     |
+| Handoff artifact       | A HAR file                                                            | A HAR file or a deterministic Markdown QA report                                                                       |
+| Retention              | Session-bound to the DevTools instance                                | Explicit choice: browser-session memory, or local until Clear                                                          |
+| Recording caps         | None documented                                                       | 500 requests, 8 MiB per session, 512 KiB per body                                                                      |
+| Repeat-call comparison | Manual, by reading two rows                                           | Built in against the previous capture of the same call                                                                 |
+| Availability           | Native in every Chrome                                                | A separate install, unreleased                                                                                         |
+
+##### Which is best for what
+
+**Use the Network panel when the job is to debug.** It is better for anything
+requiring control or breadth: reproducing a failure under throttling, blocking a
+request to test a fallback, overriding a response to isolate a bug, replaying
+against a modified payload, importing a HAR somebody sent you, or working past
+Payloadra's caps on a heavy page. It is also the right tool when you need the
+literal unmodified header values, because Payloadra will not show them to you.
+
+**Use Payloadra when the job is to hand evidence to someone else.** Its
+advantage is not seeing more, it is what survives leaving the browser. Three
+situations where it is the better instrument:
+
+1. **A QA or support person is producing a report for an engineer.** "The Save
+   button triggered three calls, this one returned 500" is a Payloadra output;
+   assembling it from the Network panel means reading rows and writing prose.
+2. **The evidence leaves the machine.** Attaching a Network HAR sanitizes three
+   header names. Payloadra applies redaction to query tokens, credential-shaped
+   body fields, and known token formats as well, before the data reaches storage
+   or the screen — so a screenshot of the panel is also safe to attach.
+3. **The application is Next.js.** Server Actions, RSC navigations, and Flight
+   payloads read as opaque POSTs and byte streams in the Network panel.
+
+##### The honest limitation
+
+Payloadra is a **narrower** tool that is **safer to quote**. It is not a Network
+panel replacement and should never be positioned as one — a developer debugging
+their own application on their own machine is usually better served by the
+built-in panel. Payloadra earns its place when the request evidence has to
+travel: to a ticket, to a colleague, to a customer thread. That is a real job,
+but it is a smaller job than the Network panel's.
+
+No timed head-to-head study exists. Everything above is a capability comparison,
+not a measured one; see **Evidence still needed** at the end of this document.
 
 ### Requestly
 
