@@ -36,9 +36,14 @@ const MAX_FIELD_NAME_CODE_POINTS = 80;
 const MAX_TOTAL_FIELD_NAME_CODE_POINTS = 4_096;
 const THEMES = new Set<ThemeMode>(['dark', 'devtools', 'light', 'system']);
 
+/**
+ * The panel is hosted inside DevTools, so it follows the DevTools theme by
+ * default. Following the operating system instead lets the panel arrive light
+ * inside a dark DevTools window, which reads as a rendering fault.
+ */
 export const DEFAULT_PAYLOADRA_SETTINGS: PayloadraSettings = Object.freeze({
   customFieldNames: Object.freeze([]),
-  theme: 'system',
+  theme: 'devtools',
 });
 
 function canonicalFieldName(value: string): string {

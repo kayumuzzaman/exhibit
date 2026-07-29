@@ -618,7 +618,12 @@ describe('PayloadraApp', () => {
 
     await user.click(railSeparator!);
     await user.keyboard('{ArrowRight}{End}');
-    expect(railSeparator).toHaveAttribute('aria-valuenow', '360');
+    // End travels to the rail's reported maximum, which the ledger's own width
+    // constrains, rather than to a fixed pixel value.
+    expect(railSeparator).toHaveAttribute(
+      'aria-valuenow',
+      railSeparator?.getAttribute('aria-valuemax') ?? '',
+    );
 
     fireEvent.pointerDown(railSeparator!, { clientX: 360 });
     fireEvent.pointerMove(window, { clientX: 10 });
@@ -716,7 +721,7 @@ describe('PayloadraApp', () => {
     }
 
     expect(stop).not.toHaveBeenCalled();
-    expect(theme).toHaveValue('system');
+    expect(theme).toHaveValue('devtools');
     expect(screen.getAllByRole('dialog')).toEqual([drawer]);
     expect(drawer).toHaveAttribute('aria-modal', 'true');
 
@@ -797,6 +802,63 @@ describe('PayloadraApp', () => {
     expect(screen.getByRole('button', { name: 'Failures' })).toHaveAttribute(
       'aria-pressed',
       'true',
+    );
+  });
+
+  it('shows the whole ledger at full width and sheds secondary columns as it narrows', () => {
+    const request = sanitizedRequestWith({
+      id: 'orders',
+      url: 'https://checkout.example/api/orders',
+      classification: { kind: 'api', confidence: 'confirmed', evidence: ['fetch'] },
+    });
+    const headers = () =>
+      screen.getAllByRole('columnheader').map((header) => header.textContent);
+
+    setViewport(1_440);
+    const { unmount } = render(
+      <PayloadraApp controller={controllerFake(sessionWith('recording', [request]))} />,
+    );
+
+    // The default ledger is wider than the table minimum, so nothing clips and
+    // no evidence hides behind a horizontal scrollbar.
+    expect(headers()).toEqual([
+      'Time',
+      'Method',
+      'Route',
+      'Kind',
+      'Status',
+      'Duration',
+      'Source',
+      'Evidence',
+    ]);
+    unmount();
+
+    setViewport(1_024);
+    const { unmount: unmountMedium } = render(
+      <PayloadraApp controller={controllerFake(sessionWith('recording', [request]))} />,
+    );
+
+    expect(headers()).toEqual(['Time', 'Method', 'Route', 'Status', 'Duration']);
+    unmountMedium();
+
+    setViewport(390);
+    render(
+      <PayloadraApp controller={controllerFake(sessionWith('recording', [request]))} />,
+    );
+
+    expect(headers()).toEqual(['Method', 'Route', 'Status']);
+  });
+
+  it('starts recording from the empty ledger instead of only naming the control', async () => {
+    setViewport(1_440);
+    const user = userEvent.setup();
+    const controller = controllerFake();
+    render(<PayloadraApp controller={controller} />);
+
+    await user.click(screen.getByRole('button', { name: 'Record this page' }));
+
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Stop recording' })).toBeVisible(),
     );
   });
 
@@ -1352,8 +1414,10 @@ describe('PayloadraApp approved v0.1 surfaces', () => {
     );
 
     expect(screen.queryAllByRole('row')).toHaveLength(0);
+    // With nothing in the ledger the detail pane stays quiet rather than
+    // competing with the ledger's own empty state.
     expect(screen.getByRole('region', { name: 'Request detail' })).toHaveTextContent(
-      'No evidence selected',
+      'Request detail opens here once the ledger has evidence.',
     );
   });
 

@@ -196,6 +196,42 @@ test.describe('accessibility', () => {
     await expect(waterfall).toContainText('ms');
   });
 
+  test('aligns every ledger value under its own heading', async ({ payloadra }) => {
+    await populate(payloadra);
+
+    const offsets = await payloadra.page.evaluate(() => {
+      const table = document.querySelector('table.request-table');
+      const headings = [...(table?.querySelectorAll('thead th') ?? [])];
+      const cells = [...(table?.querySelectorAll('tbody tr:first-child td') ?? [])];
+      return headings.map((heading, index) => ({
+        heading: heading.textContent,
+        drift:
+          Math.round(heading.getBoundingClientRect().x) -
+          Math.round(cells[index]?.getBoundingClientRect().x ?? -1),
+      }));
+    });
+
+    expect(offsets.length).toBeGreaterThan(0);
+    // A row pseudo-element used to generate an anonymous leading cell, which
+    // put every value one column right of the heading that named it.
+    expect(offsets.filter(({ drift }) => drift !== 0)).toEqual([]);
+  });
+
+  test('marks the selected row with more than a background colour', async ({
+    payloadra,
+  }) => {
+    await populate(payloadra);
+    await payloadra.openRequest('/api/profile');
+
+    const shadow = await payloadra
+      .requestRows()
+      .filter({ hasText: '/api/profile' })
+      .first()
+      .evaluate((row) => getComputedStyle(row).boxShadow);
+
+    expect(shadow).toContain('inset');
+  });
+
   test('honours the reduced-motion preference', async ({ payloadra }) => {
     await payloadra.page.emulateMedia({ reducedMotion: 'reduce' });
     await payloadra.reload();

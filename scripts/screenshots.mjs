@@ -78,9 +78,12 @@ async function main() {
     // 2. Explain a real Next.js Server Action with its evidence disclosure.
     await payloadra.openNextFixture();
     await payloadra.triggerInNextFixture('#next-save-action');
+    // Selected by the primary columns, which every ledger width keeps: the
+    // Server Action is the POST the fixture page makes back to its own route.
     await payloadra
       .requestRows()
-      .filter({ hasText: 'next-server-action' })
+      .filter({ hasText: '/next' })
+      .filter({ hasText: 'POST' })
       .first()
       .click();
     await payloadra.openExplain();

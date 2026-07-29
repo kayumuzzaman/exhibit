@@ -129,7 +129,9 @@ describe('RequestTable', () => {
     expect(screen.getByText(/clear search or filters/i)).toBeVisible();
   });
 
-  it('gives the selected phone row a persistent inset rule beyond background color', () => {
+  // The inset rule itself now lives in the stylesheet, which jsdom does not
+  // load, so `tests/e2e/accessibility.spec.ts` asserts the painted indicator.
+  it('marks the selected phone row as selected rather than by colour alone', () => {
     const dataset = records();
     render(
       <RequestTable
@@ -142,6 +144,8 @@ describe('RequestTable', () => {
 
     const selected = screen.getByRole('row', { name: /profile/i });
     expect(selected).toHaveAttribute('aria-selected', 'true');
-    expect(getComputedStyle(selected).boxShadow).toContain('inset');
+    expect(
+      screen.getAllByRole('row').filter((row) => row.ariaSelected === 'true'),
+    ).toEqual([selected]);
   });
 });

@@ -736,10 +736,20 @@
 
 .request-table {
   width: 100%;
-  min-width: 700px;
+  min-width: 720px;
   border-collapse: collapse;
   table-layout: fixed;
   font-size: 10px;
+}
+
+/* Five primary columns fit without a horizontal scrollbar in a narrow ledger. */
+.request-table--compact {
+  min-width: 450px;
+}
+
+/* Route absorbs the width the secondary columns released. */
+.request-table.request-table--compact .column-route {
+  width: auto;
 }
 
 .request-table th,
@@ -767,7 +777,7 @@
 }
 
 .request-table .column-time {
-  width: 74px;
+  width: 82px;
 }
 
 .request-table .column-method {
@@ -787,7 +797,7 @@
 }
 
 .request-table .column-duration {
-  width: 64px;
+  width: 76px;
 }
 
 .request-table .column-source {
@@ -803,26 +813,18 @@
   cursor: pointer;
 }
 
-.request-table__row::before {
-  position: absolute;
-  top: -1px;
-  bottom: -1px;
-  left: 0;
-  width: 2px;
-  background: transparent;
-  content: '';
-}
-
 .request-table__row:hover {
   background: var(--surface-raised);
 }
 
+/**
+ * The selected marker is an inset shadow rather than a row pseudo-element.
+ * A `::before` on a table row generates an anonymous leading cell, which pushed
+ * every value one column right of its own heading.
+ */
 .request-table__row[aria-selected='true'] {
   background: color-mix(in srgb, var(--live) 10%, var(--surface));
-}
-
-.request-table__row[aria-selected='true']::before {
-  background: var(--live);
+  box-shadow: inset 2px 0 0 var(--live);
 }
 
 .request-table__row[data-outcome='failure'] .status-code {
@@ -1372,10 +1374,6 @@
 
   .request-table--phone th {
     color: var(--text-muted);
-  }
-
-  .request-table--phone .request-table__row::before {
-    display: none;
   }
 }
 

@@ -12,6 +12,13 @@ import type { SanitizedCapturedRequest } from '../../domain/sanitized';
 import { EmptyState } from './empty-state';
 
 export type RequestTableProps = Readonly<{
+  /**
+   * Drops the secondary Kind, Source, and Evidence columns so Time, Method,
+   * Route, Status, and Duration stay readable when the ledger is narrower than
+   * the full eight-column table. Those three facts remain available in the
+   * detail workspace and in the evidence facets.
+   */
+  compact?: boolean;
   emptyReason?: 'no-matches' | 'recording-empty';
   onSelect(request: SanitizedCapturedRequest): void;
   phone?: boolean;
@@ -60,6 +67,7 @@ function clock(value: number): string {
 }
 
 export function RequestTable({
+  compact = false,
   emptyReason,
   onSelect,
   phone = false,
@@ -67,6 +75,7 @@ export function RequestTable({
   scrollPosition,
   selectedId,
 }: RequestTableProps) {
+  const secondary = !phone && !compact;
   const preferredIndex = Math.max(
     0,
     requests.findIndex(({ id }) => id === selectedId),
@@ -140,7 +149,9 @@ export function RequestTable({
           technology in browse mode, where those keys never reach the rows. */}
       <table
         aria-label="Captured requests"
-        className={`request-table${phone ? ' request-table--phone' : ''}`}
+        className={`request-table${phone ? ' request-table--phone' : ''}${
+          compact && !phone ? ' request-table--compact' : ''
+        }`}
         role="grid"
       >
         <thead>
@@ -156,19 +167,21 @@ export function RequestTable({
             <th className="column-route" scope="col">
               Route
             </th>
-            {phone ? null : (
+            {secondary ? (
               <th className="column-kind" scope="col">
                 Kind
               </th>
-            )}
+            ) : null}
             <th className="column-status" scope="col">
               Status
             </th>
             {phone ? null : (
+              <th className="column-duration" scope="col">
+                Duration
+              </th>
+            )}
+            {secondary ? (
               <>
-                <th className="column-duration" scope="col">
-                  Duration
-                </th>
                 <th className="column-source" scope="col">
                   Source
                 </th>
@@ -176,7 +189,7 @@ export function RequestTable({
                   Evidence
                 </th>
               </>
-            )}
+            ) : null}
           </tr>
         </thead>
         <tbody>
@@ -201,11 +214,6 @@ export function RequestTable({
               ref={(node) => {
                 rowRefs.current[index] = node;
               }}
-              style={
-                phone && request.id === selectedId
-                  ? { boxShadow: 'inset 3px 0 0 var(--live)' }
-                  : undefined
-              }
               tabIndex={index === focusIndex ? 0 : -1}
             >
               {phone ? null : (
@@ -217,19 +225,21 @@ export function RequestTable({
               <td className="column-route route" title={request.url}>
                 {route(request.url)}
               </td>
-              {phone ? null : (
+              {secondary ? (
                 <td className="column-kind">
                   {request.classification?.kind ?? 'unknown'}
                 </td>
-              )}
+              ) : null}
               <td className="column-status">
                 <span className="status-code">{request.response.status || 'ERR'}</span>
               </td>
               {phone ? null : (
+                <td className="column-duration mono">
+                  {duration(request.timing.totalMs)}
+                </td>
+              )}
+              {secondary ? (
                 <>
-                  <td className="column-duration mono">
-                    {duration(request.timing.totalMs)}
-                  </td>
                   <td className="column-source">{source(request)}</td>
                   <td className="column-evidence">
                     <span className="evidence-badges">
@@ -241,7 +251,7 @@ export function RequestTable({
                     </span>
                   </td>
                 </>
-              )}
+              ) : null}
             </tr>
           ))}
         </tbody>

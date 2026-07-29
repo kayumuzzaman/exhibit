@@ -93,6 +93,19 @@ as a release until owner acceptance is complete.
 - Corrupt storage recovery preserves the exact damaged record for explicit
   clearing, and a fresh IndexedDB without a current-session locator no longer
   raises a false corruption warning.
+- Every ledger value now sits under its own heading. The selected-row marker was
+  a row pseudo-element, which generates an anonymous leading table cell, so
+  Method, Duration, Evidence and every other value rendered one column right of
+  the heading that named it and the last column overflowed the pane.
+- The ledger keeps Time, Method, Route, Status, and Duration whole at ordinary
+  widths and reveals Kind, Source, and Evidence once the pane can show all eight
+  columns without clipping.
+- The empty ledger now offers a Record this page control instead of naming a
+  command the user has to go and find.
+- The detail pane no longer answers an empty ledger with a competing
+  "No evidence selected" heading.
+- The panel follows the DevTools theme by default rather than the operating
+  system, so it stops arriving light inside a dark DevTools window.
 - Recovered sessions recompute classification and explanation from their
   sanitized evidence. The recovery boundary discards stored analysis so it is
   never trusted, which left every recovered request classified as unknown and

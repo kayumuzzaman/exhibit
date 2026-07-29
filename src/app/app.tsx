@@ -71,7 +71,7 @@ const NO_FACET_FILTERS: FacetFilterState = {
 const WIDE_DETAIL_MIN = 300;
 const WIDE_GUTTERS = 14;
 const WIDE_LIST_MIN = 420;
-const WIDE_LIST_MAX = 760;
+const WIDE_LIST_MAX = 900;
 const WIDE_RAIL_MIN = 200;
 const WIDE_RAIL_MAX = 360;
 
@@ -106,6 +106,20 @@ function wideColumns(
 }
 
 const DEFAULT_VIEWPORT_WIDTH = 1_440;
+
+/**
+ * The eight-column ledger needs this much room. Below it the table would clip
+ * or scroll horizontally, so the secondary Kind, Source, and Evidence columns
+ * step aside and the five facts a triage pass needs stay whole. The default
+ * ledger width sits above this, so a full-width panel loses nothing.
+ */
+const LEDGER_FULL_COLUMNS_MIN = 780;
+
+function ledgerIsCompact(mode: ViewportMode, listWidth: number): boolean {
+  if (mode === 'phone') return false;
+  if (mode === 'wide') return listWidth < LEDGER_FULL_COLUMNS_MIN;
+  return true;
+}
 
 function viewportModeFor(width: number): ViewportMode {
   if (width < 480) return 'phone';
@@ -205,6 +219,7 @@ function DetailSlot({
   compareWith,
   containerRef,
   group,
+  hasRequests,
   onBack,
   onInspectTabChange,
   onModeChange,
@@ -216,6 +231,7 @@ function DetailSlot({
   compareWith?: SanitizedCapturedRequest;
   containerRef?: RefObject<HTMLElement | null>;
   group: InteractionGroup | null;
+  hasRequests: boolean;
   inspectTab: InspectTab;
   onBack?: () => void;
   onInspectTabChange(tab: InspectTab): void;
@@ -245,8 +261,16 @@ function DetailSlot({
       {request === null ? (
         <div className="detail-slot__empty">
           <span className="detail-slot__crosshair" />
-          <h3>No evidence selected</h3>
-          <p>Choose a request from the ledger to open its safe detail workspace.</p>
+          {/* When the ledger itself is empty it already explains the session
+              state, so this pane stays quiet instead of competing with it. */}
+          {hasRequests ? (
+            <>
+              <h3>No evidence selected</h3>
+              <p>Choose a request from the ledger to open its safe detail workspace.</p>
+            </>
+          ) : (
+            <p>Request detail opens here once the ledger has evidence.</p>
+          )}
         </div>
       ) : (
         <div className="detail-slot__selected">
@@ -345,6 +369,8 @@ function storageWarning(warningCodes: ReadonlySet<string>): string | null {
 function Ledger({
   empty,
   onOpenRail,
+  compact,
+  onRecord,
   onSelect,
   phone,
   rawRequestCount,
@@ -355,8 +381,10 @@ function Ledger({
   setSearch,
   showRailButton,
 }: Readonly<{
+  compact: boolean;
   empty: EmptyStateKind | null;
   onOpenRail(): void;
+  onRecord?: () => void;
   onSelect(request: SanitizedCapturedRequest): void;
   phone: boolean;
   rawRequestCount: number;
@@ -397,6 +425,7 @@ function Ledger({
       </div>
       {empty === null ? (
         <RequestTable
+          compact={compact}
           emptyReason={rawRequestCount > 0 ? 'no-matches' : 'recording-empty'}
           onSelect={onSelect}
           phone={phone}
@@ -405,7 +434,21 @@ function Ledger({
           selectedId={selected?.id ?? null}
         />
       ) : (
-        <EmptyState kind={empty} />
+        <EmptyState
+          kind={empty}
+          {...(empty === 'not-recording' && onRecord !== undefined
+            ? {
+                action: (
+                  // Named so it never reads as the command bar's Start control:
+                  // one visible label, and no substring collision for assistive
+                  // technology or for locators.
+                  <Button onClick={onRecord} tone="primary">
+                    <Icon name="record" /> Record this page
+                  </Button>
+                ),
+              }
+            : {})}
+        />
       )}
     </section>
   );
@@ -453,7 +496,9 @@ function PanelShell({
   const [actionError, setActionError] = useState('');
   const [retentionError, setRetentionError] = useState('');
   const [railWidth, setRailWidth] = useState(216);
-  const [listWidth, setListWidth] = useState(640);
+  // Wide enough for the whole evidence ledger. The previous 640 left the
+  // table clipping Method, Duration, and Evidence at store width.
+  const [listWidth, setListWidth] = useState(800);
   const ledgerScroll = useRef<Readonly<{ left: number; top: number }>>({
     left: 0,
     top: 0,
@@ -790,8 +835,10 @@ function PanelShell({
 
   const ledger = (
     <Ledger
+      compact={ledgerIsCompact(mode, columns.list)}
       empty={empty}
       onOpenRail={() => setRailDrawer(true)}
+      onRecord={() => void toggleRecording()}
       onSelect={select}
       phone={mode === 'phone'}
       rawRequestCount={session.requests.length}
@@ -814,6 +861,7 @@ function PanelShell({
       {...(compareWith === undefined ? {} : { compareWith })}
       containerRef={detailRef}
       group={selectedGroup}
+      hasRequests={visibleRequests.length > 0}
       inspectTab={inspectTab}
       {...(mode === 'narrow' || mode === 'phone'
         ? {
