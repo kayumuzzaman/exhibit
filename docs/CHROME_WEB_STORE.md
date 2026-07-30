@@ -1,9 +1,10 @@
 # Chrome Web Store listing
 
 This is draft listing copy, not an approved publisher submission. Exhibit is
-currently `UNLICENSED` and private. Publishing requires the owner to choose a
-licence, close the release blockers in [TRACEABILITY.md](./TRACEABILITY.md), and
-review the final disclosure form against current Chrome Web Store policy.
+public and MIT-licensed but not yet submitted. Publishing still requires a
+hosted privacy-policy URL, the remaining items in
+[RELEASE_DECISIONS.md](./RELEASE_DECISIONS.md), and a review of the final
+disclosure form against current Chrome Web Store policy.
 
 ## Item details
 

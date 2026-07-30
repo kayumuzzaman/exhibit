@@ -60,7 +60,7 @@ Status meanings:
 | Redaction before trusted surfaces        | Complete | Sanitized domain type and boundary suites; fail-closed fallback tests                                                                                                            |
 | Bounded storage and expensive work       | Complete | 500 request/8 MiB session cap, body caps, traversal guards, lazy work, and near-cap Flight/capture/search performance budgets                                                    |
 | Chrome 120+ compatibility target         | Complete | Public claim narrowed on 2026-07-30 to the tested Chrome 150/macOS statement; the manifest floor stays at 120 as a feature-derived gate — [COMPATIBILITY.md](./COMPATIBILITY.md) |
-| No publication without authorization     | Complete | Repository remains private and `UNLICENSED`; no upload or store action performed                                                                                                 |
+| No publication without authorization     | Complete | Repository is public under MIT by owner decision on 2026-07-31; no upload or Chrome Web Store submission has been performed                                                      |
 
 ## Release blockers
 

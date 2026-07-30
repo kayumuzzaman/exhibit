@@ -1,6 +1,6 @@
 # Exhibit security policy
 
-**Project status:** Private internal preview
+**Project status:** Public and MIT-licensed; not yet published to the Chrome Web Store
 
 **Last reviewed:** 2026-07-29
 
