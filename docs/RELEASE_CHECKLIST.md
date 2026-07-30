@@ -3,9 +3,14 @@
 **Prepared:** 2026-07-30 · **Evidence record:**
 [VERIFICATION.md](./VERIFICATION.md)
 
-The internal Chrome workflow is accepted. Public distribution still requires
-owner decisions, public contacts and policy hosting, compatibility evidence,
-store assets, independent review, user validation, and a clean final artifact.
+The internal Chrome workflow is accepted, the compatibility claim is settled,
+the store assets except the video are generated, and a clean artifact is
+recorded. What remains is owner decisions, public contacts and policy hosting,
+the product video, independent review, and user validation.
+
+The short list of what only the owner can supply is
+[RELEASE_DECISIONS.md](./RELEASE_DECISIONS.md). This document keeps the ordered
+submission mechanics.
 
 ---
 
@@ -66,16 +71,18 @@ and choose one path with the publisher/privacy reviewer:
 
 Do not claim encrypted storage while the current implementation remains.
 
-### Step 3 — Compatibility claim
+### Step 3 — Compatibility claim _(settled 2026-07-30)_
 
-[COMPATIBILITY.md](./COMPATIBILITY.md) shows Chrome 120 is defensible from the
-features the code uses; the highest breaking requirement is `color-mix()` at
-Chrome 111. It is still an untested claim. Choose one:
+The claim is narrowed to what was actually tested, and every user-facing surface
+now says so:
 
-- **Test it** — repeat Step 1 on Chrome 120 and on current stable, on each
-  operating system you intend to support, and record the matrix; or
-- **Narrow the claim** — publish the statement already drafted in
-  COMPATIBILITY.md ("Built and manually checked against Chrome 150 on macOS…").
+> Built and manually checked against Chrome 150 on macOS. Declares Chrome 120 as
+> its minimum supported version based on the platform features it uses.
+
+`minimum_chrome_version` stays at `"120"`, because it is a functional gate
+derived from the features the code uses rather than a support promise. Recording
+the full matrix later widens the claim with no code change; see
+[COMPATIBILITY.md](./COMPATIBILITY.md).
 
 Note the one known cosmetic gap: `scrollbar-color` needs Chrome 121, so on
 Chrome 120 exactly the ledger scrollbars use Chrome's default styling.
@@ -111,12 +118,14 @@ has a GitHub remote, but no confirmed public policy URL or hosting deployment.
 ### Step 6 — Store assets and submission
 
 The five tracked screenshots were regenerated in light theme and visually
-inspected on 2026-07-30. The remaining assets are a 440×280 small promo tile and
-a YouTube product video; only the 1400×560 marquee tile is optional.
+inspected on 2026-07-30, with the Server Action frame leading. The 440×280 small
+promo tile is generated and tracked. The only outstanding asset is the YouTube
+product video; the 1400×560 marquee tile is optional.
 
 1. Rerun `pnpm screenshots` and inspect all five 1280×800 images after any UI
    change.
-2. Create and inspect a 440×280 small promo tile matching the Exhibit identity.
+2. Rerun `pnpm promo-tile` after any identity or token change; it is
+   deterministic, so an unchanged product produces an unchanged file.
 3. Record and publish a concise fixture-only product walkthrough video.
 4. Commit the intended release tree and confirm `git status --short` is empty.
 5. Run `pnpm release:artifact` — full gate, then package.
@@ -125,7 +134,8 @@ a YouTube product video; only the 1400×560 marquee tile is optional.
    [VERIFICATION.md](./VERIFICATION.md).
 8. Upload `.output/exhibit-0.1.0-chrome.zip`.
 9. Paste the listing fields from [CHROME_WEB_STORE.md](./CHROME_WEB_STORE.md).
-10. Upload the five screenshots, small promo tile, and video URL.
+10. Upload the five screenshots in filename order, `docs/promo/small-tile-440x280.png`,
+    and the video URL.
 11. Answer every data-use question against the behaviour recorded in that
     document, checking each answer against the form's current wording
 12. Add the privacy policy URL from Step 5.
