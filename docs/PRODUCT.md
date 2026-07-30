@@ -2,7 +2,7 @@
 
 **Status:** Internal preview; not released
 
-**Last reviewed:** 2026-07-29
+**Last reviewed:** 2026-07-30
 
 ## Product statement
 
@@ -135,15 +135,17 @@ proxying, and server-side observability are deferred.
 ## Current readiness
 
 The implementation is an internal release candidate, not a public product.
-The automated release gate and artifact record are current. Public release
-readiness still requires:
+The automated release gate, artifact record, and user-reported installed Chrome
+150/macOS acceptance exist. Public release readiness still requires:
 
-- installed Google Chrome DevTools acceptance;
 - the claimed Chrome/operating-system compatibility matrix, or a narrower
   support statement;
 - an explicit licence and distribution decision;
 - legal owner, privacy contact, and support identity;
+- a publisher-approved decision for unencrypted persistent local evidence;
+- a hosted privacy policy and required Chrome Web Store graphic assets;
 - Chrome Web Store disclosures reviewed against the final package;
+- a new clean release commit and artifact for the current changes;
 - first-user usability validation with the primary segment.
 
 See [traceability](./TRACEABILITY.md), [verification](./VERIFICATION.md), and

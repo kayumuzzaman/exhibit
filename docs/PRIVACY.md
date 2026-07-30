@@ -69,7 +69,7 @@ different content type.
 Redaction fails closed: if a record cannot be safely redacted, the record is
 dropped or replaced with a redacted placeholder and a warning is recorded.
 
-You may add custom sensitive field names in Privacy settings. Custom names can
+You may add custom sensitive field names in Settings. Custom names can
 only add protection; mandatory header, credential-name, and token-pattern rules
 remain enabled. Changing those names requires a stopped, cleared session so one
 evidence set never mixes redaction policies.

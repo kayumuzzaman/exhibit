@@ -145,19 +145,35 @@ function useViewportWidth(): number {
   return width;
 }
 
-function useReducedMotion(): boolean {
-  const query = '(prefers-reduced-motion: reduce)';
-  const [reduced, setReduced] = useState(
-    () => typeof window !== 'undefined' && window.matchMedia?.(query).matches === true,
+function useMediaQuery(query: string, fallback = false): boolean {
+  const [matches, setMatches] = useState(() =>
+    typeof window === 'undefined' || window.matchMedia === undefined
+      ? fallback
+      : window.matchMedia(query).matches,
   );
   useEffect(() => {
     if (window.matchMedia === undefined) return;
     const media = window.matchMedia(query);
-    const update = () => setReduced(media.matches);
+    const update = () => setMatches(media.matches);
+    update();
     media.addEventListener?.('change', update);
     return () => media.removeEventListener?.('change', update);
-  }, []);
-  return reduced;
+  }, [query]);
+  return matches;
+}
+
+function useReducedMotion(): boolean {
+  return useMediaQuery('(prefers-reduced-motion: reduce)');
+}
+
+function resolvedThemeFor(
+  theme: ThemeMode,
+  devtoolsTheme: 'dark' | 'light',
+  systemDark: boolean,
+): 'dark' | 'light' {
+  if (theme === 'dark' || theme === 'light') return theme;
+  if (theme === 'devtools') return devtoolsTheme;
+  return systemDark ? 'dark' : 'light';
 }
 
 function phaseLabel(phase: RecordingPhase): string {
@@ -467,12 +483,14 @@ function PanelShell({
   const viewportWidth = useViewportWidth();
   const mode = viewportModeFor(viewportWidth);
   const reducedMotion = useReducedMotion();
+  const systemDark = useMediaQuery('(prefers-color-scheme: dark)', true);
   const resolvedDevtoolsTheme = useSyncExternalStore(
     devtoolsThemeSource.subscribe,
     devtoolsThemeSource.getSnapshot,
     devtoolsThemeSource.getSnapshot,
   );
   const [theme, setTheme] = useState<ThemeMode>(settingsService.initial.theme);
+  const resolvedTheme = resolvedThemeFor(theme, resolvedDevtoolsTheme, systemDark);
   const [customFieldNames, setCustomFieldNames] = useState<readonly string[]>(
     settingsService.initial.customFieldNames,
   );
@@ -938,7 +956,7 @@ function PanelShell({
           onTheme={(nextTheme) => void changeTheme(nextTheme)}
           origin={session.origin}
           phase={session.phase}
-          theme={theme}
+          resolvedTheme={resolvedTheme}
         />
         <div className="app-notices">
           <div aria-atomic="true" className="sr-only" role="status">
@@ -1045,22 +1063,43 @@ function PanelShell({
 
       {dialog === 'settings' ? (
         <Dialog
-          description="Add field names that Exhibit must always redact. Mandatory authorization, cookie, credential-name, and token-pattern protection stays on."
+          description="Choose how Exhibit follows browser appearance and add field names that it must always redact."
           onClose={dismissDialog}
-          title="Privacy and redaction settings"
+          title="Settings"
         >
+          <label className="settings-field">
+            <span>Theme preference</span>
+            <select
+              aria-label="Theme preference"
+              data-initial-focus=""
+              disabled={busy}
+              onChange={(event) => void changeTheme(event.target.value as ThemeMode)}
+              value={theme}
+            >
+              <option value="devtools">Follow DevTools</option>
+              <option value="system">Follow system</option>
+              <option value="light">Always light</option>
+              <option value="dark">Always dark</option>
+            </select>
+            <small>
+              Saves immediately. The command-bar button remains a quick light/dark
+              override.
+            </small>
+          </label>
           <label className="settings-field">
             <span>Additional sensitive field names</span>
             <textarea
               aria-label="Additional sensitive field names"
-              data-initial-focus=""
               disabled={busy || privacySettingsLocked}
               onChange={(event) => setCustomFieldDraft(event.target.value)}
               placeholder={'Private Note\nX-Customer-Key'}
               rows={5}
               value={customFieldDraft}
             />
-            <small>One name per line or comma. Matching is case-insensitive.</small>
+            <small>
+              One name per line or comma. Matching is case-insensitive. Mandatory
+              credential protection stays on.
+            </small>
           </label>
           {privacySettingsLocked ? (
             <p className="settings-lock" role="note">

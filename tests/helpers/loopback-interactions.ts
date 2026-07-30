@@ -6,6 +6,7 @@ import {
   type RuntimePortLike,
 } from '../../src/infrastructure/chrome/interaction-bridge';
 import type { InteractionSource } from '../../src/ports/interaction-source';
+import { stableScreenshotInteraction } from './stable-screenshot-capture';
 
 export type LoopbackInteractionSource = InteractionSource &
   Readonly<{
@@ -15,6 +16,10 @@ export type LoopbackInteractionSource = InteractionSource &
      */
     attach(frame: Window & typeof globalThis): () => void;
   }>;
+
+export type LoopbackInteractionSourceOptions = Readonly<{
+  stableScreenshot?: Readonly<{ runtimeOrigin: string }>;
+}>;
 
 function readInteraction(message: unknown): InteractionEvent | null {
   if (message === null || typeof message !== 'object') return null;
@@ -39,11 +44,16 @@ function readInteraction(message: unknown): InteractionEvent | null {
  * routes its port messages straight back to the recording pipeline, replacing
  * only the extension messaging hop that end-to-end pages cannot provide.
  */
-export function createLoopbackInteractionSource(): LoopbackInteractionSource {
+export function createLoopbackInteractionSource(
+  options: LoopbackInteractionSourceOptions = {},
+): LoopbackInteractionSource {
   const listeners = new Set<(event: InteractionEvent) => void>();
   const frames = new Map<Window & typeof globalThis, CollectorInstallation>();
   let installation: CollectorInstallation | null = null;
   let boundTabId: string | null = null;
+  let screenshotSequence = 0;
+  let pendingScreenshotInteraction:
+    ReturnType<typeof stableScreenshotInteraction> | undefined;
 
   const port: RuntimePortLike = {
     name: 'exhibit:content',
@@ -64,14 +74,46 @@ export function createLoopbackInteractionSource(): LoopbackInteractionSource {
   };
 
   function install(view: Window & typeof globalThis): CollectorInstallation {
+    const stableScreenshot = options.stableScreenshot;
     return installInteractionCollector({
       global: view as unknown as Record<string, unknown>,
       document: view.document as unknown as CollectorEventHub,
       window: view as unknown as CollectorEventHub,
       connect: () => port,
-      currentUrl: () => view.location.href,
-      now: Date.now,
-      nextId: () => crypto.randomUUID(),
+      currentUrl: () =>
+        stableScreenshot === undefined
+          ? view.location.href
+          : stableScreenshotInteraction({
+              runtimeOrigin: stableScreenshot.runtimeOrigin,
+              sequence: 0,
+              url: view.location.href,
+            }).url,
+      now:
+        stableScreenshot === undefined
+          ? Date.now
+          : () => {
+              const occurredAt =
+                pendingScreenshotInteraction?.occurredAt ??
+                stableScreenshotInteraction({
+                  runtimeOrigin: stableScreenshot.runtimeOrigin,
+                  sequence: screenshotSequence,
+                  url: view.location.href,
+                }).occurredAt;
+              screenshotSequence += 1;
+              pendingScreenshotInteraction = undefined;
+              return occurredAt;
+            },
+      nextId:
+        stableScreenshot === undefined
+          ? () => crypto.randomUUID()
+          : () => {
+              pendingScreenshotInteraction = stableScreenshotInteraction({
+                runtimeOrigin: stableScreenshot.runtimeOrigin,
+                sequence: screenshotSequence,
+                url: view.location.href,
+              });
+              return pendingScreenshotInteraction.id;
+            },
       createSignal: (type, detail) => new view.CustomEvent(type, { detail }),
     });
   }
@@ -96,7 +138,15 @@ export function createLoopbackInteractionSource(): LoopbackInteractionSource {
       }
       let origin: string;
       try {
-        origin = new URL(context.url).origin;
+        const url =
+          options.stableScreenshot === undefined
+            ? context.url
+            : stableScreenshotInteraction({
+                runtimeOrigin: options.stableScreenshot.runtimeOrigin,
+                sequence: 0,
+                url: context.url,
+              }).url;
+        origin = new URL(url).origin;
       } catch {
         return { status: 'network-only', reason: 'restricted-page' };
       }

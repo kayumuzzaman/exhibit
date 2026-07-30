@@ -5,6 +5,7 @@ import { StatusPill } from '../../components/status-pill';
 import type { ThemeMode } from '../settings/exhibit-settings';
 
 export type { ThemeMode } from '../settings/exhibit-settings';
+type ExplicitTheme = Extract<ThemeMode, 'dark' | 'light'>;
 
 export function CommandBar({
   busy,
@@ -15,19 +16,20 @@ export function CommandBar({
   onTheme,
   origin,
   phase,
-  theme,
+  resolvedTheme,
 }: Readonly<{
   busy: boolean;
   onClear(): void;
   onExport(): void;
   onRecord(): void;
   onSettings(): void;
-  onTheme(theme: ThemeMode): void;
+  onTheme(theme: ExplicitTheme): void;
   origin: string;
   phase: RecordingPhase;
-  theme: ThemeMode;
+  resolvedTheme: ExplicitTheme;
 }>) {
   const recording = phase === 'recording' || phase === 'starting';
+  const nextTheme: ExplicitTheme = resolvedTheme === 'dark' ? 'light' : 'dark';
   return (
     <header className="command-bar">
       <div className="command-bar__record">
@@ -67,24 +69,19 @@ export function CommandBar({
           <Icon name="export" />
           <span>Export</span>
         </Button>
-        <Button aria-label="Privacy settings" onClick={onSettings} tone="quiet">
+        <Button aria-label="Settings" onClick={onSettings} tone="quiet">
           <Icon name="settings" />
           <span>Settings</span>
         </Button>
-        <label className="theme-control">
+        <Button
+          aria-label={`Switch to ${nextTheme} theme`}
+          className="theme-control"
+          onClick={() => onTheme(nextTheme)}
+          title={`Switch to ${nextTheme} theme`}
+          tone="quiet"
+        >
           <Icon name="theme" />
-          <span className="sr-only">Theme</span>
-          <select
-            aria-label="Theme"
-            onChange={(event) => onTheme(event.target.value as ThemeMode)}
-            value={theme}
-          >
-            <option value="system">System theme</option>
-            <option value="devtools">DevTools theme</option>
-            <option value="light">Light theme</option>
-            <option value="dark">Dark theme</option>
-          </select>
-        </label>
+        </Button>
       </div>
     </header>
   );

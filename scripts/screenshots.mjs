@@ -12,7 +12,7 @@ import { ExhibitDriver } from '../tests/e2e/devtools-driver.ts';
 
 /**
  * Captures the Chrome Web Store screenshot set from the real panel driven
- * against the real fixtures. Output is exactly 1280 x 800, dark theme, with the
+ * against the real fixtures. Output is exactly 1280 x 800, light theme, with the
  * harness controls hidden so only the product surface is visible.
  */
 
@@ -36,8 +36,11 @@ async function main() {
   const browser = await chromium.launch();
   const context = await browser.newContext({
     viewport: { width: 1_280, height: 800 },
-    colorScheme: 'dark',
+    colorScheme: 'light',
     deviceScaleFactor: 1,
+    locale: 'en-US',
+    reducedMotion: 'reduce',
+    timezoneId: 'UTC',
   });
   const page = await context.newPage();
   const captured = [];
@@ -61,9 +64,15 @@ async function main() {
   }
 
   try {
-    await page.goto(`${fixture.origin}/panel/`);
+    await page.goto(`${fixture.origin}/panel/?screenshot=stable`);
+    await page.addStyleTag({
+      content:
+        '*,*::before,*::after{animation:none!important;caret-color:transparent!important;transition:none!important}',
+    });
     const exhibit = new ExhibitDriver(page);
     await exhibit.ready();
+    await page.getByRole('button', { name: 'Switch to light theme' }).click();
+    await page.locator('.app-shell[data-theme="light"]').waitFor();
 
     // 1. Recording ledger with representative traffic.
     await exhibit.startRecording();
@@ -74,6 +83,10 @@ async function main() {
     await exhibit.trigger('failing');
     await exhibit.trigger('slow');
     await shot('01-recording-ledger');
+
+    // Keep the overview ledger broad in the first frame, then use the product's
+    // real resize control to give detail evidence enough room in frames 2–5.
+    await page.getByRole('separator', { name: 'Resize request ledger' }).press('Home');
 
     // 2. Explain a real Next.js Server Action with its evidence disclosure.
     await exhibit.openNextFixture();
@@ -87,9 +100,11 @@ async function main() {
       .first()
       .click();
     await exhibit.openExplain();
-    await page.locator('.explain-evidence').evaluate((node) => {
+    const explainEvidence = page.locator('.explain-evidence');
+    await explainEvidence.evaluate((node) => {
       node.open = true;
     });
+    await explainEvidence.scrollIntoViewIfNeeded();
     await shot('02-explain-server-action');
 
     // 3. Inspect timing for the slow call.
