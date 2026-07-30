@@ -9,8 +9,34 @@ Findings and remediations from a full review of the 0.1.0 build.
 These changes remain a development candidate; the 0.1.0 artifact is not recut
 as a release until owner acceptance is complete.
 
+### Changed
+
+- The product leads with Next.js request explanation instead of QA evidence
+  handoff. The QA-evidence wedge competed directly with tools that already own
+  bug-report handoff through video, console capture, and issue-tracker routing,
+  while Server Action, RSC, and React Flight semantics have no incumbent and
+  reach developers who install DevTools extensions without procurement. The
+  manifest description, Chrome Web Store name, summary, and detailed description
+  now lead with those semantics, and the Server Action screenshot leads the
+  store set as `01`. In-product copy stays framework-neutral, because it renders
+  on every site; only the toolbar popup names Next.js. `PRODUCT.md` keeps the
+  rejected wedge and the reasons it was rejected.
+- The compatibility claim is narrowed to what was actually tested — built and
+  manually checked against Chrome 150 on macOS — rather than what the source
+  implies. `minimum_chrome_version` stays at `"120"`, since it is a functional
+  gate derived from the platform features the code uses, not a support promise.
+
 ### Added
 
+- A generated 440×280 Chrome Web Store promo tile (`pnpm promo-tile`), drawn
+  from the panel's own design tokens and the icon's pulse mark so the listing
+  artwork cannot drift from the product. It regenerates byte-identically.
+- `RELEASE_DECISIONS.md`, the short list of what only the owner can supply:
+  legal identity and licence, monitored contacts and a hosted policy URL, the
+  persistent-retention decision, the product video, and first real users.
+- An integration suite that boots the real production Next.js fixture and
+  asserts the response-header contract the classifier depends on, in both
+  directions, so a future framework release breaks a test rather than the panel.
 - Product, business-model, competitive-landscape, roadmap, release-traceability,
   security, and support records for the internal release audit.
 - A high/critical dependency audit in the release gate.
@@ -36,6 +62,16 @@ as a release until owner acceptance is complete.
 
 ### Fixed
 
+- Prerendered HTML is no longer described as a document rendered for the
+  request. Next.js marks prerendered responses with `X-Nextjs-Prerender`,
+  alongside `X-Nextjs-Cache` and `X-Nextjs-Stale-Time`, and omits all three on a
+  route that renders per request — so the previous claim that a browser observer
+  could not distinguish the two was false, and the panel mislabelled cached
+  prerenders. Prerendering, cache state, and stale time are now reported as
+  protocol evidence: presence proves the prerender, while absence is only
+  consistent with per-request rendering, because an intermediary can strip the
+  headers. A stale time that is not a plain integer is omitted rather than shown
+  as `NaN`. The `ssr` kind stays coarse, and its evidence now says so.
 - The build/test dependency graph now has zero known advisories: WXT and ESLint
   were upgraded, patched PostCSS and esbuild versions are enforced, and unused
   Next.js image-processing binaries are omitted from the fixture toolchain.

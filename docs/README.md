@@ -20,12 +20,13 @@ the extension; Exhibit uses it only for the active inspected tab.
 
 2. Open `chrome://extensions` and enable **Developer mode**.
 3. Choose **Load unpacked** and select `.output/chrome-mv3`.
-4. Open DevTools on any regular web page. A **Exhibit** panel appears beside
+4. Open DevTools on any regular web page. An **Exhibit** panel appears beside
    Elements, Console, and Network.
 
-Chrome 120 or newer is required. Chrome pages (`chrome://`, `edge://`,
-`about:`) cannot be inspected; the panel says so instead of showing an empty
-ledger.
+Chrome 120 or newer is required. Exhibit was built and manually checked against
+Chrome 150 on macOS; 120 is the minimum declared from the platform features the
+code uses, not a tested matrix. Chrome pages (`chrome://`, `edge://`, `about:`)
+cannot be inspected; the panel says so instead of showing an empty ledger.
 
 ## Record a session
 

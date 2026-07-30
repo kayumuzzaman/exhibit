@@ -18,7 +18,7 @@ submission mechanics.
 
 | Area                 | Evidence                                                                                                       |
 | -------------------- | -------------------------------------------------------------------------------------------------------------- |
-| Quality gate         | 2026-07-30 development-tree `pnpm verify` exit 0: 1,004 tests, 43 E2E; clean release artifact remains          |
+| Quality gate         | 2026-07-30 clean-tree `pnpm release:artifact` at `edb9de8` exit 0: 1,009 tests, 43 E2E, coverage above 90%     |
 | Package audit        | 0 remote scripts, 0 inline scripts, 0 unapproved network destinations                                          |
 | Dependency audit     | 0 known high or critical advisories                                                                            |
 | Manifest             | MV3, `["storage","scripting"]`, **no required host permissions**, optional origins only                        |
