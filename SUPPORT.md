@@ -4,6 +4,11 @@
 
 ## Supported environment
 
+**Tested:** built and manually checked against Chrome 150 on macOS. Chrome 120
+is declared as the minimum supported version based on the platform features the
+extension uses, not on a tested matrix. See
+[COMPATIBILITY.md](./docs/COMPATIBILITY.md).
+
 Current intended environment:
 
 - Chrome 120 or newer;
@@ -15,10 +20,11 @@ Current intended environment:
 
 The automatic browser suite uses Playwright Chromium because automation cannot
 drive Chrome's DevTools window. A user-reported installed Chrome 150/macOS smoke
-passed on 2026-07-30. Chrome 120+ remains an intended compatibility floor, not a
-completed matrix claim: release remains blocked until the owner records Chrome
-120 and a representative current stable version on every operating system they
-intend to support, or narrows the support statement.
+passed on 2026-07-30. Chrome 120+ is an intended compatibility floor, not a
+tested matrix; the public claim above is narrowed to what was actually checked.
+Recording Chrome 120 and a representative current stable version on every
+operating system the owner intends to support would widen it, and needs no code
+change.
 
 Firefox, Safari, Edge-specific behavior, mobile browsers, native applications,
 server traffic, proxies, and unattended production monitoring are unsupported.

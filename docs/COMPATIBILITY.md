@@ -90,10 +90,22 @@ Chrome _runs it_ across the claimed support matrix. Specifically untested:
 - panel theming and docking across Chrome versions and operating systems.
 
 Until Chrome 120 and every operating system the publisher chooses to support
-are recorded, the honest public statement is the narrower one:
+are recorded, the honest public statement is the narrower one.
+
+## Adopted public claim — 2026-07-30
+
+The narrow statement is adopted rather than left as a draft. Every
+user-facing surface now says:
 
 > Built and manually checked against Chrome 150 on macOS. Declares Chrome 120
 > as its minimum supported version based on the platform features it uses.
 
+`minimum_chrome_version` stays at `"120"`. It is a functional gate derived from
+the features the code uses, not a support promise, and lowering the claim does
+not change which browsers can install the package. Raising the manifest floor to
+150 would block browsers the code is expected to run on, on no evidence that it
+fails there.
+
 Claiming tested support for the whole 120-to-current range needs the matrix in
-[ROADMAP.md](./ROADMAP.md) Stage 1.
+[ROADMAP.md](./ROADMAP.md) Stage 1. Recording that matrix later widens the claim
+without any code change.

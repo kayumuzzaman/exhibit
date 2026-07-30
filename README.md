@@ -60,6 +60,7 @@ server-to-server traffic and never guesses a server function name. See
 | `pnpm test:coverage`      | The same tests with the 90% four-metric gate.          |
 | `pnpm test:e2e`           | Playwright end-to-end suite (run `pnpm build` first).  |
 | `pnpm screenshots`        | Regenerate deterministic fixture-driven store PNGs.    |
+| `pnpm promo-tile`         | Regenerate the 440×280 Chrome Web Store promo tile.    |
 | `pnpm audit:package`      | Static audit of the built package.                     |
 | `pnpm audit:dependencies` | Reject known high/critical dependency vulnerabilities. |
 | `pnpm check`              | Format, lint, types, coverage, build.                  |
@@ -81,6 +82,7 @@ server-to-server traffic and never guesses a server function name. See
 - [Capture limits](./docs/CAPTURE_LIMITS.md)
 - [Verification](./docs/VERIFICATION.md)
 - [Chrome Web Store listing](./docs/CHROME_WEB_STORE.md)
+- [Release decisions](./docs/RELEASE_DECISIONS.md)
 - [Release checklist](./docs/RELEASE_CHECKLIST.md)
 - [Compatibility floor](./docs/COMPATIBILITY.md)
 - [Changelog](./CHANGELOG.md)

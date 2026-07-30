@@ -1,9 +1,9 @@
 # Verification
 
 Exhibit has one release gate. The commands below are intended to run from a
-clean checkout. The latest committed artifact record is reconstructable from
-the candidate identified below. Newer working-tree evidence is recorded
-separately and is not a release artifact.
+clean checkout. The current release artifact is the `0721fcd` record below, cut
+from a clean tree. Older candidates are kept for history and marked superseded.
+Working-tree evidence is recorded separately and is not a release artifact.
 
 ## Commands
 
@@ -52,6 +52,73 @@ development evidence, not a release artifact record.
 | `pnpm audit:dependencies` | pass — 0 known vulnerabilities                                                   |
 | `pnpm test:e2e`           | pass — 43 tests                                                                  |
 
+## Recorded release-artifact run — 2026-07-31
+
+Environment: macOS 26.5.2 (arm64), Node v26.5.0, pnpm 10.33.2, WXT 0.21.2,
+Playwright 1.62.0, Chromium 151.0.7922.34, Google Chrome 150.0.7871.187
+installed.
+
+Release commit: `0721fcd`. `git status --short` was empty before the run. This
+supersedes the `94c74ae` record: the tree has since gained the Next.js-first
+listing copy, the prerender classification fix, its contract tests, the narrowed
+compatibility claim, the generated promo tile, and this release cycle's
+changelog.
+
+| Gate                      | Result                                                                           |
+| ------------------------- | -------------------------------------------------------------------------------- |
+| `pnpm format:check`       | pass                                                                             |
+| `pnpm lint`               | pass, 0 warnings                                                                 |
+| `pnpm typecheck`          | pass                                                                             |
+| `pnpm test:coverage`      | pass — 51 files, 1,009 tests                                                     |
+| Coverage — statements     | 95.77%                                                                           |
+| Coverage — branches       | 93.43%                                                                           |
+| Coverage — functions      | 97.44%                                                                           |
+| Coverage — lines          | 96.68%                                                                           |
+| `pnpm build`              | pass — 525.17 kB unpacked                                                        |
+| `pnpm audit:package`      | pass — 0 unapproved network-destination URLs, 0 remote scripts, 0 inline scripts |
+| Manifest permissions      | `["storage","scripting"]`; required host permissions `[]`                        |
+| `pnpm audit:dependencies` | pass — 0 known vulnerabilities                                                   |
+| `pnpm test:e2e`           | pass — 43 tests                                                                  |
+| `pnpm zip`                | pass — `.output/exhibit-0.1.0-chrome.zip`, 226,080 bytes                         |
+
+| Artifact             | Value                                                              |
+| -------------------- | ------------------------------------------------------------------ |
+| ZIP SHA-256          | `d6db4790dc5bfce50014c8b3e9ca7bd47007496da9aad8d5f1f8e060b1f7cb4a` |
+| Package content hash | `7190099aa2d2e2aa176b15718024c827c4abc2b04830fcda26fe237935c1dfc9` |
+
+**The ZIP hash is not reproducible, and earlier records in this file implied
+otherwise.** `wxt zip` stores build file times in the archive, so every rebuild
+of the same tree produces a different ZIP hash at an identical byte size. Two
+`pnpm zip` runs over one build do match; a rebuild in between does not. The ZIP
+hash therefore identifies one uploaded file, not the commit.
+
+Branch coverage is not bit-stable across runs: repeated gates on this tree
+reported 93.38% and 93.43%, a spread of about two branches out of 3,944. The
+figure above is what the recorded run produced. Both sit far above the 90% gate,
+so the variance changes no outcome, but a verifier recomputing it should expect
+a small difference rather than an exact match.
+
+The package content hash is the value that is reproducible from the commit.
+Recompute it against a fresh build of `0721fcd` with:
+
+```bash
+find .output/chrome-mv3 -type f | sort | xargs shasum -a 256 | shasum -a 256
+```
+
+Record both when cutting a release: the ZIP hash to identify the exact file sent
+to the Web Store, and the content hash to prove that file was built from this
+commit.
+
+The permissions above were read back out of the packaged `manifest.json`, not
+from the source config, so they describe what actually ships.
+
+This is the artifact to upload. It is release-gate evidence, not a release
+decision: the owner, licence, public contacts, hosted policy URL, retention
+call, and product video are still outstanding — see
+[RELEASE_DECISIONS.md](./RELEASE_DECISIONS.md). If the retention decision
+changes code, this record is void and the gate must be rerun from a new clean
+commit.
+
 ## Recorded automated run — 2026-07-29
 
 Environment: macOS 26.5.2 (arm64), Node v26.5.0, pnpm 10.33.2, WXT 0.21.2,
@@ -62,9 +129,9 @@ Candidate commit: `94c74ae`, the committed tree carrying the fixes and audit
 documents described in the unreleased changelog. The gate ran against that
 exact tree with no uncommitted changes, so this is reproducible pre-release
 evidence. The manual installed-Chrome checklist was completed later on
-2026-07-30, but the current working tree has moved beyond this candidate. A
-final signed release record therefore still needs a new clean commit, artifact,
-and hash.
+2026-07-30. **Superseded** by the `0721fcd` record above; kept for history. Its
+`Artifact SHA-256` line is a ZIP hash, which the note above explains is not
+reproducible from the commit.
 
 | Gate                      | Result                                                                           |
 | ------------------------- | -------------------------------------------------------------------------------- |
