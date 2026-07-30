@@ -60,6 +60,12 @@ test.describe('packaged extension', () => {
       expect(response?.status()).toBe(200);
       // DevTools is not open here, so the popup must stay on the instructions.
       await expect(page.getByRole('heading')).toContainText('DevTools');
+      // The popup is the only product surface that names Next.js, and it must
+      // also say the tool is not Next.js-only: every other surface renders on
+      // any site and stays framework-neutral for that reason.
+      const scope = page.locator('#scope');
+      await expect(scope).toContainText('Server Actions');
+      await expect(scope).toContainText('On any site');
       await expect(page.locator('#focus')).toBeHidden();
       await page.close();
     });

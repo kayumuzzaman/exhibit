@@ -5,7 +5,8 @@ export function buildManifest() {
     manifest_version: 3,
     name: 'Exhibit',
     version: '0.1.0',
-    description: 'Privacy-first browser request evidence for DevTools.',
+    description:
+      'Reads Next.js Server Actions, RSC, and Flight payloads in DevTools, and redacts credentials before anything is shown.',
     icons: {
       16: 'icon/16.png',
       32: 'icon/32.png',

@@ -6,6 +6,8 @@ const ACTION_INTERNAL_WARNING =
   'Next.js action and Flight headers are internal and version-sensitive.';
 const ACTION_REQUEST_ONLY_LIMIT =
   'The response is not a Flight payload, so only the request side names an action.';
+const PRERENDER_STRIPPED_LIMIT =
+  'A proxy or CDN can strip these headers, so rendering during this request is not proven.';
 
 function headerValue(
   headers: readonly Header[],
@@ -82,10 +84,62 @@ export function nextFrameworkEvidence(request: CapturedRequest): readonly string
   if (presentHeader(request.response.headers, 'x-nextjs-matched-path')) {
     evidence.push('Response header X-Nextjs-Matched-Path is present.');
   }
+  if (presentHeader(request.response.headers, 'x-nextjs-prerender')) {
+    evidence.push('Response header X-Nextjs-Prerender is present.');
+  }
   if (variesOnRouterHeaders(request.response.headers)) {
     evidence.push('Response header Vary lists Next.js router request headers.');
   }
   return frozenEvidence(evidence);
+}
+
+export type NextRenderMode = 'prerendered' | 'per-request';
+
+export type NextRenderEvidence = Readonly<{
+  mode: NextRenderMode;
+  evidence: readonly string[];
+}>;
+
+function staleSeconds(headers: readonly Header[]): number | undefined {
+  const raw = headerValue(headers, 'x-nextjs-stale-time')?.trim();
+  if (raw === undefined || !/^\d+$/.test(raw)) return undefined;
+  const seconds = Number(raw);
+  return Number.isSafeInteger(seconds) ? seconds : undefined;
+}
+
+/**
+ * Next.js marks prerendered HTML with `X-Nextjs-Prerender`, so a browser
+ * observer can tell a cached prerender from HTML rendered during this request.
+ * Presence proves the prerender; absence only suggests per-request rendering,
+ * because an intermediary can remove the header.
+ */
+export function nextRenderEvidence(request: CapturedRequest): NextRenderEvidence {
+  const headers = request.response.headers;
+  if (!presentHeader(headers, 'x-nextjs-prerender')) {
+    return Object.freeze({
+      mode: 'per-request' as const,
+      evidence: frozenEvidence([
+        'No prerender header is present, which is consistent with rendering during this request.',
+        PRERENDER_STRIPPED_LIMIT,
+      ]),
+    });
+  }
+
+  const evidence = [
+    'The HTML was prerendered before this request rather than rendered for it.',
+  ];
+  const cache = headerValue(headers, 'x-nextjs-cache')?.trim();
+  if (cache !== undefined && cache.length > 0) {
+    evidence.push(`Response header X-Nextjs-Cache reports ${cache}.`);
+  }
+  const stale = staleSeconds(headers);
+  if (stale !== undefined) {
+    evidence.push(`Response header X-Nextjs-Stale-Time reports ${stale} seconds.`);
+  }
+  return Object.freeze({
+    mode: 'prerendered' as const,
+    evidence: frozenEvidence(evidence),
+  });
 }
 
 export function detectServerAction(

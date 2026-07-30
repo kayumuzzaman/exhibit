@@ -582,9 +582,66 @@ describe('classifyRequest', () => {
         'Request header Sec-Fetch-Dest is document.',
         'Response MIME type is text/html.',
         'Response header X-Powered-By reports Next.js.',
-        'Browser-visible evidence cannot distinguish server rendering from prerendered HTML with certainty.',
+        'No prerender header is present, which is consistent with rendering during this request.',
+        'A proxy or CDN can strip these headers, so rendering during this request is not proven.',
+        'This kind covers any framework-rendered document; read the render evidence for when the HTML was produced.',
       ],
     });
+  });
+
+  // Next 16.2.12 sends these on a prerendered route and omits every one of them
+  // on a `force-dynamic` route, so the panel must not call the first case a
+  // document rendered for this request.
+  it('reports prerendered HTML as prerendered rather than rendered for the request', () => {
+    const result = classifyRequest(
+      requestWith({
+        requestHeaders: [{ name: 'Sec-Fetch-Dest', value: 'document' }],
+        responseHeaders: [
+          { name: 'x-powered-by', value: 'Next.js' },
+          { name: 'x-nextjs-cache', value: 'HIT' },
+          { name: 'x-nextjs-prerender', value: '1, 1' },
+          { name: 'x-nextjs-stale-time', value: '300' },
+        ],
+        responseMime: 'text/html; charset=utf-8',
+      }),
+    );
+
+    expect(result).toEqual({
+      kind: 'ssr',
+      confidence: 'likely',
+      evidence: [
+        'Request header Sec-Fetch-Dest is document.',
+        'Response MIME type is text/html.',
+        'Response header X-Powered-By reports Next.js.',
+        'Response header X-Nextjs-Cache is present.',
+        'Response header X-Nextjs-Prerender is present.',
+        'The HTML was prerendered before this request rather than rendered for it.',
+        'Response header X-Nextjs-Cache reports HIT.',
+        'Response header X-Nextjs-Stale-Time reports 300 seconds.',
+        'This kind covers any framework-rendered document; read the render evidence for when the HTML was produced.',
+      ],
+    });
+  });
+
+  it('omits a stale time that is not a plain number of seconds', () => {
+    const result = classifyRequest(
+      requestWith({
+        requestHeaders: [{ name: 'Sec-Fetch-Dest', value: 'document' }],
+        responseHeaders: [
+          { name: 'x-nextjs-prerender', value: '1' },
+          { name: 'x-nextjs-stale-time', value: 'unbounded' },
+        ],
+        responseMime: 'text/html',
+      }),
+    );
+
+    expect(result.kind).toBe('ssr');
+    expect(result.evidence).not.toContain(
+      'Response header X-Nextjs-Stale-Time reports NaN seconds.',
+    );
+    expect(result.evidence).toContain(
+      'The HTML was prerendered before this request rather than rendered for it.',
+    );
   });
 
   it('confirms a document destination from direct fetch metadata', () => {

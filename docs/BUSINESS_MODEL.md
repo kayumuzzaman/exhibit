@@ -2,7 +2,7 @@
 
 **Status:** Strategy hypotheses; no commercial model approved
 
-**Last reviewed:** 2026-07-29
+**Last reviewed:** 2026-07-30
 
 ## Current commercial state
 
@@ -15,16 +15,22 @@ This means Exhibit is currently an engineering asset, not a sellable product.
 
 ## Customer map
 
-| Role                            | Problem                                         | Value sought                                              | Likely buying role                     |
-| ------------------------------- | ----------------------------------------------- | --------------------------------------------------------- | -------------------------------------- |
-| QA engineer                     | Reproduction lacks technical evidence           | Faster, safer handoff                                     | QA lead or engineering manager         |
-| Support engineer                | Customer report cannot explain browser behavior | Escalation package engineering can use                    | Support operations lead                |
-| Frontend developer              | Raw network logs are slow to interpret          | Evidence-linked explanation and Next.js context           | Self-serve user or engineering manager |
-| Security-conscious organization | Debug evidence may contain credentials          | Local processing, strict redaction, controlled deployment | Security/IT plus engineering           |
+| Role                            | Problem                                                | Value sought                                              | Likely buying role             |
+| ------------------------------- | ------------------------------------------------------ | --------------------------------------------------------- | ------------------------------ |
+| Frontend developer              | Server Actions and RSC are opaque in the Network panel | Framework-aware explanation from browser evidence         | Self-serve user                |
+| QA engineer                     | Reproduction lacks technical evidence                  | Faster, safer handoff                                     | QA lead or engineering manager |
+| Support engineer                | Customer report cannot explain browser behavior        | Escalation package engineering can use                    | Support operations lead        |
+| Security-conscious organization | Debug evidence may contain credentials                 | Local processing, strict redaction, controlled deployment | Security/IT plus engineering   |
 
-Recommended first segment: small QA/support groups working on authorized
-Next.js applications. This remains a hypothesis until interviews and usage
-tests support it.
+Recommended first segment: frontend developers working on authorized Next.js
+applications. This remains a hypothesis until interviews and usage tests support
+it.
+
+The segment is deliberately the one with the weakest buying authority, because
+at this stage the constraint is adoption, not revenue. Frontend developers
+install DevTools extensions without procurement; QA, support, and security
+buyers are reached later, through teams that already run it. See
+[PRODUCT.md](./PRODUCT.md) for the full wedge rationale.
 
 ## Competitive economics
 
@@ -99,8 +105,9 @@ Do not choose paid packaging before validating the wedge.
    licence/NDA and data-handling terms; provide monitored privacy, security, and
    support contacts. The current `UNLICENSED` repository cannot be distributed
    to outside design partners.
-2. **Private design-partner beta:** 5–10 QA/support participants across at least
-   three Next.js applications under those terms. No payment; measure task
+2. **Private design-partner beta:** 5–10 frontend developers across at least
+   three Next.js applications under those terms. No payment; measure whether the
+   Server Action and RSC explanations are understood unprompted, then task
    completion and handoff quality, optional-permission comprehension and
    acceptance, and the usefulness of network-only recording when access is
    declined.
@@ -129,10 +136,12 @@ privacy design.
 
 Candidate channels:
 
-- Chrome Web Store discovery for “network debugging,” “Next.js,” and “QA bug
-  report” jobs;
+- Chrome Web Store discovery for “Next.js Server Action,” “RSC,” “React Flight,”
+  and “network debugging” searches, which the listing name and summary now
+  target;
 - framework-focused examples demonstrating Server Action and RSC evidence;
-- QA/support workflow guides using sanitized fixture data;
+- QA/support workflow guides using sanitized fixture data, published after the
+  developer wedge is validated rather than alongside it;
 - partnerships or direct outreach to teams with local-only requirements;
 - open technical documentation about capture and redaction limits.
 

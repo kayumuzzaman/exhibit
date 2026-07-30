@@ -6,10 +6,13 @@
 
 ## Product statement
 
-Exhibit is a local-first Chrome DevTools extension that turns browser-visible
-network traffic into sanitized, evidence-backed explanations. It helps a person
-connect an interaction to requests observed shortly afterward, understand what
-happened, and export safer evidence without changing the inspected website.
+Exhibit is a local-first Chrome DevTools extension that makes Next.js network
+traffic readable — Server Actions, RSC navigations, and React Flight payloads
+that other tools can only show as opaque posts and byte streams — and applies
+the same evidence-backed explanation to ordinary REST, GraphQL, and form
+traffic. It helps a person connect an interaction to requests observed shortly
+afterward, understand what happened, and export safer evidence without changing
+the inspected website.
 
 Exhibit does not observe server-to-server traffic and does not replace a
 proxy, application performance monitor, or server debugger.
@@ -18,21 +21,45 @@ proxy, application performance monitor, or server debugger.
 
 Three roles can use the product:
 
+- frontend developers investigating Next.js browser/API behavior;
 - QA engineers reproducing failures in modern web applications;
-- frontend developers investigating browser/API behavior;
 - support engineers preparing evidence for engineering.
 
-The recommended launch wedge is **QA and support teams debugging authorized
-Next.js web applications**. This is a positioning hypothesis, not a validated
-market decision. It concentrates Exhibit's strongest differentiators:
+The recommended launch wedge is **frontend developers debugging authorized
+Next.js applications**. This is a positioning hypothesis, not a validated market
+decision. It leads with the differentiator no competitor holds:
 
-- time-bounded interaction-to-request correlation;
+- Next.js Server Action, RSC, SSR, and partial React Flight awareness;
 - conservative explanations with visible confidence and evidence;
-- Next.js Server Action, RSC, and partial React Flight awareness;
-- local processing and redaction before storage, display, copy, or export.
+- redaction before storage, display, copy, or export, so a panel screenshot is
+  safe to attach;
+- time-bounded interaction-to-request correlation.
 
-Developers remain an important user, but Chrome DevTools and proxy tools already
-serve their raw-traffic workflow well.
+### Why this wedge and not QA evidence
+
+The earlier wedge was QA and support handing evidence to engineering. It was
+abandoned as the entry point for three reasons, recorded so the decision is not
+silently re-litigated:
+
+1. **It competes where Exhibit is weaker.** Jam already owns bug-report handoff
+   with video, console capture, and issue-tracker routing. A narrower artifact
+   loses that comparison.
+2. **The Next.js gap has no incumbent.** A Server Action reads as an opaque
+   `POST` and an RSC navigation as a byte stream in every tool surveyed in
+   [COMPETITIVE_LANDSCAPE.md](./COMPETITIVE_LANDSCAPE.md). That is a searchable
+   pain with no current answer.
+3. **Distribution.** Frontend developers install DevTools extensions on their
+   own judgement. QA and support tooling more often needs organizational
+   approval, which an unreleased extension with no publisher history cannot pass.
+
+QA and support remain a real second segment, reached through the developers who
+already installed it. Nothing in the product is being removed to serve the
+change; the wedge governs the store listing, first-run copy, and validation
+order, not the feature set.
+
+Chrome DevTools still serves raw-traffic debugging better on every non-framework
+axis. Exhibit does not compete there — see the Network panel comparison in
+[COMPETITIVE_LANDSCAPE.md](./COMPETITIVE_LANDSCAPE.md).
 
 ## Jobs to be done
 
@@ -105,16 +132,17 @@ consented research sessions, support feedback, and release-test evidence.
 
 Proposed validation measures:
 
-| Measure                                           |                                Initial target | Collection method                                |
-| ------------------------------------------------- | --------------------------------------------: | ------------------------------------------------ |
-| First useful explanation                          |         Under 2 minutes from opening DevTools | Moderated usability test                         |
-| Core workflow completion                          |   At least 8 of 10 first-time QA participants | Task-based usability test                        |
-| Correct interaction group selected                |            At least 90% across test scenarios | Observed test tasks                              |
-| Useful result when interaction access is declined |           At least 8 of 10 network-only tasks | Task-based usability test                        |
-| Optional access understood before grant           | At least 9 of 10 explain scope and revocation | Comprehension interview                          |
-| Sanitized handoff accepted without manual cleanup |              At least 9 of 10 fixture reports | Artifact review                                  |
-| Evidence claim accuracy                           |  Zero unsupported claims in acceptance corpus | Maintained protocol fixtures                     |
-| Serious accessibility defects                     |                                          Zero | Automated scan plus keyboard/screen-reader smoke |
+| Measure                                           |                                    Initial target | Collection method                                |
+| ------------------------------------------------- | ------------------------------------------------: | ------------------------------------------------ |
+| First useful explanation                          |             Under 2 minutes from opening DevTools | Moderated usability test                         |
+| Core workflow completion                          |   At least 8 of 10 first-time frontend developers | Task-based usability test                        |
+| Server Action or RSC request correctly understood | At least 8 of 10 Next.js participants, unprompted | Task-based usability test                        |
+| Correct interaction group selected                |                At least 90% across test scenarios | Observed test tasks                              |
+| Useful result when interaction access is declined |               At least 8 of 10 network-only tasks | Task-based usability test                        |
+| Optional access understood before grant           |     At least 9 of 10 explain scope and revocation | Comprehension interview                          |
+| Sanitized handoff accepted without manual cleanup |                  At least 9 of 10 fixture reports | Artifact review                                  |
+| Evidence claim accuracy                           |      Zero unsupported claims in acceptance corpus | Maintained protocol fixtures                     |
+| Serious accessibility defects                     |                                              Zero | Automated scan plus keyboard/screen-reader smoke |
 
 These are hypotheses until a research round is recorded.
 
