@@ -22,8 +22,10 @@ The privacy contact is a personal address rather than the dedicated alias
 originally chosen. It appears in a public listing, will be scraped, and changing
 it later means editing a published listing rather than the code.
 
-**Nothing in this repository now blocks submission.** What remains is outside
-it: a public policy URL, the product video, and first real users.
+**Nothing in this repository blocks submission.** The listing was entered in the
+Chrome Web Store dashboard on 2026-07-31 and the policy URL is live. What
+remains is the review outcome, the optional product video, and first real
+users.
 
 ---
 
@@ -46,11 +48,17 @@ under it keeps those rights permanently.
 | `SUPPORT.md`               | Done — GitHub Issues, current release only, best effort  |
 | [PRIVACY.md](./PRIVACY.md) | Done — contact and 2026-07-31 effective date applied     |
 
-The policy still needs a **public URL** that stays reachable for as long as the
-item is listed. Now that the licence is MIT, making this repository public and
-enabling GitHub Pages is the straightforward route, and it costs nothing. This
-is the last repository-adjacent item standing between the package and
-submission.
+Done. GitHub Pages serves the policy from `main` under `/docs` with HTTPS
+enforced:
+
+```
+https://kayumuzzaman.github.io/exhibit/PRIVACY
+```
+
+It must stay reachable for as long as the item is listed. Note that Pages
+publishes everything under `docs/`, including the business model, the
+competitive landscape, and the historical planning records — all already public
+in this repository, but now presented as a browsable site.
 
 ## 3. Persistent retention — settled, no action
 
