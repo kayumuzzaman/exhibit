@@ -7,25 +7,41 @@ review the final disclosure form against current Chrome Web Store policy.
 
 ## Item details
 
-- **Name:** Exhibit
-- **Summary (132 characters max):** Privacy-first browser request evidence for
-  DevTools. Record, explain, and inspect what your page actually sent.
+- **Name:** Exhibit — Next.js Server Action & RSC network explainer
+- **Summary (132 characters max):** Explains Next.js Server Actions, RSC, and
+  Flight payloads in DevTools. Redacted before display, so screenshots are safe.
 - **Category:** Developer Tools
 - **Language:** English
 
+The listing name is set in the dashboard's Store listing tab and is deliberately
+longer than the manifest `name`. The DevTools tab label is a separate literal in
+`src/devtools/boot.ts`, so it stays the short **Exhibit**.
+
 ## Detailed description
 
-> Exhibit is a DevTools panel that turns browser network activity into
-> evidence you can read.
+> In the Network panel, a Next.js Server Action is an opaque POST and an RSC
+> navigation is a byte stream. Exhibit reads them.
 >
-> Start recording, use your page, and Exhibit explains each request in one
-> sentence: which recent interaction it followed, what kind of request it was,
-> what came back, how long it took, and how confident that reading is. Every
-> claim links back to the protocol facts behind it.
+> It classifies Server Actions, RSC navigations, SSR documents, and Next.js API
+> routes, and partially decodes React Flight payloads with an explicit decode
+> reason and a raw protocol fallback. It never guesses a server function name
+> from an opaque action identifier — if the browser cannot prove it, Exhibit
+> says so.
+>
+> Screenshots of this panel are safe to paste into a ticket. Authorization and
+> cookie headers, credential-shaped fields, and token-like values are redacted
+> before anything is stored, shown, copied, or exported. There is no setting
+> that turns that off.
+>
+> It works on any site, not only Next.js. Start recording, use your page, and
+> Exhibit explains each REST, GraphQL, form, or fetch request in one sentence:
+> which recent interaction it followed, what kind of request it was, what came
+> back, how long it took, and how confident that reading is. Every claim links
+> back to the protocol facts behind it.
 >
 > Inspect gives you the developer view — headers, bodies, timing phases,
 > initiator, and an evidence ledger — with Structured, Text, and Raw protocol
-> body modes, including partial React Flight decoding with a raw fallback.
+> body modes.
 >
 > Built for privacy:
 > • No server, no account, no analytics, no outbound requests.
@@ -115,11 +131,17 @@ The generated set is:
 
 | File                           | Shows                                                                                                        |
 | ------------------------------ | ------------------------------------------------------------------------------------------------------------ |
-| `01-recording-ledger.png`      | Command bar recording, session rail, populated ledger with a failure and a slow call.                        |
-| `02-explain-server-action.png` | Explain for a real Next.js Server Action: confirmed confidence, opaque action identifier, expanded evidence. |
+| `01-explain-server-action.png` | Explain for a real Next.js Server Action: confirmed confidence, opaque action identifier, expanded evidence. |
+| `02-recording-ledger.png`      | Command bar recording, session rail, populated ledger with a failure and a slow call.                        |
 | `03-inspect-timing.png`        | Inspect timing waterfall with text labels and patterns beside the bars.                                      |
 | `04-flight-raw-fallback.png`   | Partially decoded React Flight body, its decode reason, and the Raw protocol tab.                            |
 | `05-redaction.png`             | Redacted URL query token, authorization and API-key headers, and body fields.                                |
+
+Upload them in filename order. The Server Action frame leads deliberately: the
+store shows the first screenshot as the hero, and it carries the positioning.
+`scripts/screenshots.mjs` still captures the ledger frame first, because the
+later frames depend on the panel state it leaves behind; only the output
+filenames are ordered for the listing.
 
 Also supply the existing 128 x 128 store icon (`public/icon/128.png`) and create
 the required 440 x 280 small promo tile plus a YouTube product video. The

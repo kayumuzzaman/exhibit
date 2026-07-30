@@ -2,6 +2,10 @@
 
 **Research date:** 2026-07-29
 
+**Positioning revised:** 2026-07-30. Only Exhibit's wedge and the resulting
+competitor ranking changed; no competitor claim was re-verified after the
+research date above.
+
 **Scope:** Browser request debugging, bug evidence, and adjacent Next.js tools
 
 ## How to read this document
@@ -20,20 +24,33 @@ published product claim.
 
 Exhibit is weaker than mature alternatives in breadth, distribution,
 collaboration, manipulation, and ecosystem maturity. Its defensible focus is
-narrower: local, evidence-led request explanations for QA/support users
-debugging modern browser and Next.js workflows without a proxy, account, site
-SDK, or an export that leaves known credential forms untouched.
+narrower: making Next.js browser traffic readable, and redacting known
+credential forms before evidence reaches the screen — without a proxy, account,
+or site SDK.
 
-The strongest potential differentiator is **time-bounded interaction
-correlation plus conservative Next.js/RSC evidence**. Capture, filtering,
-timing, cURL, and sanitized HAR are table stakes.
+The strongest differentiator is **conservative Next.js Server Action, RSC, and
+Flight evidence**, supported by time-bounded interaction correlation. Capture,
+filtering, timing, cURL, and sanitized HAR are table stakes.
 
-The comparison that actually decides adoption is against Chrome's own Network
-panel, because it is already installed and already open on the same tab. That
-one is worked through in detail under
-[Exhibit versus the Network panel](#exhibit-versus-the-network-panel-in-detail):
-same capture, different job. The Network panel is better for debugging;
-Exhibit is better for evidence that leaves the browser.
+Two comparisons matter, for different reasons:
+
+- **Chrome's own Network panel decides installation**, because it is already
+  installed and already open on the same tab. Worked through under
+  [Exhibit versus the Network panel](#exhibit-versus-the-network-panel-in-detail):
+  same capture, different job. It is better for debugging; Exhibit is better for
+  framework semantics and for evidence that leaves the browser.
+- **Next.js DevTools MCP decides whether the wedge survives.** It is the only
+  reviewed tool that could answer the same Server Action question, and with
+  repository and local-runtime access it can answer it _better_ — with real
+  source locations and function names. Exhibit's defence is black-box operation:
+  a deployed page, no repo, no local runtime, no site change. That defence holds
+  for reviewing staging and production, and does not hold for a developer
+  running the app locally with the repo open. See
+  [Next.js DevTools MCP and React DevTools](#nextjs-devtools-mcp-and-react-devtools).
+
+Jam was previously treated as the primary competitor, when the wedge was QA
+evidence handoff. Under the current wedge it is an adjacent tool for a segment
+Exhibit reaches second; see [PRODUCT.md](./PRODUCT.md) for that decision.
 
 ## Comparison matrix
 
@@ -307,7 +324,10 @@ Exhibit wins:
 
 ### Next.js DevTools MCP and React DevTools
 
-These are adjacent rather than direct competitors. Next.js 16's MCP guide
+**Under the current wedge these are the primary strategic threat, not an
+adjacency.** They are the only reviewed tools that address the same Server
+Action question, and where they apply they answer it with better evidence than a
+browser observer can produce. Next.js 16's MCP guide
 describes runtime access to errors, logs, routes, and application metadata, and
 local framework tools can connect Server Action identifiers to source. React
 DevTools inspects components and profiles rendering.
@@ -349,15 +369,18 @@ Exhibit wins:
 
 ## Where Exhibit is materially better
 
-1. **Local-only product boundary:** no account, backend, telemetry, or remote
-   save path in the extension.
+1. **Modern Next.js semantics:** Server Action, RSC, SSR, and partial Flight
+   evidence are interpreted conservatively. No reviewed browser tool offers an
+   equivalent, and it is the only advantage on this list that a competitor
+   cannot add with a checkbox.
 2. **Redaction lifecycle:** known credential names and shapes are removed
    before trusted storage, rendering, clipboard, cURL, HAR, and Markdown
-   export, with detection limits documented.
+   export, with detection limits documented. There is no setting that disables
+   it, which is what makes a panel screenshot safe to attach.
 3. **Evidence honesty:** claims expose confidence and supporting protocol facts;
    unknown behavior is not guessed.
-4. **Modern Next.js semantics:** Server Action, RSC, and partial Flight evidence
-   are interpreted conservatively.
+4. **Local-only product boundary:** no account, backend, telemetry, or remote
+   save path in the extension.
 5. **QA-readable handoff:** explanations and a deterministic Markdown report
    reduce the gap between raw network logs and a bug report.
 6. **Low setup:** no proxy, root certificate, SDK, site modification, or
@@ -365,9 +388,10 @@ Exhibit wins:
 
 ## Defensible positioning
 
-> Local, evidence-led request explanations for QA and support teams debugging
-> modern Next.js web apps—without proxy setup, accounts, telemetry, or sharing
-> known credential forms left untouched in the exported evidence.
+> The DevTools panel that makes Next.js network traffic readable — Server
+> Actions, RSC navigations, and Flight payloads explained from browser evidence
+> alone, on any deployed page, with credentials redacted before they reach the
+> screen.
 
 Avoid these claims:
 
@@ -380,7 +404,11 @@ Avoid these claims:
 
 ## Evidence still needed
 
-- interviews proving QA/support is the right primary segment;
+- interviews proving Next.js frontend developers are the right primary segment;
+- evidence that the Server Action/RSC explanation is understood unprompted by a
+  developer who has not read the documentation;
+- classifier accuracy against the current Next.js release, not only the pinned
+  fixture version;
 - timed comparison against Chrome Network for the same debugging tasks;
 - red-team review of redaction and export artifacts;
 - willingness-to-pay tests for organization support/deployment;

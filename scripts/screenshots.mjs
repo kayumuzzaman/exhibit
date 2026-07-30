@@ -74,7 +74,8 @@ async function main() {
     await page.getByRole('button', { name: 'Switch to light theme' }).click();
     await page.locator('.app-shell[data-theme="light"]').waitFor();
 
-    // 1. Recording ledger with representative traffic.
+    // Frame 2. Recording ledger with representative traffic. Captured first
+    // because the later frames depend on the state this leaves behind.
     await exhibit.startRecording();
     await exhibit.trigger('save-profile');
     await exhibit.trigger('load-profile');
@@ -82,13 +83,14 @@ async function main() {
     await exhibit.trigger('submit-form');
     await exhibit.trigger('failing');
     await exhibit.trigger('slow');
-    await shot('01-recording-ledger');
+    await shot('02-recording-ledger');
 
-    // Keep the overview ledger broad in the first frame, then use the product's
-    // real resize control to give detail evidence enough room in frames 2–5.
+    // Keep the overview ledger broad in that frame, then use the product's real
+    // resize control to give detail evidence enough room in every other frame.
     await page.getByRole('separator', { name: 'Resize request ledger' }).press('Home');
 
-    // 2. Explain a real Next.js Server Action with its evidence disclosure.
+    // Frame 1. Explain a real Next.js Server Action with its evidence
+    // disclosure. This is the store hero, so it leads the numbered set.
     await exhibit.openNextFixture();
     await exhibit.triggerInNextFixture('#next-save-action');
     // Selected by the primary columns, which every ledger width keeps: the
@@ -105,15 +107,15 @@ async function main() {
       node.open = true;
     });
     await explainEvidence.scrollIntoViewIfNeeded();
-    await shot('02-explain-server-action');
+    await shot('01-explain-server-action');
 
-    // 3. Inspect timing for the slow call.
+    // Frame 3. Inspect timing for the slow call.
     await exhibit.openRequest('/api/slow');
     await exhibit.openInspect();
     await exhibit.openEvidenceTab('Timing');
     await shot('03-inspect-timing');
 
-    // 4. Partial React Flight decode beside its raw protocol fallback.
+    // Frame 4. Partial React Flight decode beside its raw protocol fallback.
     await exhibit.setApiOnly(false);
     await exhibit.trigger('flight-partial');
     await exhibit.openRequest('/api/flight-partial');
@@ -122,7 +124,7 @@ async function main() {
     await page.locator('.body-viewer').scrollIntoViewIfNeeded();
     await shot('04-flight-raw-fallback');
 
-    // 5. Redaction in place across header, query, and body.
+    // Frame 5. Redaction in place across header, query, and body.
     await exhibit.trigger('secret');
     await exhibit.openRequest('/api/secret');
     await exhibit.openInspect();

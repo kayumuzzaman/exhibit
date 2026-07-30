@@ -1,17 +1,24 @@
 # Exhibit
 
-Privacy-first browser request evidence for Chrome DevTools.
+The Chrome DevTools panel that explains Next.js network traffic — and redacts
+credentials before anything reaches the screen.
 
 > **Status:** internal preview, not released. Automated coverage is broad, but
 > the approved version 0.1 contract still has installed-Chrome, licensing, and
 > public-contact blockers. See [release traceability](./docs/TRACEABILITY.md).
 
-Exhibit records the requests a page actually made, explains each one in a
-sentence backed by protocol facts, and lets you inspect the sanitized evidence.
-There is no server, no account, and no telemetry: everything is processed and
-stored locally, and known credential names and shapes are redacted before
-evidence is stored, shown, or exported. Captured evidence can still be
-sensitive.
+A Server Action is an opaque `POST` in the Network panel. An RSC navigation is a
+byte stream. Exhibit classifies both, partially decodes React Flight payloads
+with an explicit decode reason, and states the evidence behind every claim.
+
+It does the same for ordinary REST, GraphQL, and form traffic: each request gets
+a one-sentence explanation with visible confidence, and the raw protocol facts
+stay one click away.
+
+Because known credential names and shapes are redacted before evidence is
+stored, shown, copied, or exported, a screenshot of the panel is safe to attach
+to a ticket. There is no server, no account, and no telemetry. Captured evidence
+can still be sensitive.
 
 ## Quick start
 

@@ -83,16 +83,22 @@ compatibility matrix, independent review, or final publisher-form review.
 
 ## Stage 2 — problem and segment validation
 
-Goal: test whether QA/support teams on Next.js applications are the right
+Goal: test whether frontend developers on Next.js applications are the right
 initial segment.
 
-- [ ] Recruit 5–10 participants across at least three authorized applications.
+- [ ] Recruit 5–10 frontend developers across at least three authorized Next.js
+      applications.
 - [ ] Measure first useful explanation, workflow completion, group selection,
       handoff acceptance, and unsupported claims.
+- [ ] Test the wedge claim directly: show a Server Action or RSC request and
+      record whether the participant understands it unprompted, and whether the
+      Network panel left them unable to.
 - [ ] Compare the same tasks against Chrome DevTools Network.
+- [ ] Ask participants with local repository access whether Next.js DevTools MCP
+      would displace Exhibit for the same question.
 - [ ] Record confusion, trust, and accessibility findings without adding
       behavioral telemetry.
-- [ ] Decide whether the primary user is QA, support, or frontend development.
+- [ ] Decide whether the primary user is frontend development, QA, or support.
 
 Exit condition: observed evidence supports or rejects the proposed wedge and
 defines the next usability work.
