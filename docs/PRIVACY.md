@@ -119,11 +119,17 @@ surface, and no background network access.
 
 ## Contact
 
-Privacy questions: **<PRIVACY EMAIL PENDING - see docs/RELEASE_DECISIONS.md>**
+Privacy questions: **i.kayumuzzaman@gmail.com**
 
-**Effective date:** <PENDING - set to the Chrome Web Store submission date>
+**Effective date:** 2026-07-31
 
-This policy must be reachable at a public URL for as long as the item is
-listed. Both placeholders above must be replaced before submission; the Web
-Store form rejects a policy without a contact, and a policy with an unset
-effective date is not a policy.
+**Publisher:** Kayumuzzaman
+
+This policy takes effect on the date above, which is when it becomes reachable
+at its public URL — not the date the Chrome Web Store approves the listing.
+Review can take days or weeks, and a policy dated after users could already read
+it would be wrong. If submission slips well beyond the effective date, update it
+before uploading.
+
+The policy must stay reachable at that public URL for as long as the item is
+listed.
