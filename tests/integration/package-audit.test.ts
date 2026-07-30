@@ -17,6 +17,14 @@ describe.runIf(built)('shipped package audit', () => {
     expect(audit.inlineScripts).toEqual([]);
   });
 
+  // The listing discloses that captured evidence never reaches disk. That is a
+  // property of the shipped bytes, not of the source, so it is asserted here.
+  it('ships no evidence-at-rest storage API', async () => {
+    const audit = await auditPackage(OUTPUT_DIR);
+
+    expect(audit.evidenceAtRest).toEqual([]);
+  });
+
   it('requests exactly the declared permissions and no host access', async () => {
     const audit = await auditPackage(OUTPUT_DIR);
     const declared = buildManifest();

@@ -61,10 +61,11 @@ Goal: create a product that can legally and operationally be offered.
       publisher form.
 - [ ] Conduct an independent red-team review of redaction and exported
       artifacts.
-- [ ] Resolve persistent IndexedDB evidence retention against the final Web
-      Store user-data policy: obtain an approved interpretation, add
-      user-controlled encryption, or remove persistent retention from the
-      public build.
+- [x] Resolve persistent IndexedDB evidence retention against the final Web
+      Store user-data policy. Resolved on 2026-07-31 by removing on-disk
+      evidence retention from the published build: the panel wires only
+      browser-session memory, and `pnpm audit:package` now fails if an
+      evidence-capable persistent storage API reappears in the shipped bytes.
 - [ ] Publish the approved privacy policy at a stable public URL with an
       effective date and Limited Use disclosure.
 - [x] Regenerate and inspect the five current 1280×800 light-theme store

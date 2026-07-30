@@ -225,14 +225,6 @@ export class ExhibitDriver {
     await expect(this.requestRows()).toHaveCount(0);
   }
 
-  async setRetention(retention: 'ephemeral' | 'persistent'): Promise<void> {
-    const control = this.page.getByRole('combobox', {
-      name: 'Evidence retention',
-    });
-    await control.selectOption(retention);
-    await expect(control).toHaveValue(retention);
-  }
-
   async storedSessionText(): Promise<string> {
     return this.page.evaluate(() => {
       const values: string[] = [];

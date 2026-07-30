@@ -74,7 +74,7 @@ with any server.
 
 ## Permission justifications
 
-- **storage** — Keeps the memory-retained session plus theme and custom
+- **storage** — Keeps the browser-session-memory recording plus theme and custom
   redaction settings on the user's machine.
 - **scripting** — Injects a small collector into the inspected tab to record
   trusted click, submit, and navigation events so requests can be correlated
@@ -108,9 +108,9 @@ Accurate product behavior:
   purposes;
 - known credential material is redacted before trusted storage, display, copy,
   or export, subject to the documented detection limits;
-- optional persistent evidence is stored in IndexedDB without application-level
-  encryption; this must be resolved against the final policy review before
-  submission;
+- captured evidence is held in browser-session memory only and is never written
+  to disk, so there is no evidence at rest to encrypt or to disclose; the
+  package audit enforces this against the shipped bytes;
 - the user chooses whether to retain locally, export, clear, or uninstall.
 
 The publisher must map these facts to the current form wording and obtain any

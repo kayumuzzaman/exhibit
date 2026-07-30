@@ -92,11 +92,12 @@ their section is opened.
 
 ## Retention
 
-- **Memory** (default) keeps the session in `chrome.storage.session`. It
-  survives closing and reopening the panel and is discarded when the browser
-  session ends.
-- **Local** keeps the session in IndexedDB so it survives a browser restart.
-- **Clear** removes the session from both stores.
+- Evidence is held in `chrome.storage.session`, which is browser-session
+  memory. It survives closing and reopening the panel, and is discarded when the
+  browser session ends. There is no setting to change this.
+- Evidence is never written to disk, so it does not survive a browser restart.
+  Export before you close the browser if you need to keep it.
+- **Clear** removes the session immediately.
 
 Clear does not revoke an optional origin permission. Revoke it through Chrome's
 extension permissions/site-access controls when it is no longer needed.

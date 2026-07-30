@@ -75,12 +75,8 @@ the fill-in form is [RELEASE_DECISIONS.md](./RELEASE_DECISIONS.md):
    choose distribution and licence terms.
 2. Publish the approved privacy policy and Limited Use disclosure at a stable
    URL, then review the final Chrome Web Store form against package behavior.
-3. Resolve unencrypted persistent IndexedDB evidence retention against the
-   final user-data policy through approval, encryption, or removal. This is the
-   only remaining item that may require code; if it does, repeat screenshots and
-   the clean-commit artifact afterwards.
-4. Record and publish the product video.
-5. Conduct the independent red-team and primary-segment validation required by
+3. Record and publish the product video.
+4. Conduct the independent red-team and primary-segment validation required by
    the roadmap before a public launch.
 
 Each blocker is broken into an ordered action in

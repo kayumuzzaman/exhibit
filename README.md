@@ -89,5 +89,7 @@ server-to-server traffic and never guesses a server function name. See
 
 ## Licence
 
-All rights reserved. See [LICENSE](./LICENSE). This repository grants no
-distribution rights; publishing requires the owner to choose a licence first.
+MIT. See [LICENSE](./LICENSE).
+
+The copyright holder's legal name is still a placeholder; it must be set before
+publication. See [release decisions](./docs/RELEASE_DECISIONS.md).

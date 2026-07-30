@@ -1,4 +1,4 @@
-import type { InteractionGroup, RetentionMode } from '../../domain/model';
+import type { InteractionGroup } from '../../domain/model';
 import type { SanitizedRecordingSession } from '../../domain/sanitized';
 import { Button } from '../../components/button';
 import { Icon } from '../../components/icon';
@@ -56,10 +56,7 @@ export function SessionRail({
   onGroupChange,
   onQuickFilterChange,
   onResetFilters,
-  onRetentionChange,
   quickFilters,
-  retentionBusy,
-  retentionError,
   selectedGroupId,
   session,
 }: Readonly<{
@@ -73,10 +70,7 @@ export function SessionRail({
   onGroupChange(groupId: string | null): void;
   onQuickFilterChange(filter: QuickFilter, value: boolean): void;
   onResetFilters(): void;
-  onRetentionChange(retention: RetentionMode): void;
   quickFilters: QuickFilterState;
-  retentionBusy: boolean;
-  retentionError: string;
   selectedGroupId: string | null;
   session: SanitizedRecordingSession;
 }>) {
@@ -105,7 +99,7 @@ export function SessionRail({
         </div>
         <div>
           <dt>Storage</dt>
-          <dd>{session.retention === 'persistent' ? 'Local' : 'Memory'}</dd>
+          <dd>Memory</dd>
         </div>
         <div>
           <dt>Capacity</dt>
@@ -114,30 +108,16 @@ export function SessionRail({
       </dl>
 
       <div className="rail-section rail-section--retention">
-        <label className="retention-control">
-          <span>
-            <strong>Evidence retention</strong>
-            <small>
-              {session.retention === 'persistent'
-                ? 'Stays on this machine until Clear.'
-                : 'Clears when this browser session ends.'}
-            </small>
-          </span>
-          <select
-            aria-label="Evidence retention"
-            disabled={retentionBusy}
-            onChange={(event) => onRetentionChange(event.target.value as RetentionMode)}
-            value={session.retention}
-          >
-            <option value="ephemeral">Memory — browser session</option>
-            <option value="persistent">Local — until Clear</option>
-          </select>
-          {retentionError === '' ? null : (
-            <small className="retention-control__error" role="alert">
-              {retentionError}
-            </small>
-          )}
-        </label>
+        {/* Retention is not a choice in the published build: evidence is held
+            in browser-session memory only, so there is nothing written to disk
+            for the user to opt out of. */}
+        <p className="retention-note">
+          <strong>Evidence retention</strong>
+          <small>
+            Memory only. Evidence is never written to disk and clears when this browser
+            session ends.
+          </small>
+        </p>
       </div>
 
       <div className="rail-section">

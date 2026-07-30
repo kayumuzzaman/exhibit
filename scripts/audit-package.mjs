@@ -23,6 +23,18 @@ const ALLOWED_URL_PREFIXES = [
 ];
 const ALLOWED_URL_PATTERN = /^https?:\/\/[a-z0-9.-]+\.invalid(?:[/?#]|$)/iu;
 const INLINE_SCRIPT_PATTERN = /<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/giu;
+/**
+ * The store listing discloses that captured evidence is held in browser-session
+ * memory and never written to disk. These APIs are the ones the product used to
+ * persist evidence with, so their reappearance would silently falsify a
+ * published privacy claim; failing the audit keeps claim and code together.
+ *
+ * `chrome.storage.local` is deliberately absent from this list. It holds the
+ * theme and the custom redaction field names — never captured evidence — and
+ * that settings storage is disclosed separately in the listing.
+ */
+const EVIDENCE_AT_REST_PATTERN =
+  /\b(?:indexedDB|IDBDatabase|IDBObjectStore|IDBTransaction|localStorage)\b/gu;
 const REMOTE_SCRIPT_PATTERN = /<script[^>]*\bsrc=["'](https?:)?\/\/[^"']+["'][^>]*>/giu;
 
 async function walk(directory) {
@@ -57,6 +69,7 @@ export async function auditPackage(directory) {
   const remoteUrls = [];
   const inlineScripts = [];
   const remoteScripts = [];
+  const evidenceAtRest = [];
 
   for (const file of files) {
     if (!TEXT_EXTENSIONS.has(extname(file))) continue;
@@ -67,6 +80,9 @@ export async function auditPackage(directory) {
       const url = match[0];
       if (isAllowed(url)) continue;
       remoteUrls.push(`${relativePath}: ${url}`);
+    }
+    for (const match of content.matchAll(EVIDENCE_AT_REST_PATTERN)) {
+      evidenceAtRest.push(`${relativePath}: ${match[0]}`);
     }
     if (extname(file) !== '.html') continue;
     for (const match of content.matchAll(INLINE_SCRIPT_PATTERN)) {
@@ -89,6 +105,7 @@ export async function auditPackage(directory) {
     remoteUrls,
     remoteScripts,
     inlineScripts,
+    evidenceAtRest,
   };
 }
 
@@ -99,6 +116,9 @@ async function main() {
     ...audit.remoteUrls.map((entry) => `remote URL: ${entry}`),
     ...audit.remoteScripts.map((entry) => `remote script: ${entry}`),
     ...audit.inlineScripts.map((entry) => `inline script: ${entry}`),
+    ...audit.evidenceAtRest.map(
+      (entry) => `evidence-at-rest storage API in a memory-only package: ${entry}`,
+    ),
     ...(audit.hostPermissions.length > 0
       ? [`declared host permissions: ${audit.hostPermissions.join(', ')}`]
       : []),

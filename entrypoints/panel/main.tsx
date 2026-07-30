@@ -20,7 +20,6 @@ import {
   type RuntimePortLike,
 } from '../../src/infrastructure/chrome/interaction-bridge';
 import { downloadText } from '../../src/infrastructure/downloads';
-import { createIndexedDbSessionRepository } from '../../src/infrastructure/storage/indexeddb-repository';
 import {
   createSessionStorageRepository,
   type StorageArea,
@@ -100,12 +99,15 @@ async function startPanel(): Promise<void> {
     .load()
     .catch(() => DEFAULT_EXHIBIT_SETTINGS);
   const initialRedactionConfig = buildRedactionConfig(currentSettings);
+  // The published build keeps evidence in browser-session memory only. No
+  // repository writes captured evidence to disk, so nothing survives the
+  // browser session and there is no unencrypted evidence at rest to disclose.
+  // The persistent slot resolves to the same in-memory repository so a snapshot
+  // written by an older local build still loads instead of throwing.
   const ephemeral: SessionRepository =
     createSessionStorageRepository(extensionSessionArea());
-  const persistent: SessionRepository = createIndexedDbSessionRepository(indexedDB);
-  const recovered =
-    (await persistent.loadCurrent(tabId).catch(() => null)) ??
-    (await ephemeral.loadCurrent(tabId).catch(() => null));
+  const persistent: SessionRepository = ephemeral;
+  const recovered = await ephemeral.loadCurrent(tabId).catch(() => null);
   const matchingRecovery = recoveryForPage(recovered, tabId, page.origin);
   const corruptRecovery =
     matchingRecovery?.warnings.some(({ code }) => code === 'corrupt-session') === true;

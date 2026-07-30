@@ -54,23 +54,19 @@ Use this table when repeating the smoke against a future release package:
 
 If a future package fails any step, treat it as a code defect, not paperwork.
 
-### Step 2 — Persistent-retention policy decision
+### Step 2 — Persistent-retention policy decision _(settled 2026-07-31)_
 
-Local retention writes redacted evidence to IndexedDB without
-application-level encryption. Redaction is deliberately finite, so the
-remaining values cannot be represented as guaranteed non-sensitive. Before
-submission, review Chrome's current
-[user-data guidance](https://developer.chrome.com/docs/webstore/program-policies/user-data-faq)
-and choose one path with the publisher/privacy reviewer:
+Resolved by removing on-disk evidence retention from the published build. The
+panel wires only `chrome.storage.session`, so captured evidence is held in
+browser-session memory and is never written to disk. The retention selector is
+gone, because there is no longer a choice to offer.
 
-- remove persistent retention from the public build and keep session-memory
-  retention only;
-- encrypt persistent evidence with a user-controlled key and document the
-  threat model and recovery behavior; or
-- obtain and record an approved policy interpretation for the current local
-  design.
+This is enforced rather than asserted: `pnpm audit:package` fails the release if
+an evidence-capable persistent storage API appears in the shipped bytes, and an
+integration test asserts the same against the built package.
 
-Do not claim encrypted storage while the current implementation remains.
+`chrome.storage.local` still holds the theme and custom redaction field names —
+never captured evidence — and that is disclosed separately in the listing.
 
 ### Step 3 — Compatibility claim _(settled 2026-07-30)_
 
