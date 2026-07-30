@@ -3,9 +3,10 @@
 The Chrome DevTools panel that explains Next.js network traffic — and redacts
 credentials before anything reaches the screen.
 
-> **Status:** internal preview, not released. Automated coverage is broad, but
-> the approved version 0.1 contract still has installed-Chrome, licensing, and
-> public-contact blockers. See [release traceability](./docs/TRACEABILITY.md).
+> **Status:** not yet on the Chrome Web Store. Licence, owner, contacts, and
+> evidence retention are settled and a clean release artifact is recorded. What
+> remains is a hosted privacy-policy URL, a product video, and validation with
+> real users. See [release decisions](./docs/RELEASE_DECISIONS.md).
 
 A Server Action is an opaque `POST` in the Network panel. An RSC navigation is a
 byte stream. Exhibit classifies both, partially decodes React Flight payloads
@@ -76,6 +77,7 @@ server-to-server traffic and never guesses a server function name. See
 - [Business model](./docs/BUSINESS_MODEL.md)
 - [Competitive landscape](./docs/COMPETITIVE_LANDSCAPE.md)
 - [Privacy policy](./docs/PRIVACY.md)
+- [Contributing](./CONTRIBUTING.md)
 - [Security policy](./SECURITY.md)
 - [Support](./SUPPORT.md)
 - [Architecture](./docs/ARCHITECTURE.md)

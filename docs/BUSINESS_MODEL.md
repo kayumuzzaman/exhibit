@@ -6,8 +6,8 @@
 
 ## Current commercial state
 
-Exhibit is private, unreleased, and `UNLICENSED`. Its current proprietary
-notice grants no distribution rights. There is no approved price, billing
+Exhibit is public and MIT-licensed as of 2026-07-31, but not yet submitted to
+the Chrome Web Store. There is no approved price, billing
 system, sales motion, public support channel, legal owner identity, or Chrome
 Web Store publisher account in this repository.
 
@@ -103,8 +103,8 @@ Do not choose paid packaging before validating the wedge.
 
 1. **Authorize research:** name the legal owner; approve private-beta
    licence/NDA and data-handling terms; provide monitored privacy, security, and
-   support contacts. The current `UNLICENSED` repository cannot be distributed
-   to outside design partners.
+   support contacts. Settled on 2026-07-31: MIT, Kayumuzzaman, GitHub
+   Advisories and Issues.
 2. **Private design-partner beta:** 5–10 frontend developers across at least
    three Next.js applications under those terms. No payment; measure whether the
    Server Action and RSC explanations are understood unprompted, then task

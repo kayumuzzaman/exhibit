@@ -1,6 +1,6 @@
 # Exhibit product brief
 
-**Status:** Internal preview; not released
+**Status:** Public and MIT-licensed; not yet published to the Chrome Web Store
 
 **Last reviewed:** 2026-07-30
 

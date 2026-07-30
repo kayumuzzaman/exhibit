@@ -1,6 +1,6 @@
 # Exhibit privacy policy
 
-**Status:** Draft for an unreleased internal preview
+**Status:** Publishable. Awaiting a public URL; not yet linked from a store listing
 
 **Last reviewed:** 2026-07-29
 
