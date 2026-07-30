@@ -92,6 +92,12 @@ of the same tree produces a different ZIP hash at an identical byte size. Two
 `pnpm zip` runs over one build do match; a rebuild in between does not. The ZIP
 hash therefore identifies one uploaded file, not the commit.
 
+Branch coverage is not bit-stable across runs: repeated gates on this tree
+reported 93.38% and 93.43%, a spread of about two branches out of 3,944. The
+figure above is what the recorded run produced. Both sit far above the 90% gate,
+so the variance changes no outcome, but a verifier recomputing it should expect
+a small difference rather than an exact match.
+
 The package content hash is the value that is reproducible from the commit.
 Recompute it against a fresh build of `0721fcd` with:
 
