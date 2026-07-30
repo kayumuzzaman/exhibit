@@ -1,8 +1,9 @@
 # Verification
 
 Exhibit has one release gate. The commands below are intended to run from a
-clean checkout. The latest committed artifact record is reconstructable from
-the candidate identified below. Newer working-tree evidence is recorded
+clean checkout. The current release artifact is the `edb9de8` record below, cut
+from a clean tree and reconstructable from that commit. Older candidates are
+kept for history and marked superseded. Working-tree evidence is recorded
 separately and is not a release artifact.
 
 ## Commands
@@ -52,6 +53,48 @@ development evidence, not a release artifact record.
 | `pnpm audit:dependencies` | pass — 0 known vulnerabilities                                                   |
 | `pnpm test:e2e`           | pass — 43 tests                                                                  |
 
+## Recorded release-artifact run — 2026-07-30
+
+Environment: macOS 26.5.2 (arm64), Node v26.5.0, pnpm 10.33.2, WXT 0.21.2,
+Playwright 1.62.0, Chromium 151.0.7922.34, Google Chrome 150.0.7871.187
+installed.
+
+Release commit: `edb9de8`. `git status --short` was empty before the run, so the
+artifact below is reconstructable from that exact tree. This supersedes the
+`94c74ae` record: the tree has since gained the Next.js-first listing copy, the
+prerender classification fix, its contract tests, the narrowed compatibility
+claim, and the generated promo tile.
+
+| Gate                      | Result                                                                           |
+| ------------------------- | -------------------------------------------------------------------------------- |
+| `pnpm format:check`       | pass                                                                             |
+| `pnpm lint`               | pass, 0 warnings                                                                 |
+| `pnpm typecheck`          | pass                                                                             |
+| `pnpm test:coverage`      | pass — 51 files, 1,009 tests                                                     |
+| Coverage — statements     | 95.77%                                                                           |
+| Coverage — branches       | 93.38%                                                                           |
+| Coverage — functions      | 97.44%                                                                           |
+| Coverage — lines          | 96.68%                                                                           |
+| `pnpm build`              | pass — 525.17 kB unpacked                                                        |
+| `pnpm audit:package`      | pass — 0 unapproved network-destination URLs, 0 remote scripts, 0 inline scripts |
+| Manifest permissions      | `["storage","scripting"]`; required host permissions `[]`                        |
+| `pnpm audit:dependencies` | pass — 0 known vulnerabilities                                                   |
+| `pnpm test:e2e`           | pass — 43 tests                                                                  |
+| `pnpm zip`                | pass — `.output/exhibit-0.1.0-chrome.zip`, 226,080 bytes                         |
+
+Artifact SHA-256:
+`3e13901926c865bcc1ad6e600e36795e160fea662f69435611e0615ecef81ade`.
+
+The permissions above were read back out of the packaged `manifest.json`, not
+from the source config, so they describe what actually ships.
+
+This is the artifact to upload. It is release-gate evidence, not a release
+decision: the owner, licence, public contacts, hosted policy URL, retention
+call, and product video are still outstanding — see
+[RELEASE_DECISIONS.md](./RELEASE_DECISIONS.md). If the retention decision
+changes code, this record is void and the gate must be rerun from a new clean
+commit.
+
 ## Recorded automated run — 2026-07-29
 
 Environment: macOS 26.5.2 (arm64), Node v26.5.0, pnpm 10.33.2, WXT 0.21.2,
@@ -62,9 +105,7 @@ Candidate commit: `94c74ae`, the committed tree carrying the fixes and audit
 documents described in the unreleased changelog. The gate ran against that
 exact tree with no uncommitted changes, so this is reproducible pre-release
 evidence. The manual installed-Chrome checklist was completed later on
-2026-07-30, but the current working tree has moved beyond this candidate. A
-final signed release record therefore still needs a new clean commit, artifact,
-and hash.
+2026-07-30. **Superseded** by the `edb9de8` record above; kept for history.
 
 | Gate                      | Result                                                                           |
 | ------------------------- | -------------------------------------------------------------------------------- |
