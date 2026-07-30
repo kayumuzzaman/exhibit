@@ -36,6 +36,21 @@ which fields DevTools returns. Chrome can still omit a body or field for
 protocol, cache, streaming, cancellation, privacy, or implementation reasons;
 Exhibit reports only the evidence it actually receives.
 
+## Rendering is described by evidence, not by the kind alone
+
+The `ssr` kind covers any framework-rendered document. It does not assert that
+the HTML was produced during your request.
+
+Next.js sends `X-Nextjs-Prerender` on HTML it built ahead of time, alongside
+`X-Nextjs-Cache` and `X-Nextjs-Stale-Time`. When those are present, Exhibit says
+the HTML was prerendered rather than rendered for the request, and reports the
+cache state and stale time. When they are absent, it says only that per-request
+rendering is consistent with the evidence — an intermediary can strip the
+headers, so their absence proves nothing.
+
+Read the render evidence rather than the kind label when the distinction
+matters.
+
 ## Session limits
 
 | Limit                 | Value   | Behaviour at the limit                                                 |

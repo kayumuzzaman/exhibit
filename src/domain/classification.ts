@@ -5,12 +5,16 @@ import {
   detectRsc,
   detectServerAction,
   nextFrameworkEvidence,
+  nextRenderEvidence,
 } from './nextjs';
 
 const ROUTE_IMPLEMENTATION_LIMIT =
   'A browser observer cannot prove which server-side route implementation handled the request.';
-const SSR_LIMIT =
-  'Browser-visible evidence cannot distinguish server rendering from prerendered HTML with certainty.';
+// `ssr` stays the coarse kind for a framework-rendered document. Whether the
+// HTML was prerendered or rendered for this request is carried by the render
+// evidence below, which Next.js does expose to a browser observer.
+const RENDER_TIMING_LIMIT =
+  'This kind covers any framework-rendered document; read the render evidence for when the HTML was produced.';
 
 function mimeType(value: string | undefined): string {
   return value?.split(';', 1)[0]?.trim().toLowerCase() ?? '';
@@ -100,7 +104,8 @@ export function classifyRequest(request: CapturedRequest): Classification {
       'Request header Sec-Fetch-Dest is document.',
       'Response MIME type is text/html.',
       ...frameworkEvidence,
-      SSR_LIMIT,
+      ...nextRenderEvidence(request).evidence,
+      RENDER_TIMING_LIMIT,
     ]);
   }
 

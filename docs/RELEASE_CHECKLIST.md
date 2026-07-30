@@ -146,6 +146,12 @@ These are open by choice, recorded so nobody assumes they were missed:
 - **Inspect consolidation from six tabs to three** — the audit suggested it and
   scored the area 3 of 4; the later audit endorsed the current progressive
   disclosure. It would churn a surface with passing axe and keyboard coverage.
+- **A distinct `prerender` classification kind.** Next.js exposes enough to
+  separate prerendered HTML from per-request rendering, and Exhibit now reports
+  that as evidence under the existing `ssr` kind. Promoting it to its own kind
+  would reach filters, the search index, report export, the storage schema, and
+  the `SSR document` label. Deferred until Stage 2 shows users need the
+  distinction in the label rather than the evidence.
 - **In-panel help or glossary** — scored 1 of 4 for Help and Documentation.
   This is a new feature, not a defect.
 - **Keyboard accelerators** for Start, search, filters, and Explain/Inspect.
