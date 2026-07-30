@@ -150,7 +150,7 @@ These are hypotheses until a research round is recorded.
 
 Version 0.1 targets Chrome 120+ and browser-visible REST, GraphQL, forms,
 Next.js API routes, Server Actions, SSR, RSC, and partial Flight evidence. It
-includes local retention, search/filter/compare, safe cURL, HAR and Markdown
+includes memory-only retention, search/filter/compare, safe cURL, HAR and Markdown
 exports, responsive layouts, and keyboard access.
 
 The Chrome 120 floor remains a target until an installed-browser compatibility
@@ -170,7 +170,8 @@ The automated release gate, artifact record, and user-reported installed Chrome
   support statement;
 - an explicit licence and distribution decision;
 - legal owner, privacy contact, and support identity;
-- a publisher-approved decision for unencrypted persistent local evidence;
+- ~~a publisher-approved decision for unencrypted persistent local evidence~~ —
+  resolved by removing on-disk evidence retention entirely;
 - a hosted privacy policy and required Chrome Web Store graphic assets;
 - Chrome Web Store disclosures reviewed against the final package;
 - a new clean release commit and artifact for the current changes;

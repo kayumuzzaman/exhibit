@@ -17,10 +17,14 @@ channels, and end-of-support dates.
 Do not open a public issue containing a vulnerability, captured session,
 credential, customer URL, or request/response body.
 
-For this private repository, report vulnerabilities to the repository owner
-through the existing private project channel. Public distribution is blocked
-until the legal owner provides a monitored security address and response
-expectation.
+Report vulnerabilities privately through
+[GitHub Security Advisories](https://github.com/kayumuzzaman/exhibit/security/advisories/new)
+on this repository. That channel keeps the report private until a fix is
+published, so no disclosure happens through a public issue.
+
+Expect an acknowledgement within 7 days. Exhibit is maintained by one person
+without a paid support commitment, so a fix timeline is agreed case by case
+rather than promised in advance.
 
 Include:
 

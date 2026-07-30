@@ -1,7 +1,7 @@
 # Verification
 
 Exhibit has one release gate. The commands below are intended to run from a
-clean checkout. The current release artifact is the `0721fcd` record below, cut
+clean checkout. The current release artifact is the `c4c96d6` record below, cut
 from a clean tree. Older candidates are kept for history and marked superseded.
 Working-tree evidence is recorded separately and is not a release artifact.
 
@@ -51,6 +51,49 @@ development evidence, not a release artifact record.
 | Manifest permissions      | `["scripting","storage"]`; required host permissions `[]`                        |
 | `pnpm audit:dependencies` | pass — 0 known vulnerabilities                                                   |
 | `pnpm test:e2e`           | pass — 43 tests                                                                  |
+
+## Recorded release-artifact run — 2026-07-31 (submission candidate)
+
+Environment: macOS 26.5.2 (arm64), Node v26.5.0, pnpm 10.33.2, WXT 0.21.2,
+Playwright 1.62.0, Chromium 151.0.7922.34, Google Chrome 150.0.7871.187
+installed.
+
+Release commit: `c4c96d6`. `git status --short` was empty before the run. This is
+the first artifact with no placeholders in tracked files: MIT licence naming the
+copyright holder, a reachable privacy contact, and memory-only evidence
+retention.
+
+| Gate                      | Result                                                                                                 |
+| ------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `pnpm format:check`       | pass                                                                                                   |
+| `pnpm lint`               | pass, 0 warnings                                                                                       |
+| `pnpm typecheck`          | pass                                                                                                   |
+| `pnpm test:coverage`      | pass — 51 files, 1,009 tests                                                                           |
+| Coverage — statements     | 95.85%                                                                                                 |
+| Coverage — branches       | 93.48%                                                                                                 |
+| Coverage — functions      | 97.54%                                                                                                 |
+| Coverage — lines          | 96.75%                                                                                                 |
+| `pnpm build`              | pass — 552 KiB unpacked                                                                                |
+| `pnpm audit:package`      | pass — 0 network destinations, 0 remote scripts, 0 inline scripts, **0 evidence-at-rest storage APIs** |
+| Manifest permissions      | `["storage","scripting"]`; required host permissions `[]`                                              |
+| `pnpm audit:dependencies` | pass — 0 known vulnerabilities                                                                         |
+| `pnpm test:e2e`           | pass — 43 tests                                                                                        |
+| `pnpm zip`                | pass — `.output/exhibit-0.1.0-chrome.zip`, 224,836 bytes                                               |
+
+| Artifact             | Value                                                              |
+| -------------------- | ------------------------------------------------------------------ |
+| ZIP SHA-256          | `d49f75684578a252003aae4e07836ad17553a60bcfd2999e284c0c4b841b2869` |
+| Package content hash | `c443c0b502b93c99feffc457bf6586a0042ff575b3213f6fa98f32bb365c1dba` |
+
+The package shrank from 226,080 to 224,836 bytes because the IndexedDB
+repository is no longer reachable from any entrypoint and drops out of the
+bundle. The audit now fails the release if an evidence-capable persistent
+storage API reappears, so the memory-only disclosure is checked against the
+shipped bytes on every run rather than trusted.
+
+This is the artifact to upload. Remaining before submission, all outside this
+repository: a public privacy-policy URL, the product video, and first real
+users — see [RELEASE_DECISIONS.md](./RELEASE_DECISIONS.md).
 
 ## Recorded release-artifact run — 2026-07-31
 

@@ -165,31 +165,10 @@ describe('ExhibitApp', () => {
     expect(screen.getByRole('button', { name: 'Start recording' })).toHaveFocus();
   });
 
-  it('changes evidence retention through the user-facing session control', async () => {
-    setViewport(1_024);
-    const user = userEvent.setup();
-    const controller = controllerFake();
-    controller.setRetention = vi.fn(async (retention) => {
-      controller.replace({ ...controller.getSnapshot(), retention });
-    });
-    render(<ExhibitApp controller={controller} />);
-    await user.click(screen.getByRole('button', { name: 'Open session rail' }));
-
-    const retention = screen.getByRole('combobox', {
-      name: 'Evidence retention',
-    });
-    expect(retention).toHaveValue('ephemeral');
-
-    await user.selectOptions(retention, 'persistent');
-
-    expect(controller.setRetention).toHaveBeenCalledWith('persistent');
-    expect(retention).toHaveValue('persistent');
-    expect(screen.getByRole('status')).toHaveTextContent(
-      'Evidence retention changed to Local until Clear.',
-    );
-  });
-
-  it('keeps the previous retention and explains a failed migration', async () => {
+  // Retention is fixed to browser-session memory in the published build. The
+  // panel must not offer a control that implies evidence can be written to
+  // disk, and must not call the controller's migration path.
+  it('offers no retention control and never migrates evidence to disk', async () => {
     setViewport(1_024);
     const user = userEvent.setup();
     const controller = controllerFake();
@@ -197,15 +176,9 @@ describe('ExhibitApp', () => {
     render(<ExhibitApp controller={controller} />);
     await user.click(screen.getByRole('button', { name: 'Open session rail' }));
 
-    const retention = screen.getByRole('combobox', {
-      name: 'Evidence retention',
-    });
-    await user.selectOptions(retention, 'persistent');
-
-    expect(retention).toHaveValue('ephemeral');
-    expect(screen.getByRole('alert')).toHaveTextContent(
-      'Storage mode could not be changed. Existing evidence remains in Memory.',
-    );
+    expect(screen.queryByRole('combobox', { name: 'Evidence retention' })).toBeNull();
+    expect(screen.getByText(/never written to disk/u)).toBeVisible();
+    expect(controller.setRetention).not.toHaveBeenCalled();
   });
 
   it('toggles directly between explicit dark and light themes', async () => {

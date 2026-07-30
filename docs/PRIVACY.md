@@ -30,16 +30,17 @@ Exhibit has no backend and does not transmit captured evidence to Exhibit.
 Processing and the user-controlled destinations are:
 
 - captured evidence is redacted before it is stored or displayed;
-- the session lives in `chrome.storage.session` (memory retention) or IndexedDB
-  (local retention), both on your machine;
+- the session lives in `chrome.storage.session`, which is browser-session
+  memory on your machine. Captured evidence is never written to disk;
 - theme and custom sensitive-field settings live in `chrome.storage.local`;
 - **Copy safe cURL** writes sanitized text to the operating-system clipboard
   only when you press it;
 - exports are written by the browser's download flow to a location you choose.
 
-Memory retention lasts until the browser session, extension reload, or explicit
-Clear. Local retention lasts until explicit Clear or extension removal. Exported
-files remain until the user deletes them. Clipboard contents can outlive the
+Captured evidence lasts until the browser session ends, or until an explicit
+Clear, whichever comes first. There is no option to keep it longer: the
+published build has no on-disk store for evidence, so nothing survives a browser
+restart. Exported files remain until the user deletes them. Clipboard contents can outlive the
 panel and may be readable by other local applications. Clear cannot retract a
 download, clipboard content, or any copy made from either.
 
@@ -118,7 +119,17 @@ surface, and no background network access.
 
 ## Contact
 
-Exhibit is an unreleased internal project. Use the existing private project
-channel for privacy questions. Public distribution is blocked until the legal
-owner publishes a monitored privacy contact and applicable jurisdictional
-details.
+Privacy questions: **i.kayumuzzaman@gmail.com**
+
+**Effective date:** 2026-07-31
+
+**Publisher:** Kayumuzzaman
+
+This policy takes effect on the date above, which is when it becomes reachable
+at its public URL — not the date the Chrome Web Store approves the listing.
+Review can take days or weeks, and a policy dated after users could already read
+it would be wrong. If submission slips well beyond the effective date, update it
+before uploading.
+
+The policy must stay reachable at that public URL for as long as the item is
+listed.

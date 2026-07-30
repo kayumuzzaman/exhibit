@@ -1,72 +1,68 @@
 # Exhibit release decisions
 
-**Prepared:** 2026-07-30 · **Owner:** unassigned
+**Prepared:** 2026-07-30 · **Updated:** 2026-07-31 · **Owner:** unassigned
 
-Everything in this repository that could be prepared without an owner decision
-has been prepared. What remains are facts about the real world that no amount of
-engineering can supply: who owns this, how it is licensed, where to reach a
-human, and what a real user thinks of it.
+Decisions taken on 2026-07-31: **MIT licence**, **memory-only evidence
+retention**, and **GitHub for security and support reporting**. All are applied
+in the code and documentation.
 
-This document is the short list. Each row says exactly what to supply, where it
-lands, and what it costs to get wrong. Work down it in order; steps 1 and 2 gate
-everything else.
+The remaining literal values were supplied on 2026-07-31 and are applied:
+
+| Value                         | Value used               | Lands in          |
+| ----------------------------- | ------------------------ | ----------------- |
+| Copyright holder's legal name | Kayumuzzaman             | `LICENSE`         |
+| Privacy contact address       | i.kayumuzzaman@gmail.com | `docs/PRIVACY.md` |
+| Policy effective date         | 2026-07-31               | `docs/PRIVACY.md` |
+
+The effective date is the date the policy becomes reachable at its public URL,
+not the date the store approves the listing. Review can take weeks, and a policy
+dated after users could already read it would be wrong.
+
+The privacy contact is a personal address rather than the dedicated alias
+originally chosen. It appears in a public listing, will be scraped, and changing
+it later means editing a published listing rather than the code.
+
+**Nothing in this repository now blocks submission.** What remains is outside
+it: a public policy URL, the product video, and first real users.
 
 ---
 
-## 1. Legal owner and licence — gates everything
+## 1. Legal owner and licence — settled
 
-| Decision         | Currently                        | Lands in                                 |
-| ---------------- | -------------------------------- | ---------------------------------------- |
-| Legal owner name | `the Exhibit project owner`      | `LICENSE` line 1                         |
-| Licence terms    | Proprietary, all rights reserved | `LICENSE`, `package.json` (`UNLICENSED`) |
-| Store publisher  | Not chosen                       | Chrome Web Store developer account       |
+| Decision         | State                                            |
+| ---------------- | ------------------------------------------------ |
+| Licence terms    | **MIT**, applied to `LICENSE` and `package.json` |
+| Store publisher  | Developer console account created                |
+| Legal owner name | **Kayumuzzaman**, applied to `LICENSE`           |
 
-Decide proprietary, open source, or dual-licensed **before** uploading. After
-publication the choice is effectively irreversible: anyone who obtained the code
-under an open licence keeps those rights permanently, and a proprietary listing
-that later opens up cannot un-publish the earlier terms either.
+MIT is effectively irreversible once published: anyone who obtains the code
+under it keeps those rights permanently.
 
-A Web Store submission also needs a registered developer account, a verified
-email, and the one-time registration fee.
+## 2. Contacts and a hosted policy URL
 
-## 2. Monitored contacts and a hosted policy URL
+| File                       | State                                                    |
+| -------------------------- | -------------------------------------------------------- |
+| `SECURITY.md`              | Done — GitHub Security Advisories, 7-day acknowledgement |
+| `SUPPORT.md`               | Done — GitHub Issues, current release only, best effort  |
+| [PRIVACY.md](./PRIVACY.md) | Done — contact and 2026-07-31 effective date applied     |
 
-Three documents currently state that no contact exists. Each needs a real
-address that somebody actually reads.
+The policy still needs a **public URL** that stays reachable for as long as the
+item is listed. Now that the licence is MIT, making this repository public and
+enabling GitHub Pages is the straightforward route, and it costs nothing. This
+is the last repository-adjacent item standing between the package and
+submission.
 
-| File                       | Needs                                         |
-| -------------------------- | --------------------------------------------- |
-| `SECURITY.md`              | Security address and a response commitment    |
-| `SUPPORT.md`               | Support URL or email, supported versions      |
-| [PRIVACY.md](./PRIVACY.md) | Privacy contact, effective date, jurisdiction |
+## 3. Persistent retention — settled, no action
 
-The privacy policy also needs a **public URL**. The Web Store form requires one
-and it must stay reachable for as long as the item is listed. GitHub Pages on
-this repository is sufficient and free; the repository is currently private, so
-publishing the policy is itself a disclosure decision.
+On-disk evidence retention is removed from the published build. Evidence is held
+in browser-session memory only and never written to disk, so there is no
+unencrypted evidence at rest to disclose or defend.
 
-Use a role address rather than a personal one where possible — it appears in a
-public listing, it will be scraped, and it cannot be quietly changed later
-without breaking the listing's stated contact.
+Enforced rather than asserted: the package audit fails the release if an
+evidence-capable persistent storage API appears in the shipped bytes.
 
-## 3. Persistent-retention policy call
-
-Local retention writes redacted evidence to IndexedDB with no application-level
-encryption. Redaction is deliberately finite, so the remaining values cannot be
-described as guaranteed non-sensitive. Pick one with whoever signs off privacy:
-
-- **Remove persistent retention from the public build**, keeping session-memory
-  retention only. Smallest disclosure surface, and the cheapest to defend. Costs
-  users their evidence on browser restart.
-- **Encrypt persistent evidence** with a user-controlled key, and document the
-  threat model and recovery behaviour.
-- **Record an approved policy interpretation** for the current local design,
-  against Chrome's current
-  [user-data guidance](https://developer.chrome.com/docs/webstore/program-policies/user-data-faq).
-
-Do not claim encrypted storage while the current implementation stands. This is
-the one remaining item that may require code, so decide it before the final
-artifact is cut.
+The visible cost: users lose captured evidence when the browser session ends.
+Export before closing the browser.
 
 ## 4. Product video
 
@@ -107,7 +103,7 @@ to.
 | Screenshots         | Five 1280×800 PNGs, Server Action frame leading, regenerable and deterministic    |
 | Promo tile          | 440×280, generated by `pnpm promo-tile`, byte-identical across runs               |
 | Icons               | 16 / 32 / 48 / 128 PNG                                                            |
-| Privacy policy text | Publishable once it has a URL, an effective date, and a contact                   |
+| Privacy policy text | Contact and effective date applied; needs only a public URL                       |
 | Compatibility claim | Narrowed to what was actually tested — see [COMPATIBILITY.md](./COMPATIBILITY.md) |
 
 The ordered submission steps live in

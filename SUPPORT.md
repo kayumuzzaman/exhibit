@@ -31,14 +31,15 @@ server traffic, proxies, and unattended production monitoring are unsupported.
 
 ## Getting help
 
-For this private repository, use the existing private project channel or issue
-tracker. Public distribution is blocked until the owner publishes:
+Open a [GitHub issue](https://github.com/kayumuzzaman/exhibit/issues) with the
+detail listed below.
 
-- a support URL or email;
-- supported versions and update policy;
-- expected response times;
-- a security-only reporting route;
-- any paid support entitlement.
+- **Supported version:** the current Chrome Web Store release only. Older
+  versions are not patched; update before reporting.
+- **Response times:** best effort. Exhibit is maintained by one person and
+  carries no paid support entitlement.
+- **Security reports** do not belong here. Use the private channel in
+  [SECURITY.md](./SECURITY.md) so nothing sensitive lands in a public issue.
 
 ## Before reporting a defect
 

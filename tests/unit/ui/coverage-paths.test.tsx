@@ -73,10 +73,7 @@ describe('session rail', () => {
         onGroupChange={vi.fn()}
         onQuickFilterChange={onQuickFilterChange}
         onResetFilters={onResetFilters}
-        onRetentionChange={vi.fn()}
         quickFilters={NO_FILTERS}
-        retentionBusy={false}
-        retentionError=""
         selectedGroupId={null}
         session={session}
       />,
@@ -474,7 +471,10 @@ describe('remaining explain and rail branches', () => {
     expect(screen.getByText(/HAR redirect target/u)).toBeVisible();
   });
 
-  it('reports local retention in the session rail', () => {
+  // The published build holds evidence in memory only, so the rail must state
+  // that as a fact rather than offer a choice — even for a snapshot that an
+  // older local build left marked persistent.
+  it('states memory-only retention in the session rail and offers no control', () => {
     const session = redactSession(
       { ...createSession('tab-1', 'https://app.test', 1_000), retention: 'persistent' },
       DEFAULT_REDACTION_CONFIG,
@@ -491,19 +491,16 @@ describe('remaining explain and rail branches', () => {
         onGroupChange={vi.fn()}
         onQuickFilterChange={vi.fn()}
         onResetFilters={vi.fn()}
-        onRetentionChange={vi.fn()}
         quickFilters={NO_FILTERS}
-        retentionBusy={false}
-        retentionError=""
         selectedGroupId={null}
         session={session}
       />,
     );
 
-    expect(screen.getByText('Local')).toBeVisible();
-    expect(screen.getByRole('combobox', { name: 'Evidence retention' })).toHaveValue(
-      'persistent',
-    );
+    expect(screen.getByText('Memory')).toBeVisible();
+    expect(screen.queryByText('Local')).toBeNull();
+    expect(screen.queryByRole('combobox', { name: 'Evidence retention' })).toBeNull();
+    expect(screen.getByText(/never written to disk/u)).toBeVisible();
   });
 });
 

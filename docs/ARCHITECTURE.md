@@ -75,7 +75,10 @@ of evicting good evidence, and warnings themselves are capped.
 | Retention             | Adapter                  | Lifetime                        |
 | --------------------- | ------------------------ | ------------------------------- |
 | `ephemeral` (default) | `chrome.storage.session` | Until the browser session ends. |
-| `persistent`          | IndexedDB                | Until cleared or uninstalled.   |
+
+The published panel wires only the `ephemeral` adapter, so captured evidence
+never reaches disk. `pnpm audit:package` fails the build if an evidence-capable
+persistent storage API reappears in the shipped bytes.
 
 Both go through a versioned schema. Decoding validates every field, rejects
 oversized or malformed payloads with a `corrupt-session` warning, re-redacts the

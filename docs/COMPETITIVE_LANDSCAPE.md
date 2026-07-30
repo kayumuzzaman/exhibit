@@ -96,7 +96,7 @@ Exhibit wins:
 
 - redaction applies before product storage and display, not only export;
 - interaction grouping, explanations, confidence, and evidence ledger;
-- local retention shaped for a QA investigation;
+- evidence held in memory only, with no on-disk store to leak;
 - Markdown QA report;
 - Next.js/RSC/Flight classification and safe partial raw fallback.
 
@@ -140,7 +140,7 @@ answer at the same level. Exhibit is not competing on capture.
 | Copy formats           | cURL, PowerShell, fetch, Node.js fetch                                | Safe cURL only                                                                                                         |
 | HAR import             | Yes                                                                   | No                                                                                                                     |
 | Handoff artifact       | A HAR file                                                            | A HAR file or a deterministic Markdown QA report                                                                       |
-| Retention              | Session-bound to the DevTools instance                                | Explicit choice: browser-session memory, or local until Clear                                                          |
+| Retention              | Session-bound to the DevTools instance                                | Browser-session memory only; evidence is never written to disk                                                         |
 | Recording caps         | None documented                                                       | 500 requests, 8 MiB per session, 512 KiB per body                                                                      |
 | Repeat-call comparison | Manual, by reading two rows                                           | Built in against the previous capture of the same call                                                                 |
 | Availability           | Native in every Chrome                                                | A separate install, unreleased                                                                                         |
@@ -252,7 +252,7 @@ Exhibit wins:
 - no account, cloud artifact, or remote service;
 - deeper raw request/body/timing evidence inside DevTools;
 - conservative protocol explanations rather than an AI bug summary;
-- strict local retention and export boundary;
+- strict memory-only retention and export boundary;
 - Next.js/RSC/Flight evidence.
 
 Pricing snapshot: Jam's official page showed Free at $0, Team at

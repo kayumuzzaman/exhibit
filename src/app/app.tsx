@@ -16,7 +16,7 @@ import { Icon } from '../components/icon';
 import { ResizeSeparator } from '../components/resizable';
 import { Tabs, type TabItem } from '../components/tabs';
 import { correlate } from '../domain/correlation';
-import type { InteractionGroup, RecordingPhase, RetentionMode } from '../domain/model';
+import type { InteractionGroup, RecordingPhase } from '../domain/model';
 import { RESTRICTED_PAGE_ORIGIN } from '../domain/inspected-page';
 import type { SanitizedCapturedRequest } from '../domain/sanitized';
 import {
@@ -512,7 +512,6 @@ function PanelShell({
   const [busy, setBusy] = useState(false);
   const [announcement, setAnnouncement] = useState('');
   const [actionError, setActionError] = useState('');
-  const [retentionError, setRetentionError] = useState('');
   const [railWidth, setRailWidth] = useState(216);
   // Wide enough for the whole evidence ledger. The previous 640 left the
   // table clipping Method, Duration, and Evidence at store width.
@@ -726,41 +725,6 @@ function PanelShell({
     }
   }
 
-  async function changeRetention(retention: RetentionMode): Promise<void> {
-    if (retention === controller.getSnapshot().retention) return;
-    setBusy(true);
-    setActionError('');
-    setRetentionError('');
-    try {
-      await controller.setRetention(retention);
-      const current = controller.getSnapshot().retention;
-      if (current !== retention) {
-        setRetentionError(
-          `Storage mode could not be changed. Existing evidence remains in ${
-            current === 'persistent' ? 'Local' : 'Memory'
-          }.`,
-        );
-        setAnnouncement('Evidence retention was not changed.');
-        return;
-      }
-      setAnnouncement(
-        retention === 'persistent'
-          ? 'Evidence retention changed to Local until Clear.'
-          : 'Evidence retention changed to Memory for this browser session.',
-      );
-    } catch {
-      const current = controller.getSnapshot().retention;
-      setRetentionError(
-        `Storage mode could not be changed. Existing evidence remains in ${
-          current === 'persistent' ? 'Local' : 'Memory'
-        }.`,
-      );
-      setAnnouncement('Evidence retention was not changed.');
-    } finally {
-      setBusy(false);
-    }
-  }
-
   /** Abandoning a dialog also abandons the failure it was reporting. */
   function dismissDialog(): void {
     setActionError('');
@@ -842,10 +806,7 @@ function PanelShell({
       onGroupChange={changeGroup}
       onQuickFilterChange={changeQuickFilter}
       onResetFilters={resetFilters}
-      onRetentionChange={(retention) => void changeRetention(retention)}
       quickFilters={quickFilters}
-      retentionBusy={busy}
-      retentionError={retentionError}
       selectedGroupId={activeGroupId}
       session={session}
     />
@@ -1017,10 +978,7 @@ function PanelShell({
             onGroupChange={changeGroup}
             onQuickFilterChange={changeQuickFilter}
             onResetFilters={resetFilters}
-            onRetentionChange={(retention) => void changeRetention(retention)}
             quickFilters={quickFilters}
-            retentionBusy={busy}
-            retentionError={retentionError}
             selectedGroupId={activeGroupId}
             session={session}
           />

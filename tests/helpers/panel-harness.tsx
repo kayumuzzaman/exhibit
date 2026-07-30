@@ -21,7 +21,6 @@ import {
   type SettingsStorageArea,
 } from '../../src/features/settings/exhibit-settings';
 import { downloadText } from '../../src/infrastructure/downloads';
-import { createIndexedDbSessionRepository } from '../../src/infrastructure/storage/indexeddb-repository';
 import {
   createSessionStorageRepository,
   type StorageArea,
@@ -120,10 +119,11 @@ export async function mountPanelHarness(
     sessionStorageArea(),
     { debounceMs: 0 },
   );
-  const persistent: SessionRepository = createIndexedDbSessionRepository(indexedDB);
-  const restored =
-    (await persistent.loadCurrent(tabId).catch(() => null)) ??
-    (await ephemeral.loadCurrent(tabId).catch(() => null));
+  // Mirrors the published panel: browser-session memory is the only store, so
+  // the browser suite exercises the wiring that actually ships rather than a
+  // configuration no user receives.
+  const persistent: SessionRepository = ephemeral;
+  const restored = await ephemeral.loadCurrent(tabId).catch(() => null);
   const matchingRecovery = recoveryForPage(restored, tabId, options.origin);
   const corruptRecovery =
     matchingRecovery?.warnings.some(({ code }) => code === 'corrupt-session') === true;
@@ -142,9 +142,7 @@ export async function mountPanelHarness(
     initialSession !== matchingRecovery &&
     !corruptRecovery
   ) {
-    const repository =
-      initialSession.retention === 'persistent' ? persistent : ephemeral;
-    await Promise.allSettled([repository.save(initialSession), repository.flush()]);
+    await Promise.allSettled([ephemeral.save(initialSession), ephemeral.flush()]);
   }
 
   const interactions = createLoopbackInteractionSource({
@@ -244,7 +242,7 @@ export async function mountPanelHarness(
     port,
     async settle() {
       await port.settled();
-      await Promise.all([ephemeral.flush(), persistent.flush()]);
+      await ephemeral.flush();
       await new Promise((done) => setTimeout(done, 60));
     },
     async setRetention(retention) {

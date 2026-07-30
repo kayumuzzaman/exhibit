@@ -11,6 +11,21 @@ as a release until owner acceptance is complete.
 
 ### Changed
 
+- **Captured evidence is never written to disk.** The published panel wires only
+  `chrome.storage.session`, so evidence is held in browser-session memory and is
+  discarded when that session ends. On-disk retention is gone, and with it the
+  retention selector: there is no longer a choice to offer. This removes the
+  category of unencrypted evidence at rest entirely rather than defending it,
+  and it is enforced rather than asserted — `pnpm audit:package` now fails the
+  release if an evidence-capable persistent storage API appears in the shipped
+  bytes, and an integration test asserts the same against the built package.
+  `chrome.storage.local` still holds the theme and custom redaction field names,
+  never evidence. The visible cost is that evidence no longer survives a browser
+  restart; export before closing. The browser suite was rewired to match, since
+  it had been exercising a storage configuration that no longer ships.
+- **Licensed under MIT**, replacing the proprietary all-rights-reserved notice
+  that granted end users nothing and therefore made publication impossible.
+
 - The product leads with Next.js request explanation instead of QA evidence
   handoff. The QA-evidence wedge competed directly with tools that already own
   bug-report handoff through video, console capture, and issue-tracker routing,

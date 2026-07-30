@@ -12,10 +12,10 @@ test.describe('retention and recovery', () => {
     await expect(exhibit.rowFor('/api/profile')).toHaveCount(1);
   });
 
-  test('recovers a persistent session from local storage after reload', async ({
-    exhibit,
-  }) => {
-    await exhibit.setRetention('persistent');
+  // The published build holds evidence in browser-session memory only. Clearing
+  // that memory must lose the evidence: anything still recoverable afterwards
+  // would be evidence at rest, which the store disclosure says does not exist.
+  test('loses evidence once browser-session memory is cleared', async ({ exhibit }) => {
     await exhibit.startRecording();
     await exhibit.trigger('save-profile');
     await exhibit.trigger('graphql');
@@ -24,28 +24,13 @@ test.describe('retention and recovery', () => {
     await exhibit.page.evaluate(() => sessionStorage.clear());
     await exhibit.reload();
 
-    await expect(exhibit.requestRows()).toHaveCount(2);
-    await expect(exhibit.rowFor('/graphql')).toHaveCount(1);
-    await expect(
-      exhibit.page.getByRole('button', { name: 'Start recording' }),
-    ).toBeVisible();
-    const firstStoppedAt = await exhibit.page.evaluate(
-      () => globalThis.exhibitHarness?.controller.getSnapshot().stoppedAt,
-    );
-
-    await exhibit.reload();
-
-    expect(
-      await exhibit.page.evaluate(
-        () => globalThis.exhibitHarness?.controller.getSnapshot().stoppedAt,
-      ),
-    ).toBe(firstStoppedAt);
+    await expect(exhibit.requestRows()).toHaveCount(0);
+    await expect(exhibit.rowFor('/graphql')).toHaveCount(0);
   });
 
-  test('clearing removes recovered evidence from every retention store', async ({
+  test('clearing removes recovered evidence from the session store', async ({
     exhibit,
   }) => {
-    await exhibit.setRetention('persistent');
     await exhibit.startRecording();
     await exhibit.trigger('save-profile');
     await expect(exhibit.requestRows()).toHaveCount(1);
@@ -57,11 +42,15 @@ test.describe('retention and recovery', () => {
     expect(await exhibit.storedSessionText()).not.toContain('/api/profile');
   });
 
-  test('reports the active retention mode in the session rail', async ({ exhibit }) => {
+  test('states memory-only retention and offers no retention control', async ({
+    exhibit,
+  }) => {
     const rail = exhibit.page.getByRole('navigation', { name: 'Session workspace' });
-    await expect(rail).toContainText('Memory');
 
-    await exhibit.setRetention('persistent');
-    await expect(rail).toContainText('Local');
+    await expect(rail).toContainText('Memory');
+    await expect(rail).toContainText('never written to disk');
+    await expect(
+      exhibit.page.getByRole('combobox', { name: 'Evidence retention' }),
+    ).toHaveCount(0);
   });
 });
