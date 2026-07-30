@@ -252,33 +252,14 @@
 }
 
 .theme-control {
-  display: inline-flex;
+  width: 32px;
+  min-width: 32px;
   min-height: 32px;
-  align-items: center;
-  gap: var(--space-1);
-  padding: 0 7px;
-  border: 1px solid transparent;
-  border-radius: var(--radius-control);
+  padding: 0;
 }
 
-.theme-control:hover {
+.theme-control:hover:not(:disabled) {
   border-color: var(--divider);
-}
-
-.theme-control select {
-  width: 18px;
-  border: 0;
-  background: transparent;
-  color: transparent;
-}
-
-/**
- * The collapsed control hides its own text, but the native popup inherits that
- * colour, so options are restated explicitly or the menu renders unreadable.
- */
-.theme-control select option {
-  background: var(--surface-high);
-  color: var(--text);
 }
 
 .session-notice {
@@ -968,7 +949,7 @@
 .notice {
   display: flex;
   flex-direction: column;
-  margin: var(--space-3) var(--space-4) 0;
+  margin: var(--space-3) var(--space-4);
   padding: var(--space-2) var(--space-3);
   border: 1px solid var(--divider);
   border-left: 2px solid currentColor;
@@ -1197,10 +1178,9 @@
   font-weight: 700;
 }
 
+.settings-field select,
 .settings-field textarea {
   width: 100%;
-  min-height: 116px;
-  resize: vertical;
   padding: var(--space-2);
   border: 1px solid var(--divider-strong);
   border-radius: var(--radius-control);
@@ -1209,9 +1189,15 @@
   font: 11px/1.45 var(--font-evidence);
 }
 
+.settings-field select:focus-visible,
 .settings-field textarea:focus-visible {
   outline: 2px solid var(--live);
   outline-offset: 2px;
+}
+
+.settings-field textarea {
+  min-height: 116px;
+  resize: vertical;
 }
 
 .settings-field small,
@@ -2136,20 +2122,10 @@
   }
 
   .theme-control {
-    position: relative;
     width: 44px;
     min-width: 44px;
     min-height: 44px;
-    justify-content: center;
     padding: 0;
-  }
-
-  .theme-control select {
-    position: absolute;
-    width: 100%;
-    height: 100%;
-    inset: 0;
-    opacity: 0;
   }
 
   .rail-check {

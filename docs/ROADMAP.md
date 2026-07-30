@@ -1,8 +1,8 @@
 # Exhibit roadmap
 
-**Status:** Evidence-gated; no dates committed
+**Status:** Stage 0 acceptance complete; distribution readiness pending
 
-**Last reviewed:** 2026-07-29
+**Last reviewed:** 2026-07-30
 
 Exhibit should close the approved version 0.1 contract before expanding its
 feature surface. Each stage has an exit condition; passing tests alone does not
@@ -34,10 +34,15 @@ Goal: make the existing approved scope internally complete.
       overflow, and fresh-database startup with regressions.
 - [x] Pass the full-source Impeccable detector and fresh browser UI audit.
 - [x] Run `pnpm verify`, build the zip, and record size and SHA-256.
-- [ ] Pass the installed Google Chrome DevTools checklist.
+- [x] Pass the installed Google Chrome DevTools checklist. The user-reported
+      Chrome 150/macOS run is recorded in [VERIFICATION.md](./VERIFICATION.md).
 
 Exit condition: every automated gate passes, the artifact is recorded, and all
 eight approved acceptance criteria are complete.
+
+The manual acceptance record is complete. Before publication, the current
+working tree still needs to become a clean release commit with a newly generated
+and recorded artifact.
 
 ## Stage 1 — distribution readiness
 
@@ -56,9 +61,25 @@ Goal: create a product that can legally and operationally be offered.
       publisher form.
 - [ ] Conduct an independent red-team review of redaction and exported
       artifacts.
+- [ ] Resolve persistent IndexedDB evidence retention against the final Web
+      Store user-data policy: obtain an approved interpretation, add
+      user-controlled encryption, or remove persistent retention from the
+      public build.
+- [ ] Publish the approved privacy policy at a stable public URL with an
+      effective date and Limited Use disclosure.
+- [x] Regenerate and inspect the five current 1280×800 light-theme store
+      screenshots from fixture-only data.
+- [ ] Create the required 440×280 small promo tile and YouTube product video.
+- [x] Preserve the historical design and implementation plan referenced by
+      [TRACEABILITY.md](./TRACEABILITY.md).
 
 Exit condition: owner signs the launch checklist and the final store package
 matches reviewed documentation.
+
+Validation note, 2026-07-30: listing copy, policy drafts, permission
+justifications, screenshot automation, and package automation exist. They do
+not complete the unchecked owner decisions, public contact/hosting work,
+compatibility matrix, independent review, or final publisher-form review.
 
 ## Stage 2 — problem and segment validation
 
@@ -75,6 +96,10 @@ initial segment.
 
 Exit condition: observed evidence supports or rejects the proposed wedge and
 defines the next usability work.
+
+Validation note, 2026-07-30: the repository contains measures and a proposed
+segment, but no participant record or observed research evidence. None of the
+Stage 2 items can yet be marked complete.
 
 ## Stage 3 — differentiated workflow
 

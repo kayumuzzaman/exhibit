@@ -13,13 +13,12 @@ Current intended environment:
 - local development with Node 22.13+ in the 22.x line or Node 24+, and pnpm
   10+.
 
-The automatic browser suite uses Playwright Chromium. Installed Google Chrome
-acceptance must be recorded separately because automation cannot drive the
-DevTools window. Chrome 120+ is the intended compatibility floor, not a
-completed compatibility claim: release remains blocked until the owner records
-an installed-browser matrix covering Chrome 120 and a representative current
-stable version on the operating systems they intend to support, or narrows the
-support statement.
+The automatic browser suite uses Playwright Chromium because automation cannot
+drive Chrome's DevTools window. A user-reported installed Chrome 150/macOS smoke
+passed on 2026-07-30. Chrome 120+ remains an intended compatibility floor, not a
+completed matrix claim: release remains blocked until the owner records Chrome
+120 and a representative current stable version on every operating system they
+intend to support, or narrows the support statement.
 
 Firefox, Safari, Edge-specific behavior, mobile browsers, native applications,
 server traffic, proxies, and unattended production monitoring are unsupported.

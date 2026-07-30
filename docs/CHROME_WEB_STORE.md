@@ -92,6 +92,9 @@ Accurate product behavior:
   purposes;
 - known credential material is redacted before trusted storage, display, copy,
   or export, subject to the documented detection limits;
+- optional persistent evidence is stored in IndexedDB without application-level
+  encryption; this must be resolved against the final policy review before
+  submission;
 - the user chooses whether to retain locally, export, clear, or uninstall.
 
 The publisher must map these facts to the current form wording and obtain any
@@ -99,28 +102,40 @@ required privacy/legal review before submission.
 
 ## Screenshots
 
-Regenerate the set with `pnpm screenshots`. It uses the lockfile-pinned local
-runner, drives the real
-panel against the real fixtures, hides the harness controls, and writes exactly
-1280 x 800 dark-theme PNGs to `docs/screenshots/`:
+Regenerate the tracked set with `pnpm screenshots`. It uses the lockfile-pinned
+local runner, drives the real panel against the real fixtures, hides the harness
+controls, and writes exactly 1280 x 800 light-theme PNGs to
+`docs/screenshots/`.
 
-| File                           | Shows                                                                                                       |
-| ------------------------------ | ----------------------------------------------------------------------------------------------------------- |
-| `01-recording-ledger.png`      | Command bar recording, session rail, populated ledger with a failure and a slow call.                       |
-| `02-explain-server-action.png` | Explain for a real Next.js Server Action: outcome sentence, confirmed confidence, opaque action identifier. |
-| `03-inspect-timing.png`        | Inspect timing waterfall with text labels and patterns beside the bars.                                     |
-| `04-flight-raw-fallback.png`   | Partially decoded React Flight body, its decode reason, and the Raw protocol tab.                           |
-| `05-redaction.png`             | Redacted URL query token, authorization and API-key headers, and body fields.                               |
+The capture profile fixes locale, timezone, motion, fixture display origin,
+clock, network timing, and HTTP Date values. The requests still execute against
+the real local fixtures, while repeated runs produce byte-identical PNGs.
 
-Also supply a 128 x 128 store icon (`public/icon/128.png`) and, optionally, a
-1400 x 560 marquee tile. The generated screenshots contain only fixture data:
-no real credentials, no customer data, and no third-party branding.
+The generated set is:
+
+| File                           | Shows                                                                                                        |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------ |
+| `01-recording-ledger.png`      | Command bar recording, session rail, populated ledger with a failure and a slow call.                        |
+| `02-explain-server-action.png` | Explain for a real Next.js Server Action: confirmed confidence, opaque action identifier, expanded evidence. |
+| `03-inspect-timing.png`        | Inspect timing waterfall with text labels and patterns beside the bars.                                      |
+| `04-flight-raw-fallback.png`   | Partially decoded React Flight body, its decode reason, and the Raw protocol tab.                            |
+| `05-redaction.png`             | Redacted URL query token, authorization and API-key headers, and body fields.                                |
+
+Also supply the existing 128 x 128 store icon (`public/icon/128.png`) and create
+the required 440 x 280 small promo tile plus a YouTube product video. The
+1400 x 560 marquee tile is optional. See Chrome's current
+[listing requirements](https://developer.chrome.com/docs/webstore/cws-dashboard-listing/).
+The generated screenshots contain only fixture data: no real credentials, no
+customer data, and no third-party branding.
 
 ## Privacy policy URL
 
 The form requires a reachable URL, not a repository file.
 [PRIVACY.md](./PRIVACY.md) holds publishable text but needs an effective date, a
-monitored contact, and somewhere to be hosted for as long as the item is listed.
+monitored contact, an approved Limited Use disclosure, and somewhere to be
+hosted for as long as the item is listed. Chrome's current
+[user-data guidance](https://developer.chrome.com/docs/webstore/program-policies/user-data-faq)
+requires disclosures even when processing and storage remain local.
 
 ## Release checklist
 

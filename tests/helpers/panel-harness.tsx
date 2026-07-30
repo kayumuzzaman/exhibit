@@ -91,6 +91,7 @@ function localSettingsArea(): SettingsStorageArea {
 export type MountPanelHarnessOptions = Readonly<{
   container: Element;
   origin: string;
+  stableScreenshot?: Readonly<{ runtimeOrigin: string }>;
   /** Numeric tab identity, matching the DevTools inspected-window contract. */
   tabId?: number;
 }>;
@@ -105,7 +106,11 @@ export async function mountPanelHarness(
 ): Promise<PanelHarness> {
   const inspectedTabId = options.tabId ?? 1;
   const tabId = String(inspectedTabId);
-  const port = createTestCapturePort();
+  const port = createTestCapturePort({
+    ...(options.stableScreenshot === undefined
+      ? {}
+      : { stableScreenshot: options.stableScreenshot }),
+  });
   const settingsRepository = createExhibitSettingsRepository(localSettingsArea());
   let currentSettings = await settingsRepository
     .load()
@@ -142,7 +147,11 @@ export async function mountPanelHarness(
     await Promise.allSettled([repository.save(initialSession), repository.flush()]);
   }
 
-  const interactions = createLoopbackInteractionSource();
+  const interactions = createLoopbackInteractionSource({
+    ...(options.stableScreenshot === undefined
+      ? {}
+      : { stableScreenshot: options.stableScreenshot }),
+  });
   let pipeline: ReturnType<typeof createRecordingPipeline> | null = null;
   const controller = createSessionController({
     initialSession,

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { act, screen } from '@testing-library/react';
+import { act, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { IDBFactory } from 'fake-indexeddb';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -99,20 +99,24 @@ describe('panel production entrypoint', () => {
   );
 
   it('resolves and live-updates the selected DevTools theme from the supported API', async () => {
-    const user = userEvent.setup();
     const chromeApi = installChrome(
       { href: 'https://app.test/orders', origin: 'https://app.test' },
       'default',
     );
 
     await bootEntrypoint();
-    await user.selectOptions(await screen.findByLabelText('Theme'), 'devtools');
+    await screen.findByRole('button', { name: 'Switch to dark theme' });
 
     const shell = document.querySelector('.app-shell');
     expect(shell).toHaveAttribute('data-devtools-theme', 'light');
 
     act(() => chromeApi.emitTheme('dark'));
-    expect(shell).toHaveAttribute('data-devtools-theme', 'dark');
+    await waitFor(() => {
+      expect(shell).toHaveAttribute('data-devtools-theme', 'dark');
+      expect(
+        screen.getByRole('button', { name: 'Switch to light theme' }),
+      ).toBeVisible();
+    });
   });
 
   it('loads local privacy settings before render and persists theme changes', async () => {
@@ -129,7 +133,7 @@ describe('panel production entrypoint', () => {
 
     await bootEntrypoint();
     const settingsButton = await screen.findByRole('button', {
-      name: 'Privacy settings',
+      name: 'Settings',
     });
 
     const shell = document.querySelector('.app-shell');
@@ -139,7 +143,7 @@ describe('panel production entrypoint', () => {
       screen.getByRole('textbox', { name: 'Additional sensitive field names' }),
     ).toHaveValue('Private Note');
     await user.keyboard('{Escape}');
-    await user.selectOptions(screen.getByRole('combobox', { name: 'Theme' }), 'light');
+    await user.click(screen.getByRole('button', { name: 'Switch to light theme' }));
 
     expect(chromeApi.localSet).toHaveBeenCalledWith({
       'exhibit:settings:v1': {

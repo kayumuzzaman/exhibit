@@ -7,6 +7,7 @@ import type {
   CaptureObservation,
   CaptureSource,
 } from '../../src/ports/capture-source';
+import { stableScreenshotCapture } from './stable-screenshot-capture';
 
 /**
  * Browser-side `CaptureSource` used by end-to-end harness pages. It observes
@@ -16,6 +17,11 @@ import type {
  * work without depending on the Chrome DevTools protocol.
  */
 export type TestCapturePortOptions = Readonly<{
+  /**
+   * Normalizes presentation-only capture values for reproducible store PNGs.
+   * Runtime traffic still goes through the real fixture origin.
+   */
+  stableScreenshot?: Readonly<{ runtimeOrigin: string }>;
   target?: Window & typeof globalThis;
   /** Milliseconds to wait for the matching resource timing entry. */
   timingTimeoutMs?: number;
@@ -144,6 +150,7 @@ export function createTestCapturePort(
 ): TestCapturePort {
   const target =
     options.target ?? (globalThis as unknown as Window & typeof globalThis);
+  const stableScreenshot = options.stableScreenshot;
   const timingTimeoutMs = options.timingTimeoutMs ?? 400;
   const listeners = new Set<(event: CaptureEvent) => void>();
   const consumedTimings = new Set<PerformanceResourceTiming>();
@@ -152,6 +159,7 @@ export function createTestCapturePort(
   const instrumented = new Map<Window & typeof globalThis, () => void>();
   const frames = new Set<Window & typeof globalThis>();
   let active = false;
+  let screenshotSequence = 0;
 
   function emit(event: CaptureEvent): void {
     for (const listener of listeners) listener(event);
@@ -289,16 +297,29 @@ export function createTestCapturePort(
       initiator: string;
     }>,
   ): HarEntryLike {
-    const timings = timingsFrom(input.timing);
+    const stable =
+      stableScreenshot === undefined
+        ? undefined
+        : stableScreenshotCapture({
+            redirectUrl: input.redirectUrl,
+            requestHeaders: input.requestHeaders,
+            responseHeaders: input.responseHeaders,
+            runtimeOrigin: stableScreenshot.runtimeOrigin,
+            sequence: screenshotSequence++,
+            url: input.url,
+          });
+    const timings = stable?.timings ?? timingsFrom(input.timing);
     return {
-      startedDateTime: input.startedDateTime,
-      time: input.timing === undefined ? 0 : Math.max(0, input.timing.duration),
+      startedDateTime: stable?.startedDateTime ?? input.startedDateTime,
+      time:
+        stable?.time ??
+        (input.timing === undefined ? 0 : Math.max(0, input.timing.duration)),
       _initiator: { type: input.initiator },
       ...(servedFromCache(input.timing) ? { _fromCache: 'memory' } : {}),
       request: {
         method: input.method,
-        url: input.url,
-        headers: [...input.requestHeaders],
+        url: stable?.url ?? input.url,
+        headers: [...(stable?.requestHeaders ?? input.requestHeaders)],
         ...(input.requestBody === undefined
           ? {}
           : {
@@ -311,8 +332,8 @@ export function createTestCapturePort(
       response: {
         status: input.status,
         statusText: input.statusText,
-        headers: [...input.responseHeaders],
-        redirectURL: input.redirectUrl,
+        headers: [...(stable?.responseHeaders ?? input.responseHeaders)],
+        redirectURL: stable?.redirectUrl ?? input.redirectUrl,
         bodySize: input.responseSize,
         content: {
           size: input.responseSize,

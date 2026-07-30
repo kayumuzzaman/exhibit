@@ -1,5 +1,8 @@
 // @vitest-environment jsdom
 
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+
 import {
   act,
   fireEvent,
@@ -26,6 +29,8 @@ import type {
 import type { SessionController } from '../../../src/features/session/session-controller';
 import type { ExhibitSettingsService } from '../../../src/features/settings/exhibit-settings';
 import { requestWith, sanitizedRequestWith } from '../../helpers/request-factory';
+
+const appCss = readFileSync(resolve(process.cwd(), 'src/styles/app.css'), 'utf8');
 
 function sessionWith(
   phase: RecordingPhase = 'stopped',
@@ -77,6 +82,29 @@ function controllerFake(initial = sessionWith()): SessionController & {
 function setViewport(width: number): void {
   Object.defineProperty(window, 'innerWidth', { configurable: true, value: width });
   window.dispatchEvent(new Event('resize'));
+}
+
+function installColorScheme(dark?: boolean): () => void {
+  const originalMatchMedia = window.matchMedia;
+  if (dark === undefined) {
+    Reflect.deleteProperty(window as unknown as Record<string, unknown>, 'matchMedia');
+  } else {
+    Object.defineProperty(window, 'matchMedia', {
+      configurable: true,
+      value: (query: string) =>
+        ({
+          matches: query === '(prefers-color-scheme: dark)' ? dark : false,
+          media: query,
+          addEventListener: vi.fn(),
+          removeEventListener: vi.fn(),
+        }) as unknown as MediaQueryList,
+    });
+  }
+  return () =>
+    Object.defineProperty(window, 'matchMedia', {
+      configurable: true,
+      value: originalMatchMedia,
+    });
 }
 
 describe('ExhibitApp', () => {
@@ -180,7 +208,7 @@ describe('ExhibitApp', () => {
     );
   });
 
-  it('edits and persists custom privacy fields from the command-bar settings', async () => {
+  it('toggles directly between explicit dark and light themes', async () => {
     const user = userEvent.setup();
     const settings: ExhibitSettingsService = {
       initial: { customFieldNames: ['Existing Field'], theme: 'dark' },
@@ -198,12 +226,124 @@ describe('ExhibitApp', () => {
     );
 
     expect(container.querySelector('.app-shell')).toHaveAttribute('data-theme', 'dark');
-    await user.selectOptions(screen.getByRole('combobox', { name: 'Theme' }), 'light');
+    await user.click(screen.getByRole('button', { name: 'Switch to light theme' }));
     expect(settings.saveTheme).toHaveBeenCalledWith('light');
+    expect(container.querySelector('.app-shell')).toHaveAttribute(
+      'data-theme',
+      'light',
+    );
 
-    await user.click(screen.getByRole('button', { name: 'Privacy settings' }));
+    await user.click(screen.getByRole('button', { name: 'Switch to dark theme' }));
+    expect(settings.saveTheme).toHaveBeenLastCalledWith('dark');
+    expect(container.querySelector('.app-shell')).toHaveAttribute('data-theme', 'dark');
+  });
+
+  it.each([
+    ['DevTools dark', 'devtools', 'dark', false, 'light'],
+    ['DevTools light', 'devtools', 'light', true, 'dark'],
+    ['system dark', 'system', 'light', true, 'light'],
+    ['system light', 'system', 'dark', false, 'dark'],
+    ['system fallback dark', 'system', 'light', undefined, 'light'],
+  ] as const)(
+    'toggles from resolved %s to opposite explicit theme',
+    async (_name, initialTheme, devtoolsTheme, systemDark, nextTheme) => {
+      const restoreColorScheme = installColorScheme(systemDark);
+      try {
+        const user = userEvent.setup();
+        const settings: ExhibitSettingsService = {
+          initial: { customFieldNames: [], theme: initialTheme },
+          saveCustomFieldNames: vi.fn(async (customFieldNames) => ({
+            customFieldNames,
+            theme: initialTheme,
+          })),
+          saveTheme: vi.fn(async (theme) => ({
+            customFieldNames: [],
+            theme,
+          })),
+        };
+        const { container } = render(
+          <ExhibitApp
+            controller={controllerFake()}
+            devtoolsTheme={{
+              getSnapshot: () => devtoolsTheme,
+              subscribe: () => () => undefined,
+            }}
+            settings={settings}
+          />,
+        );
+
+        await user.click(
+          screen.getByRole('button', { name: `Switch to ${nextTheme} theme` }),
+        );
+
+        expect(container.querySelector('.app-shell')).toHaveAttribute(
+          'data-theme',
+          nextTheme,
+        );
+        expect(settings.saveTheme).toHaveBeenCalledWith(nextTheme);
+      } finally {
+        restoreColorScheme();
+      }
+    },
+  );
+
+  it('can restore automatic DevTools theme behavior from Settings', async () => {
+    const user = userEvent.setup();
+    const settings: ExhibitSettingsService = {
+      initial: { customFieldNames: [], theme: 'dark' },
+      saveCustomFieldNames: vi.fn(async (customFieldNames) => ({
+        customFieldNames,
+        theme: 'dark' as const,
+      })),
+      saveTheme: vi.fn(async (theme) => ({
+        customFieldNames: [],
+        theme,
+      })),
+    };
+    const { container } = render(
+      <ExhibitApp
+        controller={controllerFake()}
+        devtoolsTheme={{
+          getSnapshot: () => 'light',
+          subscribe: () => () => undefined,
+        }}
+        settings={settings}
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Settings' }));
+    const themePreference = screen.getByRole('combobox', {
+      name: 'Theme preference',
+    });
+    expect(themePreference).toHaveValue('dark');
+
+    await user.selectOptions(themePreference, 'devtools');
+
+    expect(settings.saveTheme).toHaveBeenCalledWith('devtools');
+    expect(container.querySelector('.app-shell')).toHaveAttribute(
+      'data-theme',
+      'devtools',
+    );
+  });
+
+  it('edits and persists custom privacy fields from the command-bar settings', async () => {
+    const user = userEvent.setup();
+    const settings: ExhibitSettingsService = {
+      initial: { customFieldNames: ['Existing Field'], theme: 'dark' },
+      saveCustomFieldNames: vi.fn(async (customFieldNames) => ({
+        customFieldNames,
+        theme: 'dark' as const,
+      })),
+      saveTheme: vi.fn(async (theme) => ({
+        customFieldNames: ['Existing Field'],
+        theme,
+      })),
+    };
+    render(<ExhibitApp controller={controllerFake()} settings={settings} />);
+
+    await user.click(screen.getByRole('button', { name: 'Settings' }));
     const dialog = screen.getByRole('dialog', {
-      name: 'Privacy and redaction settings',
+      name: 'Settings',
     });
     const fieldNames = within(dialog).getByRole('textbox', {
       name: 'Additional sensitive field names',
@@ -219,9 +359,7 @@ describe('ExhibitApp', () => {
       'Private Note',
       'X-Customer-Key',
     ]);
-    expect(
-      screen.queryByRole('dialog', { name: 'Privacy and redaction settings' }),
-    ).toBeNull();
+    expect(screen.queryByRole('dialog', { name: 'Settings' })).toBeNull();
     expect(screen.getByRole('status')).toHaveTextContent('Privacy settings saved.');
   });
 
@@ -235,9 +373,9 @@ describe('ExhibitApp', () => {
       />,
     );
 
-    await user.click(screen.getByRole('button', { name: 'Privacy settings' }));
+    await user.click(screen.getByRole('button', { name: 'Settings' }));
     const dialog = screen.getByRole('dialog', {
-      name: 'Privacy and redaction settings',
+      name: 'Settings',
     });
 
     expect(
@@ -405,6 +543,49 @@ describe('ExhibitApp', () => {
     expect(screen.queryByText(/"saved"/)).not.toBeInTheDocument();
     await user.click(screen.getByRole('tab', { name: 'Response' }));
     expect(screen.getByText(/"saved": true/)).toBeVisible();
+  });
+
+  it('keeps body availability notices inset from every edge', async () => {
+    setViewport(1_440);
+    const user = userEvent.setup();
+    const request = sanitizedRequestWith({
+      id: 'unavailable-body',
+      url: 'https://checkout.example/api/unavailable',
+      classification: {
+        kind: 'api',
+        confidence: 'confirmed',
+        evidence: ['Fetch request'],
+      },
+      responseBody: {
+        state: 'unavailable',
+        size: 0,
+        capturedSize: 0,
+        reason: 'content-api-unavailable',
+      },
+    });
+    render(
+      <>
+        <style>
+          {appCss
+            .replaceAll('var(--space-3)', '12px')
+            .replaceAll('var(--space-4)', '16px')}
+        </style>
+        <ExhibitApp controller={controllerFake(sessionWith('recording', [request]))} />
+      </>,
+    );
+
+    await user.click(screen.getByRole('row', { name: /unavailable/i }));
+
+    const notice = screen
+      .getByText(
+        'DevTools did not provide this body. Headers and timing remain usable.',
+      )
+      .closest('.notice');
+    expect(notice).not.toBeNull();
+    expect(getComputedStyle(notice!).marginTop).toBe('12px');
+    expect(getComputedStyle(notice!).marginRight).toBe('16px');
+    expect(getComputedStyle(notice!).marginBottom).toBe('12px');
+    expect(getComputedStyle(notice!).marginLeft).toBe('16px');
   });
 
   it('threads only the selected interaction calls into Explain and redirect evidence', async () => {
@@ -702,7 +883,7 @@ describe('ExhibitApp', () => {
     const clear = screen.getByRole('button', { name: 'Clear evidence' });
     const exportButton = screen.getByRole('button', { name: 'Export evidence' });
     const stopButton = screen.getByRole('button', { name: 'Stop recording' });
-    const theme = screen.getByRole('combobox', { name: 'Theme' });
+    const theme = screen.getByRole('button', { name: 'Switch to light theme' });
 
     await user.click(opener);
     const drawer = screen.getByRole('dialog', { name: 'Session filters' });
@@ -721,7 +902,7 @@ describe('ExhibitApp', () => {
     }
 
     expect(stop).not.toHaveBeenCalled();
-    expect(theme).toHaveValue('devtools');
+    expect(theme).toHaveAccessibleName('Switch to light theme');
     expect(screen.getAllByRole('dialog')).toEqual([drawer]);
     expect(drawer).toHaveAttribute('aria-modal', 'true');
 

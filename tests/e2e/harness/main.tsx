@@ -1,4 +1,5 @@
 import { mountPanelHarness } from '../../helpers/panel-harness';
+import { SCREENSHOT_ORIGIN } from '../../helpers/stable-screenshot-capture';
 import '../../../src/styles/tokens.css';
 import '../../../src/styles/reset.css';
 import '../../../src/styles/app.css';
@@ -25,8 +26,18 @@ async function start(): Promise<void> {
   if (controls === null || panelRoot === null) {
     throw new Error('Exhibit harness containers are unavailable.');
   }
+  const stableScreenshot =
+    new URLSearchParams(globalThis.location.search).get('screenshot') === 'stable';
   globalThis.renderFixtureControls?.(controls);
-  await mountPanelHarness({ container: panelRoot, origin: globalThis.location.origin });
+  await mountPanelHarness({
+    container: panelRoot,
+    origin: stableScreenshot ? SCREENSHOT_ORIGIN : globalThis.location.origin,
+    ...(stableScreenshot
+      ? {
+          stableScreenshot: { runtimeOrigin: globalThis.location.origin },
+        }
+      : {}),
+  });
   document.body.dataset.harnessReady = 'true';
 }
 

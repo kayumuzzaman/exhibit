@@ -1,8 +1,9 @@
 # Verification
 
 Exhibit has one release gate. The commands below are intended to run from a
-clean checkout. The latest recorded run is reconstructable: it was produced from
-the committed candidate identified below.
+clean checkout. The latest committed artifact record is reconstructable from
+the candidate identified below. Newer working-tree evidence is recorded
+separately and is not a release artifact.
 
 ## Commands
 
@@ -26,6 +27,31 @@ pnpm release:artifact  # pnpm verify, then wxt zip
 The Playwright global setup builds the panel harness and the Next.js fixture,
 and fails fast if `.output/chrome-mv3/manifest.json` is missing.
 
+## Current working-tree verification — 2026-07-30
+
+Environment: macOS (arm64), Node v26.5.0, pnpm 10.33.2, WXT 0.21.2,
+Playwright 1.62.0.
+
+Base commit: `17a08d8`. This run covered uncommitted source, documentation, and
+tracked screenshot changes. The working tree was dirty, so this is fresh
+development evidence, not a release artifact record.
+
+| Gate                      | Result                                                                           |
+| ------------------------- | -------------------------------------------------------------------------------- |
+| `pnpm format:check`       | pass                                                                             |
+| `pnpm lint`               | pass, 0 warnings                                                                 |
+| `pnpm typecheck`          | pass                                                                             |
+| `pnpm build`              | pass — 523.93 kB unpacked                                                        |
+| `pnpm test:coverage`      | pass — 50 files, 1,004 tests                                                     |
+| Coverage — statements     | 95.75%                                                                           |
+| Coverage — branches       | 93.38%                                                                           |
+| Coverage — functions      | 97.44%                                                                           |
+| Coverage — lines          | 96.67%                                                                           |
+| `pnpm audit:package`      | pass — 0 unapproved network-destination URLs, 0 remote scripts, 0 inline scripts |
+| Manifest permissions      | `["scripting","storage"]`; required host permissions `[]`                        |
+| `pnpm audit:dependencies` | pass — 0 known vulnerabilities                                                   |
+| `pnpm test:e2e`           | pass — 43 tests                                                                  |
+
 ## Recorded automated run — 2026-07-29
 
 Environment: macOS 26.5.2 (arm64), Node v26.5.0, pnpm 10.33.2, WXT 0.21.2,
@@ -35,8 +61,10 @@ installed.
 Candidate commit: `94c74ae`, the committed tree carrying the fixes and audit
 documents described in the unreleased changelog. The gate ran against that
 exact tree with no uncommitted changes, so this is reproducible pre-release
-evidence; it is still not a signed release record, because the manual installed
-Chrome checklist below has not been completed.
+evidence. The manual installed-Chrome checklist was completed later on
+2026-07-30, but the current working tree has moved beyond this candidate. A
+final signed release record therefore still needs a new clean commit, artifact,
+and hash.
 
 | Gate                      | Result                                                                           |
 | ------------------------- | -------------------------------------------------------------------------------- |
@@ -133,7 +161,7 @@ do not skip. The standalone static package audit also runs after that build.
   attempts it and reports the refusal; the packaged-extension suite therefore
   runs on Playwright's Chromium build of the same engine version family.
 
-## Manual browser smoke — required before release
+## Manual browser smoke — completed 2026-07-30
 
 Run this in the locally installed Google Chrome and record the result here.
 
@@ -150,15 +178,19 @@ Run this in the locally installed Google Chrome and record the result here.
 8. Press **Clear** and confirm the ledger empties.
 9. Export and confirm the downloaded HAR contains no credential values.
 
-| Step                 | Result  | Date | Browser                      |
-| -------------------- | ------- | ---- | ---------------------------- |
-| Panel registration   | pending |      | Google Chrome 150.0.7871.187 |
-| Start/Stop           | pending |      |                              |
-| Interaction grouping | pending |      |                              |
-| Explain/Inspect      | pending |      |                              |
-| Redaction            | pending |      |                              |
-| Clear                | pending |      |                              |
-| Sanitized export     | pending |      |                              |
+| Step                 | Result | Date       | Browser                      |
+| -------------------- | ------ | ---------- | ---------------------------- |
+| Panel registration   | pass   | 2026-07-30 | Google Chrome 150.0.7871.187 |
+| Start/Stop           | pass   | 2026-07-30 | Google Chrome 150.0.7871.187 |
+| Interaction grouping | pass   | 2026-07-30 | Google Chrome 150.0.7871.187 |
+| Explain/Inspect      | pass   | 2026-07-30 | Google Chrome 150.0.7871.187 |
+| Redaction            | pass   | 2026-07-30 | Google Chrome 150.0.7871.187 |
+| Clear                | pass   | 2026-07-30 | Google Chrome 150.0.7871.187 |
+| Sanitized export     | pass   | 2026-07-30 | Google Chrome 150.0.7871.187 |
+
+The passing results dated 2026-07-30 are user-reported manual checks in the
+installed browser on macOS. Panel registration is evidenced by the Exhibit
+DevTools tab loading successfully for the other panel checks.
 
 ## Script-verified in real Chrome — 2026-07-29
 

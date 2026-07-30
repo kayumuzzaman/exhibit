@@ -52,7 +52,7 @@ server-to-server traffic and never guesses a server function name. See
 | `pnpm test`               | Unit and integration tests.                            |
 | `pnpm test:coverage`      | The same tests with the 90% four-metric gate.          |
 | `pnpm test:e2e`           | Playwright end-to-end suite (run `pnpm build` first).  |
-| `pnpm screenshots`        | Regenerate deterministic 1280×800 store screenshots.   |
+| `pnpm screenshots`        | Regenerate deterministic fixture-driven store PNGs.    |
 | `pnpm audit:package`      | Static audit of the built package.                     |
 | `pnpm audit:dependencies` | Reject known high/critical dependency vulnerabilities. |
 | `pnpm check`              | Format, lint, types, coverage, build.                  |

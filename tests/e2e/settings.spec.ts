@@ -4,8 +4,8 @@ test.describe('local settings', () => {
   test('persists theme and custom redaction, then applies it after reload', async ({
     exhibit,
   }) => {
-    await exhibit.page.getByRole('combobox', { name: 'Theme' }).selectOption('dark');
-    await exhibit.page.getByRole('button', { name: 'Privacy settings' }).click();
+    await exhibit.page.getByRole('button', { name: 'Switch to light theme' }).click();
+    await exhibit.page.getByRole('button', { name: 'Settings' }).click();
     await exhibit.page
       .getByRole('textbox', { name: 'Additional sensitive field names' })
       .fill('displayName');
@@ -14,13 +14,13 @@ test.describe('local settings', () => {
     await exhibit.reload();
     await expect(exhibit.page.locator('.app-shell')).toHaveAttribute(
       'data-theme',
-      'dark',
+      'light',
     );
-    await expect(exhibit.page.getByRole('combobox', { name: 'Theme' })).toHaveValue(
-      'dark',
-    );
+    await expect(
+      exhibit.page.getByRole('button', { name: 'Switch to dark theme' }),
+    ).toBeVisible();
 
-    await exhibit.page.getByRole('button', { name: 'Privacy settings' }).click();
+    await exhibit.page.getByRole('button', { name: 'Settings' }).click();
     await expect(
       exhibit.page.getByRole('textbox', {
         name: 'Additional sensitive field names',

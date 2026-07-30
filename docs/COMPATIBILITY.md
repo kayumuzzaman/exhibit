@@ -1,6 +1,6 @@
 # Exhibit compatibility floor
 
-**Reviewed:** 2026-07-29
+**Reviewed:** 2026-07-30
 
 **Declared floor:** `minimum_chrome_version: "120"` in `wxt.config.ts`
 
@@ -71,24 +71,29 @@ Two qualifications the publisher should know:
    documented the method for all storage areas without pinning the version at
    which `local` gained it.
 
+## Installed-browser evidence
+
+| Operating system | Browser                      | Result                               | Date       |
+| ---------------- | ---------------------------- | ------------------------------------ | ---------- |
+| macOS            | Google Chrome 150.0.7871.187 | pass, user-reported core panel smoke | 2026-07-30 |
+
+This establishes loading, panel registration, real DevTools capture, and the
+core workflow for that one browser/operating-system combination.
+
 ## What this does not establish
 
 Static analysis proves which features the code _asks for_. It does not prove
-Chrome _runs it_. Specifically untested:
+Chrome _runs it_ across the claimed support matrix. Specifically untested:
 
-- the extension loading from `chrome://extensions` on any real Chrome build;
-- `chrome.devtools.network` delivering real requests through
-  `src/infrastructure/chrome/devtools-capture-source.ts`, which has unit
-  coverage only;
-- DevTools panel registration, theming, and docking behaviour;
-- behaviour on Chrome 120 itself, or on Windows and Linux.
+- behavior on Chrome 120 itself;
+- behavior on Windows and Linux;
+- panel theming and docking across Chrome versions and operating systems.
 
-Until the manual checklist in [VERIFICATION.md](./VERIFICATION.md) is recorded
-on at least the floor version and one current stable, the honest public
-statement is the narrower one:
+Until Chrome 120 and every operating system the publisher chooses to support
+are recorded, the honest public statement is the narrower one:
 
-> Built and verified against Chrome 150 on macOS. Declares Chrome 120 as its
-> minimum supported version based on the platform features it uses.
+> Built and manually checked against Chrome 150 on macOS. Declares Chrome 120
+> as its minimum supported version based on the platform features it uses.
 
 Claiming tested support for the whole 120-to-current range needs the matrix in
 [ROADMAP.md](./ROADMAP.md) Stage 1.
